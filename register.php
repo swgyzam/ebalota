@@ -36,7 +36,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $position = $_POST['position'] ?? '';
     $department = trim($_POST['department'] ?? '');
     $course = trim($_POST['course'] ?? '');
-    $status = trim($_POST['status'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
 
@@ -69,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         try {
             $stmt = $pdo->prepare("INSERT INTO pending_users 
-                (first_name, last_name, email, position, department, course, status, password, token, expires_at) 
+                (first_name, last_name, email, position, department, course, password, token, expires_at) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
                 $first_name,

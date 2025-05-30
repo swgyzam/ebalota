@@ -15,3 +15,6 @@ Audit logs and election result reports
 Admin dashboard for managing users and elections
 
 This project reflects our commitment to leveraging technology to improve institutional processes and encourage civic engagement within the university community.
+
+3F7D58 - green
+EFEFEF - white
