@@ -6,50 +6,19 @@
     <link rel="icon" href="assets/img/weblogo.png" type="image/png">
     <title>eBalota</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="assets/styles/index.css" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet" />
-    <style>
-        body {
-            font-family: 'Poppins', sans-serif;
-            background-color: #f8fafc;
-        }
-        .hero-gradient {
-            background-color: #ffffff;
-        }
-        .nav-link {
-            position: relative;
-        }
-        .nav-link:after {
-            content: '';
-            position: absolute;
-            width: 0;
-            height: 2px;
-            bottom: -2px;
-            left: 0;
-            background-color: white;
-            transition: width 0.3s ease;
-        }
-        .nav-link:hover:after {
-            width: 100%;
-        }
-        .floating {
-            animation: floating 3s ease-in-out infinite;
-        }
-        @keyframes floating {
-            0% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-            100% { transform: translateY(0px); }
-        }
-    </style>
 </head>
 <body class="min-h-screen flex flex-col">
     <!-- Navigation -->
-    <nav class="sticky top-0 z-50 bg-green-800 text-white shadow-lg">
+    <nav class="sticky top-0 z-50 text-black shadow-lg">
         <div class="container mx-auto px-6 py-3 flex justify-between items-center">
             <div class="ebalotalogo">
-                <img src="assets/img/ebalota_logo.png" alt="logo" width="200">
+                <a href="#" style="max-width: 100%; height: auto;">
+                    <img src="assets/img/ebalota_logo.png" alt="logo" width="200">
+                </a>
             </div>
             <div class="hidden md:flex space-x-8">
-                <a href="#" class="nav-link font-medium">HOME</a>
                 <a href="register.html" class="nav-link font-medium">REGISTER</a>
                 <a href="login.html" class="nav-link font-medium">LOGIN</a>
             </div>
@@ -57,15 +26,15 @@
         </div>
     </nav>
 
-    <!-- Hero Section -->
+    <!-- Home Section -->
     <section class="hero-gradient text-white py-20 md:py-32">
         <div class="container mx-auto px-6 text-center">
             <div class="max-w-4xl mx-auto">
-                <p style="color: black; display: flex; justify-content: center; position: relative; top: 25px; font-weight: 500; font-size: 30px;" class="text-lg md:text-xl mb-4 opacity-90">Cavite State University</p>
+                <p style="color: rgb(255, 255, 255); display: flex; justify-content: center; font-weight: 500; font-size: 30px;" class="text-lg md:text-xl mb-4 opacity-90">Cavite State University</p>
                 <div style="display: flex; justify-content: center; align-items: center;">
                     <img src="assets/img/ebalota_logo.png" alt="logo" width="1000">
                 </div>
-                <p style="color: black; justify-content: center;" class="text-xl md:text-2xl mb-8 tracking-wider">Simplify the way you vote. eBalota an Online Voting System delivers a secured, transparent, and flexible election experience — no lines, no delays</p>
+                <p style="color: rgb(255, 255, 255); justify-content: center;" class="text-xl md:text-2xl mb-8 tracking-wider">Simplify the way you vote. eBalota an Online Voting System delivers a secured, transparent, and flexible election experience — no lines, no delays</p>
                 <div class="flex justify-center space-x-4">
                     <a href="#register-section" class="bg-white text-green-800 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition duration-300">Get Started</a>
                     <a href="#about-us" class="border-2 border-white px-6 py-3 rounded-lg font-semibold hover:bg-white hover:text-green-800 transition duration-300">Learn More</a>

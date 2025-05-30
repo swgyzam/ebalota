@@ -21,22 +21,51 @@
       }
     }
   </script>
+  <style>
+    .sticky {
+            background-color: #f8fafc;
+        }
+        .nav-link {
+            position: relative;
+        }
+        .ebalotalogo.img {
+            display: flex;
+            max-width: 100%;
+            height: auto;
+        }
+        .nav-link:after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 2px;
+            bottom: -2px;
+            left: 0;
+            background-color: rgb(6, 81, 16);
+            transition: width 0.3s ease;
+        }
+        .nav-link:hover:after {
+            width: 100%;
+        }
+  </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="bg-cvsu-light font-sans flex flex-col min-h-screen">
 
   <!-- NAVIGATION -->
-  <nav class="bg-white shadow-sm p-4 flex items-center justify-between">
-    <div class="flex items-center space-x-2">
-      <div class="w-6 h-6 bg-cvsu-primary rounded"></div>
-      <span class="font-bold text-xl text-cvsu-primary">eVOTE</span>
-    </div>
-    <div class="space-x-6">
-      <a href="homepage.html" class="text-gray-700 hover:text-cvsu-primary hover:underline">HOME</a>
-      <a href="register.html" class="text-gray-700 hover:text-cvsu-primary hover:underline">REGISTER</a>
-      <a href="login.html" class="text-cvsu-primary font-semibold border-b-2 border-cvsu-primary">LOGIN</a>
-    </div>
-  </nav>
+  <nav class="sticky top-0 z-50 text-black shadow-lg">
+        <div class="container mx-auto px-6 py-3 flex justify-between items-center">
+            <div class="ebalotalogo">
+                <a href="homepage.html" style="max-width: 100%; height: auto;">
+                    <img src="assets/img/ebalota_logo.png" alt="logo" width="200">
+                </a>
+            </div>
+            <div class="hidden md:flex space-x-8">
+                <a href="register.html" class="nav-link font-medium">REGISTER</a>
+                <a href="login.html" class="nav-link font-medium">LOGIN</a>
+            </div>
+            <button class="md:hidden text-2xl">☰</button>
+        </div>
+    </nav>
 
   <!-- LOGIN FORM -->
   <main class="flex-grow">
