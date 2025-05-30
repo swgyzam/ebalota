@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Election</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <form action="manage_elections.php" method="POST" enctype="multipart/form-data" class="bg-white p-8 rounded-lg shadow-md w-full max-w-2xl">
+        <h2 class="text-2xl font-bold mb-6">Create Election</h2>
+
+        <label class="block mb-2 font-semibold">Election Name *</label>
+        <input type="text" name="election_name" required class="w-full p-2 border rounded mb-4">
+
+        <label class="block mb-2 font-semibold">Description</label>
+        <textarea name="description" class="w-full p-2 border rounded mb-4"></textarea>
+
+        <label class="block mb-2 font-semibold">Start and End Date *</label>
+        <div class="flex gap-2 mb-4">
+            <input type="date" name="start_date" required class="w-1/2 p-2 border rounded">
+            <input type="date" name="end_date" required class="w-1/2 p-2 border rounded">
+        </div>
+
+        <label class="flex items-center mb-4">
+            <input type="checkbox" name="realtime" class="mr-2">
+            Show real-time result when the election is ongoing
+        </label>
+
+        <label class="block mb-2 font-semibold">Election Restriction</label>
+        <div class="grid grid-cols-4 gap-2 mb-4 text-sm">
+            <label><input type="checkbox" name="colleges[]" value="CAFENR"> CAFENR</label>
+            <label><input type="checkbox" name="colleges[]" value="CAS"> CAS</label>
+            <label><input type="checkbox" name="colleges[]" value="CEIT"> CEIT</label>
+            <label><input type="checkbox" name="colleges[]" value="CEMDS"> CEMDS</label>
+            <label><input type="checkbox" name="colleges[]" value="CED"> CED</label>
+            <label><input type="checkbox" name="colleges[]" value="CSPEAR"> CSPEAR</label>
+            <label><input type="checkbox" name="colleges[]" value="CTHM"> CTHM</label>
+            <label><input type="checkbox" name="colleges[]" value="CVBMS"> CVBMS</label>
+            <label><input type="checkbox" name="colleges[]" value="COM"> COM</label>
+            <label><input type="checkbox" name="colleges[]" value="GS-OLC"> GS-OLC</label>
+            <label><input type="checkbox" name="colleges[]" value="CON"> CON</label>
+            <label><input type="checkbox" name="colleges[]" value="CCJ"> CCJ</label>
+        </div>
+
+        <label class="block mb-2 font-semibold">Positions</label>
+        <div class="grid grid-cols-3 gap-4 mb-4">
+            <label><input type="checkbox" name="positions[]" value="Student"> Student</label>
+            <label><input type="checkbox" name="positions[]" value="Faculty"> Faculty</label>
+            <label><input type="checkbox" name="positions[]" value="Non-Faculty"> Non-Faculty</label>
+        </div>
+
+        <label class="block mb-2 font-semibold">Election Logo</label>
+        <input type="file" name="logo" accept="image/*" class="mb-4">
+
+        <div class="flex justify-end gap-2">
+            <button type="reset" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Create</button>
+        </div>
+    </form>
+</body>
+</html>

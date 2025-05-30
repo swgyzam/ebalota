@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login | eVOTE</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cvsu: {
+              primary: '#0a5f2d',
+              secondary: '#1e8449',
+              light: '#e8f5e9',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-cvsu-light font-sans flex flex-col min-h-screen">
+
+  <!-- NAVIGATION -->
+  <nav class="bg-white shadow-sm p-4 flex items-center justify-between">
+    <div class="flex items-center space-x-2">
+      <div class="w-6 h-6 bg-cvsu-primary rounded"></div>
+      <span class="font-bold text-xl text-cvsu-primary">eVOTE</span>
+    </div>
+    <div class="space-x-6">
+      <a href="homepage.html" class="text-gray-700 hover:text-cvsu-primary hover:underline">HOME</a>
+      <a href="register.html" class="text-gray-700 hover:text-cvsu-primary hover:underline">REGISTER</a>
+      <a href="login.html" class="text-cvsu-primary font-semibold border-b-2 border-cvsu-primary">LOGIN</a>
+    </div>
+  </nav>
+
+  <!-- LOGIN FORM -->
+  <main class="flex-grow">
+    <div class="max-w-md mx-auto my-10 bg-white p-8 rounded-xl shadow-md">
+      <div class="text-center mb-6">
+        <img src="https://www.cvsu.edu.ph/wp-content/uploads/2020/01/cvsu-logo.png" alt="CvSU Logo" class="h-16 mx-auto mb-4">
+        <h2 class="text-2xl font-bold text-gray-800">Welcome Back to eVOTE</h2>
+        <p class="text-gray-600">Sign in to your account</p>
+      </div>
+
+      <form action="login.php" method="POST" class="space-y-4" id="loginForm">
+        <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"></div>
+
+        <div class="relative">
+          <input type="email" name="email" id="email" placeholder="Email" required
+                 class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary">
+          <span class="absolute right-3 top-3 text-gray-400">
+            <i class="fas fa-envelope"></i>
+          </span>
+        </div>
+
+        <div class="relative">
+          <input type="password" name="password" id="loginPassword" placeholder="Password" required
+                 class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary">
+          <span class="absolute right-3 top-3 text-gray-400 cursor-pointer toggle-password" data-target="loginPassword">
+            <i class="fas fa-eye"></i>
+          </span>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <label class="flex items-center text-sm text-gray-600">
+            <input type="checkbox" id="remember" class="mr-2"> Remember me
+          </label>
+          <a href="forgot_password.html" id="forgotLink" class="text-sm text-cvsu-primary hover:underline">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="w-full bg-cvsu-primary text-white font-bold py-2 rounded hover:bg-cvsu-secondary transition duration-200">
+          SIGN IN
+        </button>
+
+        <div class="text-center text-sm mt-4 text-gray-600">
+          Don't have an account? <a href="register.html" class="text-cvsu-primary font-semibold hover:underline">Register here</a>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="bg-cvsu-primary text-white text-center p-4">
+    <p>© 2023 Cavite State University - eVOTE System. All rights reserved.</p>
+  </footer>
+
+  <!-- SCRIPTS -->
+  <script>
+    // Toggle password visibility
+    document.querySelectorAll('.toggle-password').forEach(icon => {
+      icon.addEventListener('click', function () {
+        const targetId = this.getAttribute('data-target');
+        const input = document.getElementById(targetId);
+        const iconTag = this.querySelector('i');
+        if (input.type === 'password') {
+          input.type = 'text';
+          iconTag.classList.replace('fa-eye', 'fa-eye-slash');
+        } else {
+          input.type = 'password';
+          iconTag.classList.replace('fa-eye-slash', 'fa-eye');
+        }
+      });
+    });
+
+    // Load saved email if 'remember me' is checked
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedEmail = localStorage.getItem('rememberedEmail');
+      if (savedEmail) {
+        document.getElementById('email').value = savedEmail;
+        document.getElementById('remember').checked = true;
+      }
+
+      // Show error from URL (if any)
+      const urlParams = new URLSearchParams(window.location.search);
+      const error = urlParams.get('error');
+      if (error) {
+        const errorDiv = document.getElementById('error-message');
+        errorDiv.textContent = decodeURIComponent(error);
+        errorDiv.classList.remove('hidden');
+      }
+    });
+
+    // Save email to localStorage on form submit
+    document.getElementById('loginForm').addEventListener('submit', function () {
+      const emailInput = document.getElementById('email').value;
+      const remember = document.getElementById('remember').checked;
+      if (remember) {
+        localStorage.setItem('rememberedEmail', emailInput);
+      } else {
+        localStorage.removeItem('rememberedEmail');
+      }
+    });
+
+    // Optional forgot password behavior
+    document.getElementById('forgotLink').addEventListener('click', (e) => {
+      // You can redirect or show modal here if needed
+      // e.preventDefault(); alert('Password reset link will be sent to your email.');
+    });
+  </script>
+</body>
+</html>
