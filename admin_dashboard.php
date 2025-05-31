@@ -63,14 +63,12 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
   <title>eBalota - admin dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* Custom green shades inspired by CvSU branding */
     :root {
       --cvsu-green-dark: #154734;
       --cvsu-green: #1E6F46;
       --cvsu-green-light: #37A66B;
       --cvsu-yellow: #FFD166;
     }
-    /* Scrollbar for sidebar */
     ::-webkit-scrollbar {
       width: 6px;
     }
@@ -80,51 +78,55 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
     }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-900 font-sans">
+<body class="bg-gray-50 text-gray-900-keft font-sans">
 
   <div class="flex min-h-screen">
 
     <?php include 'sidebar.php'; ?>
 
     <!-- Main content -->
-    <main class="flex-1 ml-64 p-12">
-      <h1 class="text-4xl font-extrabold mb-12 text-[var(--cvsu-green-dark)] tracking-tight">Admin Dashboard Overview</h1>
+    <main class="flex-1 transition-all duration-300 md:ml-64 px-4 py-6 sm:px-8 md:px-12">
+      <!-- Responsive paddings: px-4 on mobile, px-8 on sm, px-12 on md+ -->
+      <main class="flex-1 transition-all duration-300 ml-14 md:ml-64 px-4 py-0 sm:px-8 md:px-12">
+        <h1 class="text-4xl md:text-4xl font-extrabold mb-10 md:mb-13 text-[var(--cvsu-green-dark)] tracking-tight">
+            Admin Dashboard Overview
+        </h1>
+        <!-- ...rest of dashboard... -->
+      </main>
 
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-8">
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 md:gap-8">
         <!-- Total Voters -->
-        <div class="bg-white p-8 rounded-xl shadow-lg border-l-8 border-[var(--cvsu-green)] hover:shadow-2xl transition-shadow duration-300">
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-[var(--cvsu-green)] hover:shadow-2xl transition-shadow duration-300">
           <div class="flex items-center justify-between">
             <div>
-              <h2 class="text-lg font-semibold text-gray-700">Total Verified Voters</h2>
-              <p class="text-4xl font-bold text-[var(--cvsu-green-dark)] mt-3"><?= $total_voters ?></p>
+              <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Verified Voters</h2>
+              <p class="text-2xl md:text-4xl font-bold text-[var(--cvsu-green-dark)] mt-2 md:mt-3"><?= $total_voters ?></p>
             </div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-[var(--cvsu-green-light)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-[var(--cvsu-green-light)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c.45 0 .85-.3.97-.73L14 7m-4 4h4m-4 0v4m4-4v4m-4-4H8m0 0l-2 4m10-4l2 4" />
             </svg>
           </div>
         </div>
-
         <!-- Total Elections -->
-        <div class="bg-white p-8 rounded-xl shadow-lg border-l-8 border-yellow-400 hover:shadow-2xl transition-shadow duration-300">
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-yellow-400 hover:shadow-2xl transition-shadow duration-300">
           <div class="flex items-center justify-between">
             <div>
-              <h2 class="text-lg font-semibold text-gray-700">Total Elections</h2>
-              <p class="text-4xl font-bold text-yellow-600 mt-3"><?= $total_elections ?></p>
+              <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Elections</h2>
+              <p class="text-2xl md:text-4xl font-bold text-yellow-600 mt-2 md:mt-3"><?= $total_elections ?></p>
             </div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
           </div>
         </div>
-
         <!-- Ongoing Elections -->
-        <div class="bg-white p-8 rounded-xl shadow-lg border-l-8 border-blue-500 hover:shadow-2xl transition-shadow duration-300">
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-blue-500 hover:shadow-2xl transition-shadow duration-300">
           <div class="flex items-center justify-between">
             <div>
-              <h2 class="text-lg font-semibold text-gray-700">Ongoing Elections</h2>
-              <p class="text-4xl font-bold text-blue-600 mt-3"><?= $ongoing_elections ?></p>
+              <h2 class="text-base md:text-lg font-semibold text-gray-700">Ongoing Elections</h2>
+              <p class="text-2xl md:text-4xl font-bold text-blue-600 mt-2 md:mt-3"><?= $ongoing_elections ?></p>
             </div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3" />
             </svg>
           </div>
@@ -134,7 +136,6 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
       <?php include 'footer.php'; ?>
 
     </main>
-
   </div>
 </body>
 </html>

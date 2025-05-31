@@ -41,7 +41,7 @@ function sendAdminVerificationEmail($email, $first_name, $last_name, $token) {
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
 
-        $mail->setFrom('mark.anthony.mark233@gmail.com', 'eVoting System');
+        $mail->setFrom('mark.anthony.mark233@gmail.com', 'eBalota');
         $mail->addAddress($email, "$first_name $last_name");
 
         $mail->isHTML(true);
