@@ -1,8 +1,8 @@
 <!-- sidebar.php -->
 <aside class="w-64 bg-[var(--cvsu-green-dark)] text-white fixed top-0 left-0 h-full shadow-lg overflow-y-auto">
     <div class="p-6 flex items-center gap-3 font-extrabold text-2xl tracking-wide border-b border-[var(--cvsu-green)]">
-        <img src="images/cvsu_logo.png" alt="CvSU Logo" class="h-10 w-10 rounded-full shadow-md" />
-        <span class="text-[var(--cvsu-yellow)]">E-Vote</span>
+        <img src="assets/img/ebalota_logo.png" alt="CvSU Logo" class="h-10 w-10 rounded-full shadow-md" />
+        <span class="text-[var(--cvsu-yellow)]">eBalota</span>
     </div>
   <nav class="mt-8">
     <a href="admin_dashboard.php" class="flex items-center gap-3 py-3 px-8 bg-[var(--cvsu-green)] font-semibold rounded-r-lg shadow-md hover:bg-[var(--cvsu-green-light)] transition duration-300">

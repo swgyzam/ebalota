@@ -59,7 +59,8 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Admin Dashboard - E-Voting System</title>
+  <link rel="icon" href="assets/img/weblogo.png" type="image/png">
+  <title>eBalota - admin dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     /* Custom green shades inspired by CvSU branding */
