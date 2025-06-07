@@ -1,4 +1,4 @@
-<?php
+<?php 
 session_start();
 
 $host = 'localhost';
@@ -30,67 +30,113 @@ $errors = [];
 $success = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Basic fields
     $first_name = trim(htmlspecialchars($_POST['first_name'] ?? ''));
     $last_name = trim(htmlspecialchars($_POST['last_name'] ?? ''));
     $email = filter_var(trim($_POST['email'] ?? ''), FILTER_SANITIZE_EMAIL);
-    $position = $_POST['position'] ?? '';
-    $department = trim($_POST['department'] ?? '');
-    $course = trim($_POST['course'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
+
+    // Position
+    $position = $_POST['position'] ?? '';
+    $status = '';
+    $department = '';
+    $course = '';
+    $is_coop_member = 0;
+
+    // Process position logic
+    if ($position === 'student') {
+        $department = $_POST['studentDepartment'] ?? '';
+        $course = $_POST['studentCourse'] ?? '';
+        $final_position = 'student'; // no coop
+    } elseif ($position === 'academic') {
+        $department = $_POST['academicCollege'] ?? '';
+        $course = $_POST['academicCourse'] ?? '';
+        $status = $_POST['academicStatus'] ?? '';
+        if ($status === 'regular' && isset($_POST['academicIsCoop'])) {
+            $is_coop_member = 1;
+        }
+        $final_position = 'academic';
+      } elseif ($position === 'non-academic') {
+        $department = $_POST['nonAcademicDept'] ?? '';
+        $status = $_POST['nonAcademicStatus'] ?? '';
+        file_put_contents('debug.log', "nonAcademicStatus value: " . var_export($status, true) . "\n", FILE_APPEND);
+    
+        if ($status === 'regular' && isset($_POST['nonAcademicIsCoop'])) {
+            $is_coop_member = 1;
+        }
+        $final_position = 'non-academic';
+    }
+    
+
+    // Final DB value for position (e.g., "academic,coop")
+    $position_db = $final_position;
+    if (($final_position === 'academic' || $final_position === 'non-academic') && $is_coop_member === 1 && $status === 'regular') {
+        $position_db .= ',coop';
+    }
 
     // Validation
     if (empty($first_name)) $errors[] = "First name is required.";
     if (empty($last_name)) $errors[] = "Last name is required.";
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Valid email is required.";
-    if (!in_array($position, ['student', 'faculty', 'coop'])) $errors[] = "Please select a valid position.";
-    if (empty($department)) $errors[] = "Department is required.";
-    if ($position === 'student' && empty($course)) $errors[] = "Course is required for students.";
-    if (($position === 'faculty' || $position === 'coop') && empty($status)) $errors[] = "Status is required for faculty and coop.";
+    if (empty($position)) $errors[] = "Position is required.";
+
+    if ($position === 'student') {
+        if (empty($department)) $errors[] = "Department (College) is required for students.";
+        if (empty($course)) $errors[] = "Course is required for students.";
+    } elseif ($position === 'academic') {
+        if (empty($department)) $errors[] = "College is required for academic.";
+        if (empty($status)) $errors[] = "Status is required for academic.";
+    } elseif ($position === 'non-academic') {
+        if (empty($department)) $errors[] = "Department is required for non-academic.";
+        if (empty($status)) $errors[] = "Status is required for non-academic.";
+    }
+
     if (strlen($password) < 8) $errors[] = "Password must be at least 8 characters.";
     if (!preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password) || !preg_match('/[0-9]/', $password)) {
         $errors[] = "Password must contain uppercase, lowercase letters, and numbers.";
     }
     if ($password !== $confirm_password) $errors[] = "Passwords do not match.";
 
-    if (empty($errors)) {
-        $stmt = $pdo->prepare("SELECT email FROM pending_users WHERE email = ? UNION SELECT email FROM users WHERE email = ?");
-        $stmt->execute([$email, $email]);
-        if ($stmt->fetch()) {
-            $errors[] = "This email is already registered.";
-        }
+    // Check duplicate email in both users and pending_users
+    $email_check_stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE email = ? UNION SELECT COUNT(*) FROM pending_users WHERE email = ?");
+    $email_check_stmt->execute([$email, $email]);
+    $counts = $email_check_stmt->fetchAll(PDO::FETCH_COLUMN);
+    if (array_sum($counts) > 0) {
+        $errors[] = "Email already registered.";
     }
 
     if (empty($errors)) {
         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
         $token = bin2hex(random_bytes(32));
         $expiresAt = date('Y-m-d H:i:s', strtotime('+1 day'));
-
+        
         try {
             $stmt = $pdo->prepare("INSERT INTO pending_users 
-                (first_name, last_name, email, position, department, course, password, token, expires_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                (first_name, last_name, email, position, department, course, status, password, token, expires_at, is_coop_member) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
                 $first_name,
                 $last_name,
                 $email,
-                $position,
+                $position_db,
                 $department,
-                $position === 'student' ? $course : null,
-                ($position === 'faculty' || $position === 'coop') ? $status : null,
+                $course,
+                $status,
                 $hashed_password,
                 $token,
-                $expiresAt
+                $expiresAt,
+                $is_coop_member
             ]);
 
-            $verificationUrl = "http://localhost/evoting/verify_email.php?token=$token";
+            $verificationUrl = "http://localhost/ebalota/verify_email.php?token=$token";
 
             $mail = new PHPMailer(true);
             $mail->isSMTP();
             $mail->Host = 'smtp.gmail.com';
             $mail->SMTPAuth = true;
-            $mail->Username = 'mark.anthony.mark233@gmail.com';  // change to your email
-            $mail->Password = 'dbqwfzasqmaitlty';                // change to your app password
+            $mail->Username = 'mark.anthony.mark233@gmail.com';
+            $mail->Password = 'dbqwfzasqmaitlty';
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port = 587;
 
@@ -128,6 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 
+<!-- HTML for feedback modal -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -136,12 +183,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center">
-
-  <!-- Modal -->
   <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 <?php if (!$success && empty($errors)) echo 'hidden'; ?>">
     <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-10 relative text-center flex flex-col items-center">
-
-      <!-- Close Button -->
       <button id="closeBtn" class="absolute top-4 right-5 text-gray-600 hover:text-black text-2xl font-bold">&times;</button>
 
       <?php if ($success): ?>
@@ -161,23 +204,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </ul>
       <?php endif; ?>
 
-      <a href="register.html" class="mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded transition">
-        Back to Registration
-      </a>
+      <a href="register.html" class="inline-block mt-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold">Back to Register</a>
     </div>
   </div>
 
   <script>
-    document.getElementById('closeBtn').addEventListener('click', () => {
-      document.getElementById('modal').classList.add('hidden');
-    });
-
-    document.getElementById('modal').addEventListener('click', (e) => {
-      if (e.target === e.currentTarget) {
-        document.getElementById('modal').classList.add('hidden');
-      }
+    const modal = document.getElementById('modal');
+    const closeBtn = document.getElementById('closeBtn');
+    closeBtn.addEventListener('click', () => {
+      modal.classList.add('hidden');
+      window.location.href = 'register.html';
     });
   </script>
-
 </body>
 </html>
