@@ -30,7 +30,7 @@ try {
 // Function to send admin verification email
 function sendAdminVerificationEmail($email, $first_name, $last_name, $token) {
     $mail = new PHPMailer(true);
-    $verificationUrl = "http://localhost/evoting/admin_verify_token.php?token=$token";
+    $verificationUrl = "http://localhost/ebalota/admin_verify_token.php?token=$token";
 
     try {
         $mail->isSMTP();
@@ -76,8 +76,6 @@ function sendAdminVerificationEmail($email, $first_name, $last_name, $token) {
         return false;
     }
 }
-
-// Cookie-based login (optional, your existing code here if any)
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = filter_var(trim($_POST['email'] ?? ''), FILTER_SANITIZE_EMAIL);
@@ -138,13 +136,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['first_name'] = $user['first_name'];
         $_SESSION['last_name'] = $user['last_name'];
         $_SESSION['email'] = $user['email'];
-        $_SESSION['is_admin'] = false;
+        $_SESSION['is_admin'] = (bool)$user['is_admin'];
 
-        $_SESSION['position'] = $user['position'];
-        $_SESSION['department'] = $user['department'];
+        // New session variables for position and coop member
+        $_SESSION['position'] = $user['position'];             // 'student', 'academic', 'non-academic'
+        $_SESSION['is_coop_member'] = (bool)$user['is_coop_member'];
+        $_SESSION['department'] = $user['department'] ?? '';
         $_SESSION['course'] = $user['course'] ?? '';
         $_SESSION['status'] = $user['status'] ?? '';
-        $_SESSION['role'] = 'voter'; 
+        $_SESSION['role'] = 'voter';
 
         // Remember me functionality
         if ($remember) {
@@ -159,6 +159,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'samesite' => 'Strict'
             ]);
         }
+
+        // Redirect based on role/admin
+        if ($_SESSION['is_admin']) {
+            header("Location: admin_dashboard.php");
+            exit;
+        }
+
+        // Example: you can add custom redirect logic for coop members or position
+        // if ($_SESSION['position'] === 'academic' && $_SESSION['is_coop_member']) {
+        //     header("Location: coop_dashboard.php");
+        //     exit;
+        // }
 
         header("Location: voters_dashboard.php");
         exit;

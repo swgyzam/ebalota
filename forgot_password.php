@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ON DUPLICATE KEY UPDATE token = VALUES(token), expires_at = VALUES(expires_at)");
                 $stmt->execute([$user['user_id'], $token, $expiresAt]);
 
-                $resetUrl = "http://localhost/evoting/reset_password.php?token=$token";
+                $resetUrl = "http://localhost/ebalota/reset_password.php?token=$token";
 
                 $mail = new PHPMailer(true);
                 $mail->isSMTP();

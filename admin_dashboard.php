@@ -20,17 +20,6 @@ try {
     die("Database connection failed: " . $e->getMessage());
 }
 
-$timeout_duration = 3600; // 1hr
-
-if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY']) > $timeout_duration) {
-    session_unset();
-    session_destroy();
-    header('Location: login.php?error=Session expired. Please login again.');
-    exit();
-}
-
-$_SESSION['LAST_ACTIVITY'] = time();
-
 // Redirect if not logged in or not admin
 if (!isset($_SESSION['user_id']) || empty($_SESSION['is_admin'])) {
     header('Location: login.php');
@@ -85,14 +74,10 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
     <?php include 'sidebar.php'; ?>
 
     <!-- Main content -->
-    <main class="flex-1 transition-all duration-300 md:ml-64 px-4 py-6 sm:px-8 md:px-12">
-      <!-- Responsive paddings: px-4 on mobile, px-8 on sm, px-12 on md+ -->
-      <main class="flex-1 transition-all duration-300 ml-14 md:ml-64 px-4 py-0 sm:px-8 md:px-12">
-        <h1 class="text-4xl md:text-4xl font-extrabold mb-10 md:mb-13 text-[var(--cvsu-green-dark)] tracking-tight">
-            Admin Dashboard Overview
-        </h1>
-        <!-- ...rest of dashboard... -->
-      </main>
+    <main class="flex-1 p-8 ml-64">
+    <header class="bg-[var(--cvsu-green-dark)] text-white p-6 flex justify-between items-center shadow-md rounded-md mb-8">
+      <h1 class="text-3xl font-extrabold">Admin Dashboard Overview</h1>
+    </header>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 md:gap-8">
         <!-- Total Voters -->

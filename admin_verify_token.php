@@ -39,7 +39,7 @@ $stmt->execute([$token]);
 $user = $stmt->fetch();
 
 if (!$user || !$user['is_admin']) {
-    header("Location: login.html?error=" . urlencode("Invalid or expired link."));
+    header("Location: login.html?error=" . urlencode("Token is invalid or has expired."));
     exit;
 }
 
@@ -66,9 +66,6 @@ if (!$user['is_verified']) {
 ?>
 
 
-<!DOCTYPE html>
-<html lang="en">
-<!-- Rest of your HTML remains exactly the same -->
 
 <!DOCTYPE html>
 <html lang="en">

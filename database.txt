@@ -1,0 +1,150 @@
+MariaDB [evoting_system]> describe admin_login_tokens;
++------------+--------------+------+-----+---------------------+----------------+
+| Field      | Type         | Null | Key | Default             | Extra          |
++------------+--------------+------+-----+---------------------+----------------+
+| id         | int(11)      | NO   | PRI | NULL                | auto_increment |
+| user_id    | int(11)      | NO   | MUL | NULL                |                |
+| token      | varchar(255) | NO   |     | NULL                |                |
+| expires_at | datetime     | NO   |     | NULL                |                |
+| created_at | timestamp    | NO   |     | current_timestamp() |                |
++------------+--------------+------+-----+---------------------+----------------+
+5 rows in set (0.027 sec)
+
+MariaDB [evoting_system]> describe candidates;
++--------------+--------------+------+-----+---------+----------------+
+| Field        | Type         | Null | Key | Default | Extra          |
++--------------+--------------+------+-----+---------+----------------+
+| candidate_id | int(11)      | NO   | PRI | NULL    | auto_increment |
+| election_id  | int(11)      | NO   | MUL | NULL    |                |
+| user_id      | int(11)      | NO   | MUL | NULL    |                |
+| position     | varchar(100) | YES  |     | NULL    |                |
+| manifesto    | text         | YES  |     | NULL    |                |
++--------------+--------------+------+-----+---------+----------------+
+5 rows in set (0.022 sec)
+
+MariaDB [evoting_system]> describe courses;
++-----------+--------------+------+-----+---------+----------------+
+| Field     | Type         | Null | Key | Default | Extra          |
++-----------+--------------+------+-----+---------+----------------+
+| course_id | int(11)      | NO   | PRI | NULL    | auto_increment |
+| name      | varchar(100) | NO   | UNI | NULL    |                |
+| dept_id   | int(11)      | YES  | MUL | NULL    |                |
++-----------+--------------+------+-----+---------+----------------+
+3 rows in set (0.019 sec)
+
+MariaDB [evoting_system]> describe departments;
++---------+--------------+------+-----+---------+----------------+
+| Field   | Type         | Null | Key | Default | Extra          |
++---------+--------------+------+-----+---------+----------------+
+| dept_id | int(11)      | NO   | PRI | NULL    | auto_increment |
+| name    | varchar(100) | NO   | UNI | NULL    |                |
++---------+--------------+------+-----+---------+----------------+
+2 rows in set (0.020 sec)
+
+MariaDB [evoting_system]> describe elections;
++-------------------+----------------------------------------+------+-----+---------------------+----------------+
+| Field             | Type                                   | Null | Key | Default             | Extra          |
++-------------------+----------------------------------------+------+-----+---------------------+----------------+
+| election_id       | int(11)                                | NO   | PRI | NULL                | auto_increment |
+| title             | varchar(255)                           | NO   |     | NULL                |                |
+| description       | text                                   | YES  |     | NULL                |                |
+| start_datetime    | datetime                               | NO   |     | NULL                |                |
+| end_datetime      | datetime                               | NO   |     | NULL                |                |
+| status            | enum('upcoming','ongoing','completed') | YES  |     | upcoming            |                |
+| created_at        | timestamp                              | NO   |     | current_timestamp() |                |
+| target_department | varchar(100)                           | NO   |     | All                 |                |
+| target_position   | enum('student','faculty','coop','All') | NO   |     | All                 |                |
+| realtime_results  | tinyint(1)                             | NO   |     | 0                   |                |
+| allowed_colleges  | varchar(255)                           | NO   |     | All                 |                |
+| allowed_courses   | text                                   | YES  |     | ''                  |                |
+| allowed_status    | text                                   | YES  |     | NULL                |                |
++-------------------+----------------------------------------+------+-----+---------------------+----------------+
+13 rows in set (0.025 sec)
+
+MariaDB [evoting_system]> describe email_verification_tokens;
++------------+--------------+------+-----+---------+----------------+
+| Field      | Type         | Null | Key | Default | Extra          |
++------------+--------------+------+-----+---------+----------------+
+| token_id   | int(11)      | NO   | PRI | NULL    | auto_increment |
+| user_id    | int(11)      | NO   | MUL | NULL    |                |
+| token      | varchar(100) | NO   |     | NULL    |                |
+| expires_at | datetime     | NO   |     | NULL    |                |
+| is_used    | tinyint(1)   | YES  |     | 0       |                |
++------------+--------------+------+-----+---------+----------------+
+5 rows in set (0.020 sec)
+
+MariaDB [evoting_system]> describe password_reset_tokens;
++------------+-------------+------+-----+---------+----------------+
+| Field      | Type        | Null | Key | Default | Extra          |
++------------+-------------+------+-----+---------+----------------+
+| id         | int(11)     | NO   | PRI | NULL    | auto_increment |
+| user_id    | int(11)     | NO   | UNI | NULL    |                |
+| token      | varchar(64) | NO   |     | NULL    |                |
+| expires_at | datetime    | NO   |     | NULL    |                |
++------------+-------------+------+-----+---------+----------------+
+4 rows in set (0.025 sec)
+
+MariaDB [evoting_system]> describe pending_users;
++------------+----------------------------------+------+-----+---------------------+----------------+
+| Field      | Type                             | Null | Key | Default             | Extra          |
++------------+----------------------------------+------+-----+---------------------+----------------+
+| pending_id | int(11)                          | NO   | PRI | NULL                | auto_increment |
+| first_name | varchar(100)                     | YES  |     | NULL                |                |
+| last_name  | varchar(100)                     | YES  |     | NULL                |                |
+| email      | varchar(150)                     | YES  | UNI | NULL                |                |
+| position   | enum('student','faculty','coop') | YES  |     | NULL                |                |
+| department | varchar(100)                     | YES  |     | NULL                |                |
+| course     | varchar(100)                     | YES  |     | NULL                |                |
+| password   | varchar(255)                     | YES  |     | NULL                |                |
+| token      | varchar(255)                     | NO   |     | NULL                |                |
+| expires_at | datetime                         | NO   |     | NULL                |                |
+| created_at | timestamp                        | NO   |     | current_timestamp() |                |
+| status     | enum('regular','lecturer')       | YES  |     | NULL                |                |
++------------+----------------------------------+------+-----+---------------------+----------------+
+12 rows in set (0.028 sec)
+
+MariaDB [evoting_system]> describe users;
++----------------+----------------------------------+------+-----+---------------------+----------------+
+| Field          | Type                             | Null | Key | Default             | Extra          |
++----------------+----------------------------------+------+-----+---------------------+----------------+
+| user_id        | int(11)                          | NO   | PRI | NULL                | auto_increment |
+| first_name     | varchar(50)                      | NO   |     | NULL                |                |
+| last_name      | varchar(50)                      | NO   |     | NULL                |                |
+| email          | varchar(100)                     | NO   | UNI | NULL                |                |
+| position       | enum('student','faculty','coop') | NO   |     | NULL                |                |
+| department     | varchar(100)                     | YES  |     | NULL                |                |
+| course         | varchar(100)                     | YES  |     | NULL                |                |
+| status         | enum('regular','lecturer')       | YES  |     | NULL                |                |
+| password       | varchar(255)                     | YES  |     | NULL                |                |
+| is_verified    | tinyint(1)                       | YES  |     | 0                   |                |
+| is_admin       | tinyint(1)                       | YES  |     | 0                   |                |
+| created_at     | timestamp                        | NO   |     | current_timestamp() |                |
+| remember_token | varchar(64)                      | YES  |     | NULL                |                |
++----------------+----------------------------------+------+-----+---------------------+----------------+
+13 rows in set (0.024 sec)
+
+MariaDB [evoting_system]> describe votes;
++---------------+-----------+------+-----+---------------------+----------------+
+| Field         | Type      | Null | Key | Default             | Extra          |
++---------------+-----------+------+-----+---------------------+----------------+
+| vote_id       | int(11)   | NO   | PRI | NULL                | auto_increment |
+| election_id   | int(11)   | NO   | MUL | NULL                |                |
+| candidate_id  | int(11)   | NO   | MUL | NULL                |                |
+| voter_id      | int(11)   | NO   | MUL | NULL                |                |
+| vote_datetime | timestamp | NO   |     | current_timestamp() |                |
++---------------+-----------+------+-----+---------------------+----------------+
+5 rows in set (0.023 sec)
+
+MariaDB [evoting_system]> describe import_logs;
++-----------------+--------------+------+-----+---------------------+----------------+
+| Field           | Type         | Null | Key | Default             | Extra          |
++-----------------+--------------+------+-----+---------------------+----------------+
+| id              | int(11)      | NO   | PRI | NULL                | auto_increment |
+| admin_id        | int(11)      | NO   | MUL | NULL                |                |
+| filename        | varchar(255) | NO   |     | NULL                |                |
+| imported_at     | timestamp    | NO   |     | current_timestamp() |                |
+| total_rows      | int(11)      | YES  |     | 0                   |                |
+| successful_rows | int(11)      | YES  |     | 0                   |                |
+| failed_rows     | int(11)      | YES  |     | 0                   |                |
++-----------------+--------------+------+-----+---------------------+----------------+
+7 rows in set (0.029 sec)
