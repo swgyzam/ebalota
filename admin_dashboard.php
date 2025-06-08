@@ -73,13 +73,23 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
 
     <?php include 'sidebar.php'; ?>
 
-    <!-- Main content -->
-    <main class="flex-1 p-8 ml-64">
-    <header class="bg-[var(--cvsu-green-dark)] text-white p-6 flex justify-between items-center shadow-md rounded-md mb-8">
-      <h1 class="text-3xl font-extrabold">Admin Dashboard Overview</h1>
-    </header>
+      <!-- Top Bar -->
+<header class="w-full fixed top-0 left-64 h-16 bg-white shadow z-10 flex items-center justify-between px-6">
+  <div class="flex items-center space-x-4">
+    <button class="text-gray-700">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+    </button>
+    <h1 class="text-xl font-bold">Dashboard</h1>
+  </div>
+  <div class="text-gray-700">
+    <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.121 17.804A10.95 10.95 0 0112 15c2.485 0 4.779.91 6.879 2.404M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+  </div>
+</header>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 md:gap-8">
+<!-- Main Content Area -->
+<main class="flex-1 pt-20 px-8 ml-64">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 md:gap-8">
         <!-- Total Voters -->
         <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-[var(--cvsu-green)] hover:shadow-2xl transition-shadow duration-300">
           <div class="flex items-center justify-between">
@@ -117,10 +127,85 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
           </div>
         </div>
       </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <!-- Bar Chart: Population of Voters per College -->
+    <div class="bg-white p-6 rounded-xl shadow-lg">
+      <h2 class="font-semibold text-gray-700 mb-4">Population of Voters per Colleges</h2>
+      <canvas id="collegeChart" height="200"></canvas>
+    </div>
+
+    <!-- Line Chart: Previous Election Analytics -->
+    <div class="bg-white p-6 rounded-xl shadow-lg">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="font-semibold text-gray-700">Previous Election Analytics Report</h2>
+        <select class="border border-gray-300 rounded px-2 py-1 text-sm">
+          <option value="2024">2024</option>
+          <option value="2025">2025</option>
+        </select>
+      </div>
+      <canvas id="analyticsChart" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- Donut Chart: By Gender -->
+  <div class="bg-white p-6 rounded-xl shadow-lg max-w-md">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="font-semibold text-gray-700">By Gender</h2>
+      <select class="border border-gray-300 rounded px-2 py-1 text-sm">
+        <option>All Colleges</option>
+        <option>CIT</option>
+        <option>CSPEAR</option>
+        <!-- add more -->
+      </select>
+    </div>
+    <canvas id="genderChart" height="200"></canvas>
+  </div>
+</main>
+
 
       <?php include 'footer.php'; ?>
 
     </main>
   </div>
 </body>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const collegeChart = new Chart(document.getElementById('collegeChart'), {
+    type: 'bar',
+    data: {
+      labels: ['CIT', 'CAS', 'CSPEAR', 'CON', 'COED'],
+      datasets: [{
+        label: 'Voters',
+        data: [1000, 800, 900, 600, 750],
+        backgroundColor: '#1E6F46'
+      }]
+    }
+  });
+
+  const analyticsChart = new Chart(document.getElementById('analyticsChart'), {
+    type: 'line',
+    data: {
+      labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
+      datasets: [{
+        label: 'Votes',
+        data: [100, 400, 300, 600, 500],
+        borderColor: '#FFD166',
+        fill: false
+      }]
+    }
+  });
+
+  const genderChart = new Chart(document.getElementById('genderChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Male', 'Female'],
+      datasets: [{
+        data: [5234, 6284],
+        backgroundColor: ['#37A66B', '#FFD166']
+      }]
+    }
+  });
+</script>
 </html>
