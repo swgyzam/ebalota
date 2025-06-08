@@ -195,10 +195,10 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
   const analyticsChart = new Chart(document.getElementById('analyticsChart'), {
     type: 'line',
     data: {
-      labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
+      labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
       datasets: [{
         label: 'Votes',
-        data: [100, 400, 300, 600, 500],
+        data: [100, 400, 300, 600, 500, 100, 20, 200, 400, 321, 202, 1000],
         borderColor: '#FFD166',
         fill: false
       }]
