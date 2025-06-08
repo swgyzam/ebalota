@@ -155,8 +155,16 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
       <h2 class="font-semibold text-gray-700">By Gender</h2>
       <select class="border border-gray-300 rounded px-2 py-1 text-sm">
         <option>All Colleges</option>
-        <option>CIT</option>
+        <option>CAS</option>
+        <option>CCJ</option>
+        <option>CED</option>
+        <option>CEITtion>
+        <option>CON</option>
+        <option>CEMDS</option>
+        <option>CHTM</option>
+        <option>CAFENR</option>
         <option>CSPEAR</option>
+        <option>CVMBS</option>
         <!-- add more -->
       </select>
     </div>
@@ -177,9 +185,9 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
     data: {
       labels: ['CAS', 'CCJ', 'CED', 'CEIT', 'CON', 'CEMDS', 'CTHM', 'CAFENR', 'CSPEAR', 'CVMBS'],
       datasets: [{
-        label: 'Voters',
+        label: 'Students',
         data: [1517, 792, 770, 1213, 760, 1864, 819, 620, 397, 246],
-        backgroundColor: '#1E6F46'
+        backgroundColor: ['#e62e00', '#003300','#0033cc', '#ff9933', '#b3b3b3', '#008000', '#ff6699', '#00b33c', '#993300', '#990099' ]
       }]
     }
   });
