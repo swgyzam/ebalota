@@ -175,10 +175,10 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
   const collegeChart = new Chart(document.getElementById('collegeChart'), {
     type: 'bar',
     data: {
-      labels: ['CIT', 'CAS', 'CSPEAR', 'CON', 'COED'],
+      labels: ['CAS', 'CCJ', 'CED', 'CEIT', 'CON', 'CEMDS', 'CTHM', 'CAFENR', 'CSPEAR', 'CVMBS'],
       datasets: [{
         label: 'Voters',
-        data: [1000, 800, 900, 600, 750],
+        data: [1517, 792, 770, 1213, 760, 1864, 819, 620, 397, 246],
         backgroundColor: '#1E6F46'
       }]
     }
