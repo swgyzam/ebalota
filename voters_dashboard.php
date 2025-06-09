@@ -186,6 +186,26 @@ include 'voters_sidebar.php';
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
 
+<!-- Privacy Policy Modal -->
+<div id="privacyModal" class="fixed inset-0 z-50 bg-black bg-opacity-40 hidden">
+  <div class="flex items-center justify-center min-h-screen">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4 mx-auto">
+      <h2 class="text-xl font-bold text-[var(--cvsu-green-dark)]">Data Privacy Notice</h2>
+      <p class="text-gray-700 text-sm">
+        Before casting your vote, please be informed that your personal information will be processed in accordance with the Data Privacy Act of 2012. By proceeding, you acknowledge that you understand and accept this policy.
+      </p>
+      <div class="flex items-start space-x-2">
+        <input type="checkbox" id="privacyCheck" class="mt-1">
+        <label for="privacyCheck" class="text-sm text-gray-600">I have read and understood the Data Privacy Policy.</label>
+      </div>
+      <div class="flex justify-end space-x-2">
+        <button id="cancelModal" class="px-4 py-2 text-sm rounded bg-gray-200 hover:bg-gray-300">Cancel</button>
+        <button id="proceedVote" class="px-4 py-2 text-sm rounded bg-[var(--cvsu-green)] text-white hover:bg-[var(--cvsu-green-dark)]" disabled>Proceed</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <main class="flex-1 p-8 ml-64">
   <header class="bg-[var(--cvsu-green-dark)] text-white p-6 flex justify-between items-center shadow-md rounded-md mb-8">
     <h1 class="text-3xl font-extrabold">Voter Dashboard Overview</h1>
@@ -225,3 +245,42 @@ include 'voters_sidebar.php';
 </main>
 </body>
 </html>
+<script>
+  let targetUrl = '';
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const voteLinks = document.querySelectorAll('a[href^="view_candidates.php"]');
+    const modal = document.getElementById('privacyModal');
+    const checkbox = document.getElementById('privacyCheck');
+    const proceedBtn = document.getElementById('proceedVote');
+    const cancelBtn = document.getElementById('cancelModal');
+
+    // Intercept vote link click
+    voteLinks.forEach(link => {
+      link.addEventListener('click', function (e) {
+        e.preventDefault();
+        targetUrl = this.href;
+        modal.classList.remove('hidden');
+      });
+    });
+
+    // Toggle Proceed button based on checkbox
+    checkbox.addEventListener('change', () => {
+      proceedBtn.disabled = !checkbox.checked;
+    });
+
+    // Cancel: close modal and reset state
+    cancelBtn.addEventListener('click', () => {
+      modal.classList.add('hidden');
+      checkbox.checked = false;
+      proceedBtn.disabled = true;
+    });
+
+    // Proceed: only allowed if checkbox is checked
+    proceedBtn.addEventListener('click', () => {
+      if (checkbox.checked) {
+        window.location.href = targetUrl;
+      }
+    });
+  });
+</script>
