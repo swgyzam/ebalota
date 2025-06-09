@@ -26,8 +26,19 @@ if (!isset($_SESSION['user_id']) || empty($_SESSION['is_admin'])) {
     exit();
 }
 
-// Fetch all candidates
-$stmt = $pdo->query("SELECT id, full_name, position, party_list, manifesto, platform FROM candidates ORDER BY full_name ASC");
+// Fetch distinct positions for the dropdown
+$positionsStmt = $pdo->query("SELECT DISTINCT position FROM candidates ORDER BY position ASC");
+$positions = $positionsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+// Get filter from GET request
+$filterPosition = $_GET['position'] ?? '';
+
+if ($filterPosition && in_array($filterPosition, $positions)) {
+    $stmt = $pdo->prepare("SELECT id, full_name, position, party_list, manifesto, platform FROM candidates WHERE position = ? ORDER BY full_name ASC");
+    $stmt->execute([$filterPosition]);
+} else {
+    $stmt = $pdo->query("SELECT id, full_name, position, party_list, manifesto, platform FROM candidates ORDER BY full_name ASC");
+}
 $candidates = $stmt->fetchAll();
 
 ?>
@@ -66,6 +77,19 @@ $candidates = $stmt->fetchAll();
         <h1 class="text-3xl font-extrabold">Manage Candidates</h1>
         <a href="add_candidate.php" class="px-4 py-2 bg-[var(--cvsu-green)] rounded hover:bg-[var(--cvsu-green-light)]">Add Candidate</a>
       </header>
+
+      <!-- Filter dropdown -->
+      <div class="mb-4 flex items-center space-x-3">
+        <label for="position" class="font-semibold">Filter by Position:</label>
+        <select id="position" name="position" class="border rounded px-3 py-2" onchange="filterByPosition(this.value)">
+          <option value="" <?= $filterPosition === '' ? 'selected' : '' ?>>All Positions</option>
+          <?php foreach ($positions as $pos): ?>
+            <option value="<?= htmlspecialchars($pos) ?>" <?= ($pos === $filterPosition) ? 'selected' : '' ?>>
+              <?= htmlspecialchars($pos) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
 
       <div class="overflow-x-auto bg-white rounded shadow-lg">
         <table class="min-w-full table-auto">
@@ -106,6 +130,18 @@ $candidates = $stmt->fetchAll();
 
     </main>
   </div>
+
+  <script>
+    function filterByPosition(position) {
+      const url = new URL(window.location.href);
+      if (position) {
+        url.searchParams.set('position', position);
+      } else {
+        url.searchParams.delete('position');
+      }
+      window.location.href = url.toString();
+    }
+  </script>
 
 </body>
 </html>
