@@ -88,55 +88,64 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
 
 <!-- Main Content Area -->
 <main class="flex-1 pt-20 px-8 ml-64">
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 md:gap-8">
-        <!-- Total Voters -->
-        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-[var(--cvsu-green)] hover:shadow-2xl transition-shadow duration-300">
-          <div class="flex items-center justify-between">
-            <div>
-              <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Verified Voters</h2>
-              <p class="text-2xl md:text-4xl font-bold text-[var(--cvsu-green-dark)] mt-2 md:mt-3"><?= $total_voters ?></p>
-            </div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-[var(--cvsu-green-light)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c.45 0 .85-.3.97-.73L14 7m-4 4h4m-4 0v4m4-4v4m-4-4H8m0 0l-2 4m10-4l2 4" />
-            </svg>
+  <!-- Stats + Bar Chart in Two Columns -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    
+    <!-- LEFT COLUMN: Statistics Cards -->
+    <div class="space-y-6">
+
+      <!-- Total Population -->
+      <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-[var(--cvsu-green)] hover:shadow-2xl transition-shadow duration-300">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Population</h2>
+            <p class="text-2xl md:text-4xl font-bold text-[var(--cvsu-green-dark)] mt-2 md:mt-3"><?= $total_voters ?></p>
           </div>
-        </div>
-        <!-- Total Elections -->
-        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-yellow-400 hover:shadow-2xl transition-shadow duration-300">
-          <div class="flex items-center justify-between">
-            <div>
-              <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Elections</h2>
-              <p class="text-2xl md:text-4xl font-bold text-yellow-600 mt-2 md:mt-3"><?= $total_elections ?></p>
-            </div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-        </div>
-        <!-- Ongoing Elections -->
-        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-blue-500 hover:shadow-2xl transition-shadow duration-300">
-          <div class="flex items-center justify-between">
-            <div>
-              <h2 class="text-base md:text-lg font-semibold text-gray-700">Ongoing Elections</h2>
-              <p class="text-2xl md:text-4xl font-bold text-blue-600 mt-2 md:mt-3"><?= $ongoing_elections ?></p>
-            </div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3" />
-            </svg>
-          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-[var(--cvsu-green-light)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c.45 0 .85-.3.97-.73L14 7m-4 4h4m-4 0v4m4-4v4m-4-4H8m0 0l-2 4m10-4l2 4" />
+          </svg>
         </div>
       </div>
+
+      <!-- Total Elections -->
+      <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-yellow-400 hover:shadow-2xl transition-shadow duration-300">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Elections</h2>
+            <p class="text-2xl md:text-4xl font-bold text-yellow-600 mt-2 md:mt-3"><?= $total_elections ?></p>
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Ongoing Elections -->
+      <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-blue-500 hover:shadow-2xl transition-shadow duration-300">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-base md:text-lg font-semibold text-gray-700">Ongoing Elections</h2>
+            <p class="text-2xl md:text-4xl font-bold text-blue-600 mt-2 md:mt-3"><?= $ongoing_elections ?></p>
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3" />
+          </svg>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: Bar Chart -->
+    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
+      <h2 class="text-base md:text-lg font-semibold text-gray-700 mb-4">Population of Voters per Colleges</h2>
+      <canvas id="collegeChart" class="w-full h-64"></canvas>
+    </div>
+
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-    <!-- Bar Chart: Population of Voters per College -->
-    <div class="bg-white p-6 rounded-xl shadow-lg">
-      <h2 class="font-semibold text-gray-700 mb-4">Population of Voters per Colleges</h2>
-      <canvas id="collegeChart" height="200"></canvas>
-    </div>
-
-    <!-- Line Chart: Previous Election Analytics -->
+    <!-- Analytics -->
+     <!-- Line Chart: Previous Election Analytics -->
     <div class="bg-white p-6 rounded-xl shadow-lg">
       <div class="flex justify-between items-center mb-4">
         <h2 class="font-semibold text-gray-700">Previous Election Analytics Report</h2>
@@ -148,8 +157,9 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
       <canvas id="analyticsChart" height="200"></canvas>
     </div>
   </div>
-
-  <!-- Donut Chart: By Gender -->
+    <div class="...">...</div>
+    <!-- Donut Chart -->
+     <!-- Donut Chart: By Gender -->
   <div class="bg-white p-6 rounded-xl shadow-lg max-w-md">
     <div class="flex justify-between items-center mb-4">
       <h2 class="font-semibold text-gray-700">By Gender</h2>
@@ -170,6 +180,8 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
     </div>
     <canvas id="genderChart" height="200"></canvas>
   </div>
+    <div class="...">...</div>
+  </div>
 </main>
 
 
@@ -180,30 +192,46 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
 </body>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-  const collegeChart = new Chart(document.getElementById('collegeChart'), {
-    type: 'bar',
-    data: {
-      labels: ['CAS', 'CCJ', 'CED', 'CEIT', 'CON', 'CEMDS', 'CTHM', 'CAFENR', 'CSPEAR', 'CVMBS'],
-      datasets: [{
-        label: 'Students',
-        data: [1517, 792, 770, 1213, 760, 1864, 819, 620, 397, 246],
-        backgroundColor: ['#e62e00', '#003300','#0033cc', '#ff9933', '#b3b3b3', '#008000', '#ff6699', '#00b33c', '#993300', '#990099' ]
-      }]
+const collegeChart = new Chart(document.getElementById('collegeChart'), {
+  type: 'bar',
+  data: {
+    labels: ['CAS', 'CCJ', 'CED', 'CEIT', 'CON', 'CEMDS', 'CTHM', 'CAFENR', 'CSPEAR', 'CVMBS'],
+    datasets: [{
+      data: [1517, 792, 770, 1213, 760, 1864, 819, 620, 397, 246],
+      backgroundColor: ['#e62e00', '#003300','#0033cc', '#ff9933', '#b3b3b3', '#008000', '#ff6699', '#00b33c', '#993300', '#990099' ]
+    }]
+  },
+  options: {
+    plugins: {
+      legend: {
+        display: false
+      }
     }
-  });
+  }
+});
+
 
   const analyticsChart = new Chart(document.getElementById('analyticsChart'), {
-    type: 'line',
-    data: {
-      labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-      datasets: [{
-        label: 'Votes',
-        data: [100, 400, 300, 600, 500, 100, 20, 200, 400, 321, 202, 1000],
-        borderColor: '#FFD166',
-        fill: false
-      }]
+  type: 'line',
+  data: {
+    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    datasets: [{
+      // Remove or empty the label
+      label: '',
+      data: [100, 400, 300, 600, 500, 100, 20, 200, 400, 321, 202, 1000],
+      borderColor: '#FFD166',
+      fill: false
+    }]
+  },
+  options: {
+    plugins: {
+      legend: {
+        display: false // disables the legend
+      }
     }
-  });
+  }
+});
+
 
   const genderChart = new Chart(document.getElementById('genderChart'), {
     type: 'doughnut',
@@ -211,7 +239,7 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
       labels: ['Male', 'Female'],
       datasets: [{
         data: [5234, 6284],
-        backgroundColor: ['#37A66B', '#FFD166']
+        backgroundColor: ['#0066ff', '#ff6699']
       }]
     }
   });
