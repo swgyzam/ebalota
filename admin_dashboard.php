@@ -144,23 +144,7 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-    <!-- Analytics -->
-     <!-- Line Chart: Previous Election Analytics -->
-    <div class="bg-white p-6 rounded-xl shadow-lg">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="font-semibold text-gray-700">Previous Election Analytics Report</h2>
-        <select class="border border-gray-300 rounded px-2 py-1 text-sm">
-          <option value="2024">2024</option>
-          <option value="2025">2025</option>
-        </select>
-      </div>
-      <canvas id="analyticsChart" height="200"></canvas>
-    </div>
-  </div>
-    <div class="...">...</div>
-    <!-- Donut Chart -->
-     <!-- Donut Chart: By Gender -->
-  <div class="bg-white p-6 rounded-xl shadow-lg max-w-md">
+    <div class="bg-white p-6 rounded-xl shadow-lg max-w-md">
     <div class="flex justify-between items-center mb-4">
       <h2 class="font-semibold text-gray-700">By Gender</h2>
       <select class="border border-gray-300 rounded px-2 py-1 text-sm">
@@ -180,10 +164,21 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
     </div>
     <canvas id="genderChart" height="200"></canvas>
   </div>
-    <div class="...">...</div>
+    <!-- Analytics -->
+     <!-- Line Chart: Previous Election Analytics -->
+    <div class="bg-white p-6 rounded-xl shadow-lg">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="font-semibold text-gray-700">Previous Election Analytics Report</h2>
+        <select class="border border-gray-300 rounded px-2 py-1 text-sm">
+          <option value="2024">2024</option>
+          <option value="2025">2025</option>
+        </select>
+      </div>
+      <canvas id="analyticsChart" height="150"></canvas>
+    </div>
+  </div>
   </div>
 </main>
-
 
       <?php include 'footer.php'; ?>
 
