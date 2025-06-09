@@ -74,14 +74,17 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
     <?php include 'sidebar.php'; ?>
 
       <!-- Top Bar -->
-<header class="w-full fixed top-0 left-64 h-16 bg-white shadow z-10 flex items-center justify-between px-6">
+<header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:rgb(25, 72, 49);"> 
   <div class="flex items-center space-x-4">
-    <h1 class="text-xl font-bold">Dashboard</h1>
+    <h1 class="text-xl font-bold text-white">ADMIN DASHBOARD</h1>
   </div>
-  <div class="text-gray-700">
-    <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.121 17.804A10.95 10.95 0 0112 15c2.485 0 4.779.91 6.879 2.404M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+  <div class="text-white">
+    <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M5.121 17.804A10.95 10.95 0 0112 15c2.485 0 4.779.91 6.879 2.404M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
   </div>
 </header>
+
 
 <!-- Main Content Area -->
 <main class="flex-1 pt-20 px-8 ml-64">
