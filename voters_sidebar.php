@@ -23,17 +23,11 @@
         <img src="assets/img/ebalota_logo.png" alt="Logo" />
     </div>
     <nav class="mt-8">
-        <a href="voter_dashboard.php" class="flex items-center gap-3 py-3 px-8 bg-[var(--cvsu-green)] font-semibold rounded-r-lg shadow-md hover:bg-[var(--cvsu-green-light)] transition duration-300">
+        <a href="voters_dashboard.php" class="flex items-center gap-3 py-3 px-8 bg-[var(--cvsu-green)] font-semibold rounded-r-lg shadow-md hover:bg-[var(--cvsu-green-light)] transition duration-300">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--cvsu-yellow)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M13 5v6h6" />
             </svg>
             Dashboard
-        </a>
-        <a href="my_votes.php" class="flex items-center gap-3 py-3 px-8 hover:bg-[var(--cvsu-green-light)] transition duration-300 rounded-r-lg mt-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--cvsu-yellow)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6h6v6m2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h3l2-2h4a2 2 0 012 2v12a2 2 0 01-2 2z" />
-            </svg>
-            My Votes
         </a>
         <a href="profile.php" class="flex items-center gap-3 py-3 px-8 hover:bg-[var(--cvsu-green-light)] transition duration-300 rounded-r-lg mt-2">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--cvsu-yellow)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">

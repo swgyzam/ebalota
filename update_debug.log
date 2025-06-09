@@ -1,0 +1,18 @@
+Executing with params:
+Array
+(
+    [:title] => COOP
+    [:description] => SASASAS
+    [:start_datetime] => 2025-06-09 00:00:00
+    [:end_datetime] => 2025-06-10 23:59:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:election_id] => 145
+)
+
+Update successful for election 145

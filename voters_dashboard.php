@@ -190,6 +190,12 @@ include 'voters_sidebar.php';
   <header class="bg-[var(--cvsu-green-dark)] text-white p-6 flex justify-between items-center shadow-md rounded-md mb-8">
     <h1 class="text-3xl font-extrabold">Voter Dashboard Overview</h1>
   </header>
+  <?php if (isset($_GET['message']) && $_GET['message'] === 'vote_success'): ?>
+  <div class="mb-6 p-4 rounded bg-green-100 text-green-800 border border-green-300">
+    Your vote has been successfully submitted. Thank you for voting!
+  </div>
+<?php endif; ?>
+
 
   <?php if (count($filtered_elections) > 0): ?>
     <div class="grid gap-8 md:grid-cols-2 lg:grid-cols-3">

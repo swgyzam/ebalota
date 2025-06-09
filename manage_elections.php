@@ -225,7 +225,7 @@ $elections = $stmt->fetchAll();
       <!-- Courses will be loaded here dynamically -->
     </div>
     <div class="mt-1">
-      <button type="button" onclick="toggleAllCheckboxes('allowed_courses_student[]')" class="text-xs text-blue-600 hover:text-blue-800">Toggle All</button>
+      <button type="button" onclick="toggleAllCheckboxes('allowed_courses_student[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
     </div>
   </div>
 </div>
@@ -250,7 +250,7 @@ $elections = $stmt->fetchAll();
       <!-- Courses will be loaded here dynamically -->
     </div>
     <div class="mt-1">
-      <button type="button" onclick="toggleAllCheckboxes('allowed_courses_academic[]')" class="text-xs text-blue-600 hover:text-blue-800">Toggle All</button>
+      <button type="button" onclick="toggleAllCheckboxes('allowed_courses_academic[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
     </div>
   </div>
 
@@ -262,7 +262,7 @@ $elections = $stmt->fetchAll();
       <label class="flex items-center"><input type="checkbox" name="allowed_status_academic[]" value="Contractual" class="mr-1">Contractual</label>
     </div>
     <div class="mt-1">
-      <button type="button" onclick="toggleAllCheckboxes('allowed_status_academic[]')" class="text-xs text-blue-600 hover:text-blue-800">Toggle All</button>
+      <button type="button" onclick="toggleAllCheckboxes('allowed_status_academic[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
     </div>
   </div>
 </div>
@@ -303,7 +303,7 @@ $elections = $stmt->fetchAll();
       <label class="flex items-center"><input type="checkbox" name="allowed_status_nonacad[]" value="Contractual" class="mr-1">Contractual</label>
     </div>
     <div class="mt-1">
-      <button type="button" onclick="toggleAllCheckboxes('allowed_status_nonacad[]')" class="text-xs text-blue-600 hover:text-blue-800">Toggle All</button>
+      <button type="button" onclick="toggleAllCheckboxes('allowed_status_nonacad[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
     </div>
   </div>
 </div>
@@ -316,7 +316,7 @@ $elections = $stmt->fetchAll();
       <label class="flex items-center"><input type="checkbox" name="allowed_status_coop[]" value="MIGS" class="mr-1">MIGS</label>
     </div>
     <div class="mt-1">
-      <button type="button" onclick="toggleAllCheckboxes('allowed_status_coop[]')" class="text-xs text-blue-600 hover:text-blue-800">Toggle All</button>
+      <button type="button" onclick="toggleAllCheckboxes('allowed_status_coop[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
     </div>
     <p class="text-xs text-gray-500 mt-1">Note: MIGS status is assigned to COOP members in user management.</p>
   </div>
@@ -331,8 +331,166 @@ $elections = $stmt->fetchAll();
   </div>
 </div>
 
+<!-- Update Election Modal -->
+<div id="updateModal" class="fixed inset-0 hidden z-50 flex items-center justify-center modal-backdrop">
+  <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl p-8 relative max-h-[90vh] overflow-y-auto">
+    <button onclick="closeUpdateModal()" class="absolute top-3 right-3 text-gray-600 hover:text-gray-900 text-2xl font-bold">&times;</button>
+    <h2 class="text-2xl font-bold mb-6">Update Election</h2>
+
+    <form action="update_election.php" method="POST" class="space-y-6">
+      <input type="hidden" name="election_id" id="update_election_id">
+
+      <!-- Election Name -->
+      <div>
+        <label class="block mb-2 font-semibold">Election Name *</label>
+        <input type="text" name="election_name" id="update_election_name" required class="w-full p-2 border rounded" />
+      </div>
+
+      <!-- Description -->
+      <div>
+        <label class="block mb-2 font-semibold">Description</label>
+        <textarea name="description" id="update_description" class="w-full p-2 border rounded"></textarea>
+      </div>
+
+      <!-- Start & End Dates -->
+      <div>
+        <label class="block mb-2 font-semibold">Start and End Date *</label>
+        <div class="flex gap-2">
+          <input type="datetime-local" name="start_datetime" id="update_start_datetime" required class="w-1/2 p-2 border rounded">
+          <input type="datetime-local" name="end_datetime" id="update_end_datetime" required class="w-1/2 p-2 border rounded">
+        </div>
+      </div>
+
+      <!-- Target Voters -->
+      <div>
+        <label class="block mb-2 font-semibold">Target Voters *</label>
+        <div class="flex gap-6">
+          <label class="flex items-center gap-1">
+            <input type="radio" name="target_voter" value="student" id="target_student" required> Student
+          </label>
+          <label class="flex items-center gap-1">
+            <input type="radio" name="target_voter" value="faculty" id="target_faculty" required> Faculty
+          </label>
+          <label class="flex items-center gap-1">
+            <input type="radio" name="target_voter" value="non_academic" id="target_non_academic" required> Non-Academic
+          </label>
+          <label class="flex items-center gap-1">
+            <input type="radio" name="target_voter" value="coop" id="target_coop" required> COOP
+          </label>
+        </div>
+      </div>
+
+      <!-- Student Fields -->
+      <div id="update_studentFields" class="hidden space-y-4">
+        <div>
+          <label class="block mb-2 font-semibold">Allowed Colleges (Student)</label>
+          <select name="allowed_colleges" id="update_allowed_colleges" class="w-full p-2 border rounded" onchange="loadCourses('update')">
+            <option value="all">All Colleges</option>
+            <?php
+            $colleges = ['CAFENR', 'CAS', 'CEIT', 'CEMDS', 'CED', 'CSPEAR', 'CTHM', 'CVMBS', 'COM', 'GS-OLC', 'CON'];
+            foreach ($colleges as $college) {
+                echo "<option value='$college'>$college</option>";
+            }
+            ?>
+          </select>
+        </div>
+
+        <div id="update_studentCoursesContainer" class="hidden">
+          <label class="block mb-2 font-semibold">Allowed Courses (Student)</label>
+          <div id="update_studentCoursesList" class="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto border p-2 rounded text-sm">
+            <!-- Courses will be loaded here dynamically -->
+          </div>
+          <div class="mt-1">
+            <button type="button" onclick="toggleAllCheckboxes('update_allowed_courses[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Faculty Fields -->
+      <div id="update_facultyFields" class="hidden space-y-4">
+        <div>
+          <label class="block mb-2 font-semibold">Allowed Colleges (Faculty)</label>
+          <select name="allowed_colleges_faculty" id="update_allowed_colleges_faculty" class="w-full p-2 border rounded" onchange="loadCourses('update_faculty')">
+            <option value="all">All Colleges</option>
+            <?php foreach ($colleges as $college) { echo "<option value='$college'>$college</option>"; } ?>
+          </select>
+        </div>
+
+        <div id="update_facultyCoursesContainer" class="hidden">
+          <label class="block mb-2 font-semibold">Allowed Courses (Faculty)</label>
+          <div id="update_facultyCoursesList" class="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto border p-2 rounded text-sm">
+            <!-- Courses will be loaded here dynamically -->
+          </div>
+          <div class="mt-1">
+            <button type="button" onclick="toggleAllCheckboxes('update_allowed_courses_faculty[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block mb-2 font-semibold">Allowed Status (Faculty)</label>
+          <div class="flex gap-6 text-sm border p-2 rounded">
+            <label class="flex items-center"><input type="checkbox" name="allowed_status_faculty[]" value="Regular" class="mr-1">Regular</label>
+            <label class="flex items-center"><input type="checkbox" name="allowed_status_faculty[]" value="Part-time" class="mr-1">Part-time</label>
+            <label class="flex items-center"><input type="checkbox" name="allowed_status_faculty[]" value="Contractual" class="mr-1">Contractual</label>
+          </div>
+          <div class="mt-1">
+            <button type="button" onclick="toggleAllCheckboxes('update_allowed_status_faculty[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Non-Academic Fields -->
+      <div id="update_nonAcademicFields" class="hidden space-y-4">
+        <div>
+          <label class="block mb-2 font-semibold">Allowed Departments (Non-Academic)</label>
+          <select name="allowed_departments_nonacad" id="update_allowed_departments_nonacad" class="w-full p-2 border rounded">
+            <option value="all">All Departments</option>
+            <?php
+            $departments = ['NAEA', 'ADMIN', 'FINANCE', 'HR', 'IT', 'MAINTENANCE', 'SECURITY', 'LIBRARY'];
+            foreach ($departments as $dept) {
+                echo "<option value='$dept'>$dept</option>";
+            }
+            ?>
+          </select>
+        </div>
+
+        <div>
+          <label class="block mb-2 font-semibold">Allowed Status (Non-Academic)</label>
+          <div class="flex gap-6 text-sm border p-2 rounded">
+            <label class="flex items-center"><input type="checkbox" name="allowed_status_nonacad[]" value="Regular" class="mr-1">Regular</label>
+            <label class="flex items-center"><input type="checkbox" name="allowed_status_nonacad[]" value="Part-time" class="mr-1">Part-time</label>
+            <label class="flex items-center"><input type="checkbox" name="allowed_status_nonacad[]" value="Contractual" class="mr-1">Contractual</label>
+          </div>
+          <div class="mt-1">
+            <button type="button" onclick="toggleAllCheckboxes('update_allowed_status_nonacad[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- COOP Fields -->
+      <div id="update_coopFields" class="hidden space-y-4">
+        <div>
+          <label class="block mb-2 font-semibold">Allowed Status (COOP - MIGS)</label>
+          <div class="flex gap-6 text-sm border p-2 rounded">
+            <label class="flex items-center"><input type="checkbox" name="allowed_status_coop[]" value="MIGS" class="mr-1">MIGS</label>
+          </div>
+          <div class="mt-1">
+            <button type="button" onclick="toggleAllCheckboxes('update_allowed_status_coop[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <div class="text-right">
+        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition">Update Election</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 
 <script src="create_election.js"></script>
+<script src="update_election.js"></script>
 <style>
   .modal-backdrop {
     background-color: rgba(0,0,0,0.5);
