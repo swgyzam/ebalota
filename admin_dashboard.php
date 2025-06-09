@@ -76,9 +76,6 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
       <!-- Top Bar -->
 <header class="w-full fixed top-0 left-64 h-16 bg-white shadow z-10 flex items-center justify-between px-6">
   <div class="flex items-center space-x-4">
-    <button class="text-gray-700">
-      <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-    </button>
     <h1 class="text-xl font-bold">Dashboard</h1>
   </div>
   <div class="text-gray-700">
@@ -162,7 +159,7 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
         <option>CVMBS</option>
       </select>
     </div>
-    <canvas id="genderChart" height="900"></canvas>
+    <canvas id="genderChart" height="180"></canvas>
   </div>
 
   <!-- Previous Election Analytics Chart -->
