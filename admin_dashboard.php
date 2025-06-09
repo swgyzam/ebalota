@@ -175,8 +175,9 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
   </div>
 </div>
 
-
+<div class="p-5">
       <?php include 'footer.php'; ?>
+  </div>
 
     </main>
   </div>
