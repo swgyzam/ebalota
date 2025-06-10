@@ -47,19 +47,32 @@ if (isset($_GET['action'], $_GET['id'])) {
     $stmt->execute([$userId]);
     $user = $stmt->fetch();
 
-    if ($user && $userId !== $currentUserId && !$user['is_admin']) {
-        if ($action === 'toggle') {
-            if (isset($_GET['position']) && $_GET['position'] === 'coop') {
-                $stmt = $pdo->prepare("UPDATE users SET migs_status = NOT migs_status WHERE user_id = ?");
-            } else {
-                $stmt = $pdo->prepare("UPDATE users SET is_verified = NOT is_verified WHERE user_id = ?");
-            }
-            $stmt->execute([$userId]);
-        } elseif ($action === 'delete') {
-            $stmt = $pdo->prepare("DELETE FROM users WHERE user_id = ?");
-            $stmt->execute([$userId]);
-        }
+if ($user && $userId !== $currentUserId && !$user['is_admin']) {
+  if ($action === 'toggle') {
+    if (isset($_GET['position']) && $_GET['position'] === 'coop') {
+        $stmt = $pdo->prepare("UPDATE users SET migs_status = NOT migs_status WHERE user_id = ?");
+    } else {
+        $stmt = $pdo->prepare("UPDATE users SET is_verified = NOT is_verified WHERE user_id = ?");
     }
+    $stmt->execute([$userId]);
+
+} elseif ($action === 'delete') {
+    // Check if user has voting records
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM votes WHERE voter_id = ?");
+    $stmt->execute([$userId]);
+    $hasVotes = $stmt->fetchColumn();
+
+    if ($hasVotes > 0) {
+        // Soft delete: just deactivate
+        $stmt = $pdo->prepare("UPDATE users SET is_active = 0 WHERE user_id = ?");
+        $stmt->execute([$userId]);
+    } else {
+        // Safe to delete
+        $stmt = $pdo->prepare("DELETE FROM users WHERE user_id = ?");
+        $stmt->execute([$userId]);
+    }
+}
+}
 
     header('Location: manage_users.php');
     exit();

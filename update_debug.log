@@ -34,3 +34,39 @@ Array
 )
 
 Update successful for election 147
+Executing with params:
+Array
+(
+    [:title] => CEIT
+    [:description] => JHJHJHH
+    [:start_datetime] => 2025-10-10 00:00:00
+    [:end_datetime] => 2025-10-12 23:59:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSIT
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:election_id] => 148
+)
+
+Update successful for election 148
+Executing with params:
+Array
+(
+    [:title] => CEIT
+    [:description] => JHJHJHH
+    [:start_datetime] => 2025-06-10 00:00:00
+    [:end_datetime] => 2025-06-12 23:59:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSIT
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:election_id] => 148
+)
+
+Update successful for election 148

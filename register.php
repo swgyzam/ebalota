@@ -140,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port = 587;
 
-            $mail->setFrom('your-email@gmail.com', 'Evoting System');
+            $mail->setFrom('your-email@gmail.com', 'eBalota');
             $mail->addAddress($email, "$first_name $last_name");
 
             $mail->isHTML(true);
@@ -158,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     font-weight: bold;
                 '>Verify Email</a><br><br>
                 This link will expire in 24 hours.<br><br>
-                Regards,<br>Evoting System
+                Regards,<br>eBalota | Cavite State University
             ";
             $mail->AltBody = "Please verify your email by visiting: $verificationUrl";
 

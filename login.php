@@ -64,7 +64,7 @@ function sendAdminVerificationEmail($email, $first_name, $last_name, $token) {
                 </p>
                 <p>This link expires in 24 hours.</p>
                 <hr style='margin: 20px 0; border-top: 1px solid #eee;'>
-                <p style='font-size: 12px; color: #777;'>eVoting System | Cavite State University</p>
+                <p style='font-size: 12px; color: #777;'>eBalota | Cavite State University</p>
             </div>
         ";
         $mail->AltBody = "Verify your admin login: $verificationUrl";
