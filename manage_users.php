@@ -138,10 +138,14 @@ $users = $stmt->fetchAll();
     <?php include 'sidebar.php'; ?>
 
     <main class="flex-1 p-8 ml-64">
-      <header class="bg-[var(--cvsu-green-dark)] text-white p-6 flex justify-between items-center shadow-md rounded-md mb-8">
-        <h1 class="text-3xl font-extrabold">Manage Users</h1>
-        <a href="admin_dashboard.php" class="px-4 py-2 bg-[var(--cvsu-green)] text-white rounded hover:bg-[var(--cvsu-green-light)] transition">Back to Dashboard</a>
-      </header>
+    <header class="bg-[var(--cvsu-green-dark)] text-white p-6 flex justify-between items-center shadow-md rounded-md mb-8">
+  <h1 class="text-3xl font-extrabold">Manage Users</h1>
+  <div class="flex space-x-2">
+    <a href="admin_dashboard.php" class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded font-semibold transition">Back to Dashboard</a>
+    <a href="restrict_users.php" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-semibold transition">Restrict User</a>
+  </div>
+</header>
+
 
       <form method="GET" class="mb-4">
         <label for="position" class="mr-2">Filter by Position:</label>
@@ -158,7 +162,6 @@ $users = $stmt->fetchAll();
         <table class="min-w-full divide-y divide-gray-200">
           <thead class="bg-[var(--cvsu-green-light)] text-white">
             <tr>
-              <th class="px-6 py-3 text-left text-sm font-semibold">ID</th>
               <th class="px-6 py-3 text-left text-sm font-semibold">Name</th>
               <th class="px-6 py-3 text-left text-sm font-semibold">Email</th>
               <th class="px-6 py-3 text-left text-sm font-semibold">Position</th>
@@ -178,7 +181,6 @@ $users = $stmt->fetchAll();
             <?php else: ?>
               <?php foreach ($users as $user): ?>
                 <tr>
-                  <td class="px-6 py-4"><?= htmlspecialchars($user['user_id']) ?></td>
                   <td class="px-6 py-4"><?= htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) ?></td>
                   <td class="px-6 py-4"><?= htmlspecialchars($user['email']) ?></td>
                   <td class="px-6 py-4 capitalize"><?= htmlspecialchars($user['position']) ?></td>

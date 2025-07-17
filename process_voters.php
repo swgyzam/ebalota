@@ -71,9 +71,9 @@ if (($handle = fopen($csvFile, 'r')) !== FALSE) {
 
         // Map CSV status to DB status enum ('regular', 'lecturer') or NULL for students
         $db_status = null;
-        if (in_array($position, ['faculty', 'coop'])) {
-            if (strpos(strtolower($status), 'lecturer') !== false) {
-                $db_status = 'lecturer';
+        if (in_array($position, ['academic', 'non-academic'])) {
+            if (strpos(strtolower($status), 'contractual') !== false) {
+                $db_status = 'contractual';
             } else {
                 $db_status = 'regular';
             }

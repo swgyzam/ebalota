@@ -26,21 +26,42 @@ if (!isset($_SESSION['user_id']) || empty($_SESSION['is_admin'])) {
     exit();
 }
 
+// Fetch elections for dropdown
+$electionStmt = $pdo->query("SELECT election_id, title FROM elections ORDER BY title ASC");
+$elections = $electionStmt->fetchAll();
+
 // Fetch distinct positions for the dropdown
 $positionsStmt = $pdo->query("SELECT DISTINCT position FROM candidates ORDER BY position ASC");
 $positions = $positionsStmt->fetchAll(PDO::FETCH_COLUMN);
 
-// Get filter from GET request
+// Get filters from GET request
 $filterPosition = $_GET['position'] ?? '';
+$filterElection = $_GET['election'] ?? '';
 
-if ($filterPosition && in_array($filterPosition, $positions)) {
-    $stmt = $pdo->prepare("SELECT id, full_name, position, party_list, manifesto, platform FROM candidates WHERE position = ? ORDER BY full_name ASC");
-    $stmt->execute([$filterPosition]);
-} else {
-    $stmt = $pdo->query("SELECT id, full_name, position, party_list, manifesto, platform FROM candidates ORDER BY full_name ASC");
+// Build dynamic query with filters
+$query = "SELECT id, full_name, position, party_list, manifesto, platform FROM candidates";
+$conditions = [];
+$params = [];
+
+if (!empty($filterElection)) {
+    $conditions[] = "election_id = ?";
+    $params[] = $filterElection;
 }
-$candidates = $stmt->fetchAll();
 
+if (!empty($filterPosition) && in_array($filterPosition, $positions)) {
+    $conditions[] = "position = ?";
+    $params[] = $filterPosition;
+}
+
+if (!empty($conditions)) {
+    $query .= " WHERE " . implode(" AND ", $conditions);
+}
+
+$query .= " ORDER BY full_name ASC";
+
+$stmt = $pdo->prepare($query);
+$stmt->execute($params);
+$candidates = $stmt->fetchAll();
 ?>
 
 <!DOCTYPE html>
@@ -75,20 +96,34 @@ $candidates = $stmt->fetchAll();
     <main class="flex-1 p-8 ml-64">
       <header class="bg-[var(--cvsu-green-dark)] text-white p-6 flex justify-between items-center shadow-md rounded-md mb-8">
         <h1 class="text-3xl font-extrabold">Manage Candidates</h1>
-        <a href="add_candidate.php" class="px-4 py-2 bg-[var(--cvsu-green)] rounded hover:bg-[var(--cvsu-green-light)]">Add Candidate</a>
+        <a href="add_candidate.php" class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded font-semibold transition">Add Candidate</a>
       </header>
 
-      <!-- Filter dropdown -->
-      <div class="mb-4 flex items-center space-x-3">
-        <label for="position" class="font-semibold">Filter by Position:</label>
-        <select id="position" name="position" class="border rounded px-3 py-2" onchange="filterByPosition(this.value)">
-          <option value="" <?= $filterPosition === '' ? 'selected' : '' ?>>All Positions</option>
-          <?php foreach ($positions as $pos): ?>
-            <option value="<?= htmlspecialchars($pos) ?>" <?= ($pos === $filterPosition) ? 'selected' : '' ?>>
-              <?= htmlspecialchars($pos) ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
+      <!-- Filters -->
+      <div class="mb-4 flex flex-wrap gap-4 items-center">
+        <div>
+          <label for="election" class="font-semibold">Filter by Election:</label>
+          <select id="election" name="election" class="border rounded px-3 py-2" onchange="filter()">
+            <option value="" <?= $filterElection === '' ? 'selected' : '' ?>>All Elections</option>
+            <?php foreach ($elections as $e): ?>
+              <option value="<?= $e['election_id'] ?>" <?= ($e['election_id'] == $filterElection) ? 'selected' : '' ?>>
+                <?= htmlspecialchars($e['title']) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <div>
+          <label for="position" class="font-semibold">Filter by Position:</label>
+          <select id="position" name="position" class="border rounded px-3 py-2" onchange="filter()">
+            <option value="" <?= $filterPosition === '' ? 'selected' : '' ?>>All Positions</option>
+            <?php foreach ($positions as $pos): ?>
+              <option value="<?= htmlspecialchars($pos) ?>" <?= ($pos === $filterPosition) ? 'selected' : '' ?>>
+                <?= htmlspecialchars($pos) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
       </div>
 
       <div class="overflow-x-auto bg-white rounded shadow-lg">
@@ -127,18 +162,27 @@ $candidates = $stmt->fetchAll();
           </tbody>
         </table>
       </div>
-
     </main>
   </div>
 
   <script>
-    function filterByPosition(position) {
+    function filter() {
+      const election = document.getElementById('election').value;
+      const position = document.getElementById('position').value;
+
       const url = new URL(window.location.href);
+      if (election) {
+        url.searchParams.set('election', election);
+      } else {
+        url.searchParams.delete('election');
+      }
+
       if (position) {
         url.searchParams.set('position', position);
       } else {
         url.searchParams.delete('position');
       }
+
       window.location.href = url.toString();
     }
   </script>

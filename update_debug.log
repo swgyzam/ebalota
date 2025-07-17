@@ -70,3 +70,75 @@ Array
 )
 
 Update successful for election 148
+Executing with params:
+Array
+(
+    [:title] => cspear
+    [:description] => hkjhj
+    [:start_datetime] => 2025-06-08 00:00:00
+    [:end_datetime] => 2025-06-11 23:59:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CSPEAR
+    [:allowed_courses] => BPE
+    [:allowed_status] => Regular
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:election_id] => 149
+)
+
+Update successful for election 149
+Executing with params:
+Array
+(
+    [:title] => cspear
+    [:description] => hkjhj
+    [:start_datetime] => 2025-06-08 00:00:00
+    [:end_datetime] => 2025-06-08 23:59:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CSPEAR
+    [:allowed_courses] => BPE
+    [:allowed_status] => Regular
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:election_id] => 149
+)
+
+Update successful for election 149
+Executing with params:
+Array
+(
+    [:title] => cspear
+    [:description] => hkjhj
+    [:start_datetime] => 2025-06-11 00:00:00
+    [:end_datetime] => 2025-06-11 23:59:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CSPEAR
+    [:allowed_courses] => BPE
+    [:allowed_status] => Regular
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:election_id] => 149
+)
+
+Update successful for election 149
+Executing with params:
+Array
+(
+    [:title] => Dummy Election update
+    [:description] => try
+    [:start_datetime] => 2025-06-11 01:00:00
+    [:end_datetime] => 2025-06-12 23:59:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:election_id] => 150
+)
+
+Update successful for election 150

@@ -99,12 +99,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($password !== $confirm_password) $errors[] = "Passwords do not match.";
 
     // Check duplicate email in both users and pending_users
-    $email_check_stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE email = ? UNION SELECT COUNT(*) FROM pending_users WHERE email = ?");
-    $email_check_stmt->execute([$email, $email]);
-    $counts = $email_check_stmt->fetchAll(PDO::FETCH_COLUMN);
-    if (array_sum($counts) > 0) {
+    // Check if email exists in 'users' table
+    $user_check_stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE email = ?");
+    $user_check_stmt->execute([$email]);
+    $user_count = $user_check_stmt->fetchColumn();
+
+    // Check if email exists in pending_users from 'normal' registration
+    $pending_normal_stmt = $pdo->prepare("SELECT COUNT(*) FROM pending_users WHERE email = ? AND source = 'normal'");
+    $pending_normal_stmt->execute([$email]);
+    $pending_normal_count = $pending_normal_stmt->fetchColumn();
+
+    // Check if email exists in pending_users from 'csv' upload
+    $pending_csv_stmt = $pdo->prepare("SELECT COUNT(*) FROM pending_users WHERE email = ? AND source = 'csv'");
+    $pending_csv_stmt->execute([$email]);
+    $pending_csv_count = $pending_csv_stmt->fetchColumn();
+
+    // Show specific error messages
+    if ($user_count > 0 || $pending_normal_count > 0) {
         $errors[] = "Email already registered.";
+    } elseif ($pending_csv_count > 0) {
+        $errors[] = "You're not allowed to vote.";
     }
+
 
     if (empty($errors)) {
         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
