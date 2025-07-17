@@ -67,6 +67,18 @@ foreach ($candidates as $candidate) {
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
 
+<!-- Modal -->
+<div id="tutorialModal" class="fixed inset-0 z-50 bg-black bg-opacity-70 flex items-center justify-center">
+  <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full relative p-6">
+    <button onclick="closeModal()" class="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+    <h2 class="text-xl font-bold text-[var(--cvsu-green-dark)] mb-4 text-center">How to Vote</h2>
+    <video controls class="w-full rounded shadow">
+      <source src="tutorial.mp4" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+  </div>
+</div>
+
 <main class="max-w-4xl mx-auto p-8">
   <header class="mb-10 text-center">
     <h1 class="text-4xl font-extrabold text-[var(--cvsu-green-dark)]"><?= htmlspecialchars($election['title']) ?></h1>
@@ -141,6 +153,11 @@ function validateVotes() {
   }
 
   return true;
+}
+
+function closeModal() {
+  const modal = document.getElementById('tutorialModal');
+  modal.style.display = 'none';
 }
 </script>
 
