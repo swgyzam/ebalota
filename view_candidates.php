@@ -86,48 +86,53 @@ foreach ($candidates as $candidate) {
   </header>
 
   <?php if (!empty($groupedCandidates)): ?>
-    <form method="POST" action="submit_vote.php" onsubmit="return validateVotes()" class="space-y-8">
-      <input type="hidden" name="election_id" value="<?= htmlspecialchars($election['election_id']) ?>">
+    <form method="POST" action="submit_vote.php" onsubmit="return validateVotes()" class="space-y-10">
+  <input type="hidden" name="election_id" value="<?= htmlspecialchars($election['election_id']) ?>">
 
-      <?php foreach ($groupedCandidates as $position => $candidates): ?>
-        <?php
-          $positionLower = strtolower($position);
-          $isSingleVote = in_array($positionLower, ['president', 'vice-president']);
-        ?>
-        <fieldset class="bg-white p-6 rounded-lg shadow border-l-8 border-[var(--cvsu-green)]">
-          <legend class="text-2xl font-bold text-[var(--cvsu-green-dark)] mb-2"><?= htmlspecialchars($position) ?></legend>
-          <p class="text-sm text-gray-600 mb-4">
-            <?= $isSingleVote ? 'Select only one candidate' : 'Select at least 6 candidates as you prefer' ?>
-          </p>
+  <?php foreach ($groupedCandidates as $position => $candidates): ?>
+    <?php
+      $positionLower = strtolower($position);
+      $isSingleVote = in_array($positionLower, ['president', 'vice-president']);
+    ?>
+    <section class="bg-white p-6 rounded-xl shadow-md border-l-8 border-[var(--cvsu-green)]">
+      <header class="mb-4">
+        <h2 class="text-2xl font-bold text-[var(--cvsu-green-dark)]"><?= htmlspecialchars($position) ?></h2>
+        <p class="text-sm text-gray-600">
+          <?= $isSingleVote ? 'Select only one candidate' : 'Select at least 6 candidates as you prefer' ?>
+        </p>
+      </header>
 
-          <?php foreach ($candidates as $candidate): ?>
-            <label class="flex items-start gap-3 mb-4 cursor-pointer">
-              <input
-                type="<?= $isSingleVote ? 'radio' : 'checkbox' ?>"
-                name="vote[<?= htmlspecialchars($position) ?>]<?= $isSingleVote ? '' : '[]' ?>"
-                value="<?= $candidate['id'] ?>"
-                class="w-5 h-5 mt-1 accent-[var(--cvsu-green-light)] <?= !$isSingleVote ? 'multi-checkbox' : '' ?>"
-              />
-              <div>
-                <span class="text-lg font-semibold"><?= htmlspecialchars($candidate['full_name']) ?></span>
-                <?php if (!empty($candidate['manifesto'])): ?>
-                  <p class="text-gray-600 text-sm mt-1 whitespace-pre-line"><?= htmlspecialchars($candidate['manifesto']) ?></p>
-                <?php endif; ?>
-              </div>
-            </label>
-          <?php endforeach; ?>
-        </fieldset>
-      <?php endforeach; ?>
-
-      <div class="text-center">
-        <button
-          type="submit"
-          class="mt-4 bg-[var(--cvsu-green-light)] hover:bg-[var(--cvsu-green)] text-white px-8 py-3 rounded font-semibold transition-colors duration-300"
-        >
-          Submit Vote
-        </button>
+      <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
+        <?php foreach ($candidates as $candidate): ?>
+          <label class="flex items-start gap-4 p-4 rounded-lg border border-gray-200 hover:border-[var(--cvsu-green-light)] transition cursor-pointer bg-gray-50">
+            <input
+              type="<?= $isSingleVote ? 'radio' : 'checkbox' ?>"
+              name="vote[<?= htmlspecialchars($position) ?>]<?= $isSingleVote ? '' : '[]' ?>"
+              value="<?= $candidate['id'] ?>"
+              class="mt-1 w-5 h-5 accent-[var(--cvsu-green-light)] <?= !$isSingleVote ? 'multi-checkbox' : '' ?>"
+            />
+            <div class="flex-1">
+              <p class="font-semibold text-lg text-gray-800"><?= htmlspecialchars($candidate['full_name']) ?></p>
+              <?php if (!empty($candidate['manifesto'])): ?>
+                <p class="mt-1 text-sm text-gray-600 whitespace-pre-line"><?= htmlspecialchars($candidate['manifesto']) ?></p>
+              <?php endif; ?>
+            </div>
+          </label>
+        <?php endforeach; ?>
       </div>
-    </form>
+    </section>
+  <?php endforeach; ?>
+
+  <div class="text-center">
+    <button
+      type="submit"
+      class="inline-block bg-[var(--cvsu-green-light)] hover:bg-[var(--cvsu-green)] text-white text-lg px-10 py-3 rounded-xl font-semibold shadow-sm transition-colors duration-300"
+    >
+      Submit Vote
+    </button>
+  </div>
+</form>
+
   <?php else: ?>
     <p class="text-gray-600 text-center">No candidates available for this election.</p>
   <?php endif; ?>
