@@ -28,9 +28,9 @@ if (!isset($_GET['token'])) {
     exit;
 }
 
-$token = $_GET['token'];
+$token = filter_input(INPUT_GET, 'token', FILTER_SANITIZE_STRING);
 $stmt = $pdo->prepare("
-    SELECT u.user_id, u.first_name, u.last_name, u.email, u.is_admin, u.is_verified
+    SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, u.is_verified
     FROM admin_login_tokens alt
     JOIN users u ON alt.user_id = u.user_id
     WHERE alt.token = ? AND alt.expires_at > NOW()
@@ -38,7 +38,7 @@ $stmt = $pdo->prepare("
 $stmt->execute([$token]);
 $user = $stmt->fetch();
 
-if (!$user || !$user['is_admin']) {
+if (!$user || $user['role'] !== 'admin') {
     header("Location: login.html?error=" . urlencode("Token is invalid or has expired."));
     exit;
 }
@@ -52,7 +52,7 @@ $_SESSION['user_id'] = $user['user_id'];
 $_SESSION['first_name'] = $user['first_name'];
 $_SESSION['last_name'] = $user['last_name'];
 $_SESSION['email'] = $user['email'];
-$_SESSION['is_admin'] = true;
+$_SESSION['role'] = 'admin';
 $_SESSION['is_verified'] = (bool)$user['is_verified']; // Ensure boolean value
 $_SESSION['CREATED'] = time();
 $_SESSION['LAST_ACTIVITY'] = time();

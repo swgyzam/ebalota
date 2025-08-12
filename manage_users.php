@@ -30,10 +30,10 @@ if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY']) >
 }
 $_SESSION['LAST_ACTIVITY'] = time();
 
-// --- Check if logged in and admin ---
-if (!isset($_SESSION['user_id']) || empty($_SESSION['is_admin'])) {
-    header('Location: login.php');
-    exit();
+// --- Check if logged in and super admin ---
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
+  header('Location: login.php');
+  exit();
 }
 
 $currentUserId = $_SESSION['user_id'];
@@ -100,13 +100,13 @@ $page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] :
 $offset = ($page - 1) * $perPage;
 
 // --- Count total users (non-admins) ---
-$totalStmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE is_admin = 0 $filterQuery");
+$totalStmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'voter' $filterQuery");
 $totalStmt->execute($params);
 $totalUsers = $totalStmt->fetchColumn();
 $totalPages = ceil($totalUsers / $perPage);
 
 // --- Fetch users page ---
-$stmt = $pdo->prepare("SELECT * FROM users WHERE is_admin = 0 $filterQuery ORDER BY user_id DESC LIMIT :limit OFFSET :offset");
+$stmt = $pdo->prepare("SELECT * FROM users WHERE role = 'voter' $filterQuery ORDER BY user_id DESC LIMIT :limit OFFSET :offset");
 foreach ($params as $key => $val) {
     $stmt->bindValue($key, $val);
 }
@@ -135,13 +135,12 @@ $users = $stmt->fetchAll();
 <body class="bg-gray-50 font-sans text-gray-900">
 
   <div class="flex min-h-screen">
-    <?php include 'sidebar.php'; ?>
+    <?php include 'super_admin_sidebar.php'; ?>
 
     <main class="flex-1 p-8 ml-64">
     <header class="bg-[var(--cvsu-green-dark)] text-white p-6 flex justify-between items-center shadow-md rounded-md mb-8">
   <h1 class="text-3xl font-extrabold">Manage Users</h1>
   <div class="flex space-x-2">
-    <a href="admin_dashboard.php" class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded font-semibold transition">Back to Dashboard</a>
     <a href="restrict_users.php" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-semibold transition">Restrict User</a>
   </div>
 </header>

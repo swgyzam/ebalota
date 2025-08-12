@@ -1,17 +1,20 @@
 <?php
 session_start();
-if (!isset($_SESSION['pending_admin_auth'])) {
+
+if (!isset($_SESSION['pending_admin_auth']) || !isset($_SESSION['pending_auth_role'])) {
     header('Location: login.html');
     exit;
 }
-?>
 
+$role = $_SESSION['pending_auth_role'];
+$displayRole = ucfirst(str_replace('_', ' ', $role)); // "super_admin" -> "Super admin"
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Admin Verification Sent</title>
+<title><?php echo $displayRole; ?> Verification Sent</title>
 <style>
   body {
     margin: 0;
@@ -101,7 +104,8 @@ if (!isset($_SESSION['pending_admin_auth'])) {
       </svg>
     </div>
     <h2>Verification Email Sent</h2>
-    <p>A secure login link has been sent to your admin email address. Please check your inbox and follow the link to complete your login.</p>
+    <p>A secure login link has been sent to your <strong><?php echo $displayRole; ?></strong> email address.<br>
+    Please check your inbox and follow the link to complete your login.</p>
     <button id="okButton">OK</button>
   </div>
 </div>

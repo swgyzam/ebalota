@@ -2,8 +2,10 @@
 session_start();
 date_default_timezone_set('Asia/Manila');
 
-if (!isset($_SESSION['user_id']) || empty($_SESSION['is_admin'])) {
-    header('Location: login.html');
+header('Content-Type: application/json'); // So JS receives JSON response
+
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
+    echo json_encode(['status' => 'error', 'message' => 'Unauthorized access.']);
     exit();
 }
 
@@ -22,39 +24,85 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (\PDOException $e) {
-    die("Database connection failed: " . $e->getMessage());
+    echo json_encode(['status' => 'error', 'message' => 'Database connection failed.']);
+    exit();
 }
 
-// Check required fields
+// ===== Validation =====
 if (
-    empty($_POST['election_name']) || 
-    empty($_POST['start_date']) || 
-    empty($_POST['end_date']) || 
+    empty($_POST['election_name']) ||
+    empty($_POST['start_datetime']) ||
+    empty($_POST['end_datetime']) ||
     empty($_POST['target_voter'])
 ) {
-    die("Please fill all required fields.");
+    echo json_encode(['status' => 'error', 'message' => 'Please fill all required fields.']);
+    exit();
 }
 
 $title = trim($_POST['election_name']);
 $description = trim($_POST['description'] ?? '');
-$start_date = $_POST['start_date'];
-$end_date = $_POST['end_date'];
+$election_name   = $_POST['election_name'] ?? '';
+$start_datetime  = $_POST['start_datetime'] ?? '';
+$end_datetime    = $_POST['end_datetime'] ?? '';
+$target_voter    = $_POST['target_voter'] ?? '';
 
-// Convert to datetime format with times (set start = 00:00:00, end = 23:59:59)
-$start_datetime = date('Y-m-d H:i:s', strtotime($start_date . ' 00:00:00'));
-$end_datetime = date('Y-m-d H:i:s', strtotime($end_date . ' 23:59:59'));
+if (empty($election_name) || empty($start_datetime) || empty($end_datetime) || empty($target_voter)) {
+    echo json_encode(['status' => 'error', 'message' => 'Please fill all required fields.']);
+    exit;
+}
 
-$target_voter = $_POST['target_voter'];
+$now = date('Y-m-d\TH:i');
+if ($start_datetime < $now) {
+    echo json_encode(['status' => 'error', 'message' => 'Start date/time must be today or in the future.']);
+    exit;
+}
 
-// Default values for allowed filters
+if (strtotime($end_datetime) <= strtotime($start_datetime)) {
+    echo json_encode(['status' => 'error', 'message' => 'End date must be after start date.']);
+    exit;
+}
+
+// ==== File Upload Handling for Logo ====
+$logoPath = null;
+if (isset($_FILES['election_logo']) && $_FILES['election_logo']['error'] === UPLOAD_ERR_OK) {
+    $targetDir = "uploads/logos/";
+
+    if (!is_dir($targetDir)) {
+        mkdir($targetDir, 0777, true);
+    }
+
+    $fileName = time() . "_" . basename($_FILES["election_logo"]["name"]);
+    $targetFilePath = $targetDir . $fileName;
+
+    $fileType = strtolower(pathinfo($targetFilePath, PATHINFO_EXTENSION));
+    $allowedTypes = ['jpg', 'jpeg', 'png'];
+
+    if (!in_array($fileType, $allowedTypes)) {
+        echo json_encode(['status' => 'error', 'message' => 'Only JPG and PNG files are allowed.']);
+        exit();
+    }
+
+    if ($_FILES['election_logo']['size'] > 2 * 1024 * 1024) {
+        echo json_encode(['status' => 'error', 'message' => 'Logo must be less than 2MB.']);
+        exit();
+    }
+
+    if (move_uploaded_file($_FILES["election_logo"]["tmp_name"], $targetFilePath)) {
+        $logoPath = $targetFilePath;
+    }
+}
+// ==== End File Upload ====
+
+// Defaults
 $allowed_colleges = 'All';
 $allowed_courses = 'All';
 $allowed_status = 'All';
 $target_position = 'All';
 
+// Target voter logic
 switch ($target_voter) {
     case 'student':
-        $allowed_colleges = $_POST['allowed_colleges_student'] ?? 'all';
+        $allowed_colleges = $_POST['allowed_colleges_student'] ?? 'All';
         if (strtolower($allowed_colleges) === 'all') {
             $allowed_colleges = 'All';
             $allowed_courses = 'All';
@@ -62,100 +110,61 @@ switch ($target_voter) {
             if (!empty($_POST['allowed_courses_student'])) {
                 $allowed_courses_arr = array_map('trim', $_POST['allowed_courses_student']);
                 $allowed_courses = implode(',', $allowed_courses_arr);
-            } else {
-                $allowed_courses = 'All';
             }
         }
         $target_position = 'student';
-        $allowed_status = 'All'; // not applicable
         break;
 
     case 'academic':
-        $allowed_colleges = $_POST['allowed_colleges_academic'] ?? 'all';
-        if (strtolower($allowed_colleges) === 'all') {
-            $allowed_colleges = 'All';
-            $allowed_courses = 'All';
-        } else {
-            if (!empty($_POST['allowed_courses_academic'])) {
-                $allowed_courses_arr = array_map('trim', $_POST['allowed_courses_academic']);
-                $allowed_courses = implode(',', $allowed_courses_arr);
-            } else {
-                $allowed_courses = 'All';
-            }
+        $allowed_colleges = $_POST['allowed_colleges_academic'] ?? 'All';
+        if (!empty($_POST['allowed_courses_academic'])) {
+            $allowed_courses_arr = array_map('trim', $_POST['allowed_courses_academic']);
+            $allowed_courses = implode(',', $allowed_courses_arr);
         }
         if (!empty($_POST['allowed_status_academic'])) {
             $allowed_status_arr = array_map('trim', $_POST['allowed_status_academic']);
             $allowed_status = implode(',', $allowed_status_arr);
-        } else {
-            $allowed_status = 'All';
         }
         $target_position = 'faculty';
         break;
 
     case 'non_academic':
-        // Use separate variable for departments, but save to allowed_colleges to reuse existing column
-        $departments = $_POST['allowed_departments_nonacad'] ?? 'all';
-        $allowed_colleges = (strtolower($departments) === 'all') ? 'All' : $departments;
-
+        $departments = $_POST['allowed_departments_nonacad'] ?? 'All';
+        $allowed_colleges = $departments;
         if (!empty($_POST['allowed_status_nonacad'])) {
             $allowed_status_arr = array_map('trim', $_POST['allowed_status_nonacad']);
             $allowed_status = implode(',', $allowed_status_arr);
-        } else {
-            $allowed_status = 'All';
         }
-
-        $allowed_courses = 'All'; // not applicable
         $target_position = 'non-academic';
         break;
 
-        case 'coop':
-            // COOP doesn't need colleges or courses
-            $allowed_colleges = 'All';
-            $allowed_courses = 'All';
-        
-            // Filter allowed_status_coop to only include 'MIGS'
-            if (!empty($_POST['allowed_status_coop'])) {
-                $allowed_status_arr = array_map('trim', $_POST['allowed_status_coop']);
-                // Keep only 'MIGS' status (case-insensitive)
-                $allowed_status_arr = array_filter($allowed_status_arr, function($status) {
-                    return strtoupper($status) === 'MIGS';
-                });
-        
-                if (count($allowed_status_arr) === 0) {
-                    // If none selected, default to 'MIGS'
-                    $allowed_status = 'MIGS';
-                } else {
-                    $allowed_status = implode(',', $allowed_status_arr);
-                }
-            } else {
-                // Default to 'MIGS' if nothing selected
-                $allowed_status = 'MIGS';
-            }
-        
-            $target_position = 'coop';
-            break;
+    case 'coop':
+        if (!empty($_POST['allowed_status_coop'])) {
+            $allowed_status_arr = array_map('trim', $_POST['allowed_status_coop']);
+            $allowed_status_arr = array_filter($allowed_status_arr, fn($s) => strtoupper($s) === 'MIGS');
+            $allowed_status = count($allowed_status_arr) === 0 ? 'MIGS' : implode(',', $allowed_status_arr);
+        } else {
+            $allowed_status = 'MIGS';
+        }
+        $target_position = 'coop';
+        break;
+
     default:
-        die("Invalid target voter.");
+        echo json_encode(['status' => 'error', 'message' => 'Invalid target voter.']);
+        exit();
 }
 
+$realtime_results = isset($_POST['realtime_results']) ? 1 : 0;
 
-// For real-time results, assume it's off by default
-$realtime_results = 0;
-if (isset($_POST['realtime_results']) && $_POST['realtime_results'] === 'on') {
-    $realtime_results = 1;
-}
-
-
-// Insert into elections table
+// Insert
 $sql = "INSERT INTO elections 
 (title, description, start_datetime, end_datetime, 
  allowed_colleges, allowed_courses, allowed_status, 
- target_position, realtime_results, status)
+ target_position, realtime_results, status, creation_stage, logo_path)
 VALUES 
 (:title, :description, :start_datetime, :end_datetime, 
  :allowed_colleges, :allowed_courses, :allowed_status, 
- :target_position, :realtime_results, :status)";
-;
+ :target_position, :realtime_results, :status, :creation_stage, :logo_path)";
 
 $stmt = $pdo->prepare($sql);
 
@@ -170,12 +179,12 @@ try {
         ':allowed_status' => $allowed_status,
         ':target_position' => $target_position,
         ':realtime_results' => $realtime_results,
-        ':status' => 'upcoming'
+        ':status' => 'upcoming',
+        ':creation_stage' => 'pending_admin',
+        ':logo_path' => $logoPath
     ]);
-    
-    // Redirect back with success message
-    header("Location: manage_elections.php?msg=Election created successfully");
-    exit();
+
+    echo json_encode(['status' => 'success', 'message' => 'Election created successfully.']);
 } catch (PDOException $e) {
-    die("Error creating election: " . $e->getMessage());
+    echo json_encode(['status' => 'error', 'message' => 'Error creating election: ' . $e->getMessage()]);
 }

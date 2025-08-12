@@ -21,7 +21,7 @@ try {
 }
 
 // Check user session and admin status
-if (!isset($_SESSION['user_id']) || empty($_SESSION['is_admin'])) {
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
     header('Location: login.html');
     exit();
 }

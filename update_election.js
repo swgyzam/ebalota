@@ -94,9 +94,9 @@ function initializeFacultyFields(election) {
 }
 
 function initializeNonAcademicFields(election) {
-    if (election.allowed_colleges && election.allowed_colleges !== 'all') {
-        document.getElementById('update_allowed_departments_nonacad').value = election.allowed_colleges;
-    }
+    if (election.allowed_departments && election.allowed_departments !== 'all') {
+        document.getElementById('update_allowed_departments_nonacad').value = election.allowed_departments;
+    }    
     
     if (election.allowed_status && election.allowed_status !== 'all') {
         const statuses = election.allowed_status.split(',');
