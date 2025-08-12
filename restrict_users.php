@@ -20,9 +20,9 @@ try {
     die("Database connection failed: " . $e->getMessage());
 }
 
-if (!isset($_SESSION['user_id']) || empty($_SESSION['is_admin'])) {
-    header('Location: login.php');
-    exit();
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
+  header('Location: login.php');
+  exit();
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_FILES['csv_file']) && $_FILES['csv_file']['error'] === UPLOAD_ERR_OK) {
@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <header class="bg-[var(--cvsu-green-dark)] text-white p-6 flex justify-between items-center shadow-md rounded-md mb-8">
     <h1 class="text-3xl font-extrabold">Restrict Users</h1>
     <div class="flex space-x-2">
-    <a href="admin_dashboard.php" class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded font-semibold transition">Back to Dashboard</a>
+    <a href="super_admin_dashboard.php" class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded font-semibold transition">Back to Dashboard</a>
   </div>
 </button>
   </header>

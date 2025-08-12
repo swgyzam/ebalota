@@ -27,6 +27,54 @@ try {
     die("Database connection failed: " . $e->getMessage());
 }
 
+// Function to send super admin verification email
+function sendSuperAdminVerificationEmail($email, $first_name, $last_name, $token) {
+    $mail = new PHPMailer(true);
+    $verificationUrl = "http://localhost/ebalota/super_admin_verify.php?token=$token";
+
+    try {
+        $mail->isSMTP();
+        $mail->Host = 'smtp.gmail.com';
+        $mail->SMTPAuth = true;
+        $mail->Username = 'mark.anthony.mark233@gmail.com';
+        $mail->Password = 'dbqwfzasqmaitlty';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port = 587;
+
+        $mail->setFrom('mark.anthony.mark233@gmail.com', 'eBalota System');
+        $mail->addAddress($email, "$first_name $last_name");
+
+        $mail->isHTML(true);
+        $mail->Subject = 'Super Admin Login Verification';
+        $mail->Body = "
+            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
+                <h2 style='color: #aa1e1e;'>Super Admin Login Verification</h2>
+                <p>Hello $first_name,</p>
+                <p>To complete your <strong>Super Admin</strong> login, please click the link below:</p>
+                <p>
+                    <a href='$verificationUrl' style='
+                        display: inline-block;
+                        padding: 12px 24px;
+                        background-color: #aa1e1e;
+                        color: white;
+                        text-decoration: none;
+                        border-radius: 5px;
+                        font-weight: bold;
+                    '>Verify Super Admin Login</a>
+                </p>
+                <p>This link will expire in 1 hour.</p>
+            </div>
+        ";
+        $mail->AltBody = "Verify your Super Admin login: $verificationUrl";
+
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        error_log("Mailer Error: " . $mail->ErrorInfo);
+        return false;
+    }
+}
+
 // Function to send admin verification email
 function sendAdminVerificationEmail($email, $first_name, $last_name, $token) {
     $mail = new PHPMailer(true);
@@ -36,8 +84,8 @@ function sendAdminVerificationEmail($email, $first_name, $last_name, $token) {
         $mail->isSMTP();
         $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
-        $mail->Username = 'mark.anthony.mark233@gmail.com'; // Move to config later
-        $mail->Password = 'dbqwfzasqmaitlty'; // Move to config later
+        $mail->Username = 'mark.anthony.mark233@gmail.com';
+        $mail->Password = 'dbqwfzasqmaitlty';
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
 
@@ -62,9 +110,7 @@ function sendAdminVerificationEmail($email, $first_name, $last_name, $token) {
                         font-weight: bold;
                     '>Verify Admin Login</a>
                 </p>
-                <p>This link expires in 24 hours.</p>
-                <hr style='margin: 20px 0; border-top: 1px solid #eee;'>
-                <p style='font-size: 12px; color: #777;'>eBalota | Cavite State University</p>
+                <p>This link expires in 1 hour.</p>
             </div>
         ";
         $mail->AltBody = "Verify your admin login: $verificationUrl";
@@ -82,13 +128,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
     $remember = isset($_POST['remember']);
 
-    // Validate email
+    // Basic validations
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         header("Location: login.html?error=Invalid email format.&email=" . urlencode($email));
         exit;
     }
 
-    // Validate password presence
     if (empty($password)) {
         header("Location: login.html?error=Password required.&email=" . urlencode($email));
         exit;
@@ -100,53 +145,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = $stmt->fetch();
 
         if (!$user) {
-            // Email not found
             header("Location: login.html?error=Email does not exist.&email=" . urlencode($email));
             exit;
         }
 
         if (!password_verify($password, $user['password'])) {
-            // Wrong password
             header("Location: login.html?error=Incorrect password.&email=" . urlencode($email));
             exit;
         }
 
-        // Admin login flow requiring email verification
-        if ($user['is_admin']) {
+        // Admin/super_admin require email verification
+        if (in_array($user['role'], ['super_admin', 'admin'])) {
             $token = bin2hex(random_bytes(32));
             $expires = date('Y-m-d H:i:s', strtotime('+1 hour'));
 
-            // Store token in database
             $stmt = $pdo->prepare("INSERT INTO admin_login_tokens (user_id, token, expires_at) VALUES (?, ?, ?)");
             $stmt->execute([$user['user_id'], $token, $expires]);
 
-            // Send verification email
-            if (sendAdminVerificationEmail($user['email'], $user['first_name'], $user['last_name'], $token)) {
-                $_SESSION['pending_admin_auth'] = $user['user_id']; // Track pending admin login
+            $success = false;
+            if ($user['role'] === 'super_admin') {
+                $success = sendSuperAdminVerificationEmail($user['email'], $user['first_name'], $user['last_name'], $token);
+            } elseif ($user['role'] === 'admin') {
+                $success = sendAdminVerificationEmail($user['email'], $user['first_name'], $user['last_name'], $token);
+            }
+            if ($success) {
+                $_SESSION['pending_admin_auth'] = $user['user_id'];
+                $_SESSION['pending_auth_role'] = $user['role']; 
                 header("Location: admin_login_pending.php");
-                exit;
+                exit;            
             } else {
                 header("Location: login.html?error=Failed to send verification email.&email=" . urlencode($email));
                 exit;
             }
         }
 
-        // Regular user login (no email verification)
+        // Normal user login
         $_SESSION['user_id'] = $user['user_id'];
         $_SESSION['first_name'] = $user['first_name'];
-        $_SESSION['last_name'] = $user['last_name'];
+        $_SESSION['last_name']  = $user['last_name'];
         $_SESSION['email'] = $user['email'];
-        $_SESSION['is_admin'] = (bool)$user['is_admin'];
+        $_SESSION['role']  = $user['role'];
 
-        // New session variables for position and coop member
-        $_SESSION['position'] = $user['position'];             // 'student', 'academic', 'non-academic'
+        $_SESSION['position'] = $user['position'];
         $_SESSION['is_coop_member'] = (bool)$user['is_coop_member'];
         $_SESSION['department'] = $user['department'] ?? '';
         $_SESSION['course'] = $user['course'] ?? '';
         $_SESSION['status'] = $user['status'] ?? '';
-        $_SESSION['role'] = 'voter';
 
-        // Remember me functionality
+        // Remember me
         if ($remember) {
             $token = bin2hex(random_bytes(32));
             $stmt = $pdo->prepare("UPDATE users SET remember_token = ? WHERE user_id = ?");
@@ -160,19 +206,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
         }
 
-        // Redirect based on role/admin
-        if ($_SESSION['is_admin']) {
-            header("Location: admin_dashboard.php");
-            exit;
+        // Redirect by role
+        switch ($_SESSION['role']) {
+            case 'super_admin':
+                header("Location: super_admin/dashboard.php");
+                break;
+            case 'admin':
+                header("Location: admin_dashboard.php");
+                break;
+            default:
+                header("Location: voters_dashboard.php");
         }
-
-        // Example: you can add custom redirect logic for coop members or position
-        // if ($_SESSION['position'] === 'academic' && $_SESSION['is_coop_member']) {
-        //     header("Location: coop_dashboard.php");
-        //     exit;
-        // }
-
-        header("Location: voters_dashboard.php");
         exit;
 
     } catch (PDOException $e) {
@@ -182,7 +226,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
 } else {
-    // If not POST, redirect to login form
     header("Location: login.html");
     exit;
 }

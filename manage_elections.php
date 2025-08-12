@@ -20,30 +20,29 @@ try {
     die("Database connection failed: " . $e->getMessage());
 }
 
-if (!isset($_SESSION['user_id']) || empty($_SESSION['is_admin'])) {
-    header('Location: login.html');
-    exit();
-}
-
-// Update election statuses based on current time
+// Update statuses
 $now = date('Y-m-d H:i:s');
 $pdo->query("UPDATE elections SET status = 'completed' WHERE end_datetime < '$now'");
 $pdo->query("UPDATE elections SET status = 'ongoing' WHERE start_datetime <= '$now' AND end_datetime >= '$now'");
 $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$now'");
 
-
-
-// Fetch all elections ordered by start date descending
-$stmt = $pdo->query("SELECT * FROM elections ORDER BY start_datetime DESC");
+// Get filter
+$filter_status = $_GET['status'] ?? 'all';
+if ($filter_status === 'all') {
+    $stmt = $pdo->query("SELECT * FROM elections ORDER BY start_datetime DESC");
+} else {
+    $stmt = $pdo->prepare("SELECT * FROM elections WHERE status = :status ORDER BY start_datetime DESC");
+    $stmt->execute(['status' => $filter_status]);
+}
 $elections = $stmt->fetchAll();
 ?>
 
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Manage Elections - E-Voting System</title>
+  <title>Manage Elections</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     :root {
@@ -52,25 +51,40 @@ $elections = $stmt->fetchAll();
       --cvsu-green-light: #37A66B;
       --cvsu-yellow: #FFD166;
     }
-    .modal-backdrop {
-      background: rgba(0, 0, 0, 0.5);
-    }
   </style>
 </head>
 <body class="bg-gray-50 font-sans min-h-screen flex">
-<?php include 'sidebar.php'; ?>
+<?php include 'super_admin_sidebar.php'; ?>
 
 <main class="flex-1 p-8 ml-64">
   <header class="bg-[var(--cvsu-green-dark)] text-white p-6 flex justify-between items-center shadow-md rounded-md mb-8">
     <h1 class="text-3xl font-extrabold">Manage Elections</h1>
-    <button id="openModalBtn" class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded font-semibold transition">+ Create Election
-</button>
-
+    <button id="openModalBtn" class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded font-semibold transition">+ Create Election</button>
   </header>
 
+  <!-- Filter Buttons -->
+  <div class="flex justify-center mb-6">
+    <div class="inline-flex bg-gray-100 rounded-full shadow-sm p-1">
+      <?php
+        $statuses = ['all' => 'All', 'upcoming' => 'Upcoming', 'ongoing' => 'Ongoing', 'completed' => 'Completed'];
+        foreach ($statuses as $key => $label):
+          $isActive = ($filter_status === $key);
+          $btnClass = $isActive
+            ? 'bg-green-600 text-white shadow-md'
+            : 'bg-transparent text-gray-700 hover:bg-green-100';
+      ?>
+        <a href="?status=<?= $key ?>"
+           class="px-4 py-2 rounded-full font-medium transition-colors duration-200 <?= $btnClass ?>">
+           <?= $label ?>
+        </a>
+      <?php endforeach; ?>
+    </div>
+  </div>
+
+  <!-- Election Cards -->
   <section class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
     <?php if (count($elections) === 0): ?>
-      <p class="text-gray-700 col-span-full text-center mt-12">No elections found. Click "Create Election" to add one.</p>
+      <p class="text-gray-700 col-span-full text-center mt-12">No elections found.</p>
     <?php else: ?>
       <?php foreach ($elections as $election): ?>
         <?php
@@ -78,84 +92,87 @@ $elections = $stmt->fetchAll();
           $end = $election['end_datetime'];
           $status = ($now < $start) ? 'upcoming' : (($now >= $start && $now <= $end) ? 'ongoing' : 'completed');
 
-          // Prepare display strings for allowed fields
-          // Handle allowed_colleges (comma separated or JSON)
-          $allowed_colleges = $election['allowed_colleges'] ?: 'All';
-
-          // For allowed_positions (target_position) - it might be stored as JSON or comma separated
-          $allowed_positions_raw = $election['target_position'] ?? '';
-          if (empty($allowed_positions_raw)) {
-              $allowed_positions = 'All';
-          } else {
-              $positions = json_decode($allowed_positions_raw, true);
-              if (json_last_error() !== JSON_ERROR_NONE) {
-                  $positions = array_map('trim', explode(',', $allowed_positions_raw));
-              }
-              $allowed_positions = implode(', ', array_map('ucfirst', $positions));
-          }
-        
-          // Allowed courses and status, similar handling
+          $allowed_positions = $election['target_position'] ?: 'All';
           $allowed_courses = $election['allowed_courses'] ?: 'All';
           $allowed_status = $election['allowed_status'] ?: 'All';
-          
         ?>
-
-<div class="bg-white rounded-lg shadow p-6 border-l-8 <?= $status === 'ongoing' ? 'border-blue-500' : 'border-gray-300' ?>">
-    <h2 class="text-xl font-bold text-[var(--cvsu-green-dark)] mb-2"><?= htmlspecialchars($election['title']) ?></h2>
-    <p class="text-sm text-gray-500 mb-1"><strong>Start:</strong> <?= date('M d, Y h:i A', strtotime($start)) ?></p>
-    <p class="text-sm text-gray-500 mb-3"><strong>End:</strong> <?= date('M d, Y h:i A', strtotime($end)) ?></p>
-    <p class="text-sm font-semibold <?= $status === 'ongoing' ? 'text-blue-600' : 'text-gray-600' ?>">Status: <?= ucfirst($status) ?></p>
-    <p class="text-sm text-gray-700 mt-2"><strong>Partial Results:</strong> <?= $election['realtime_results'] ? 'Yes' : 'No' ?></p>
-    <p class="text-sm text-gray-700 mt-2"><strong>Allowed Voters:</strong> <?= htmlspecialchars($allowed_positions) ?></p>
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6 border-l-4 <?= $status === 'ongoing' ? 'border-green-600' : ($status === 'completed' ? 'border-gray-400' : 'border-yellow-400') ?> flex flex-col">
+          <div class="flex flex-grow">
+            <div class="flex-1 pr-4 flex flex-col">
+              <h2 class="text-lg font-bold text-[var(--cvsu-green-dark)] mb-2 truncate"><?= htmlspecialchars($election['title']) ?></h2>
+              <div class="space-y-0.5 text-xs leading-tight">
+              <p><strong class="text-gray-700">Start:</strong> <?= date('M d, Y h:i A', strtotime($election['start_datetime'])) ?></p>
+                <p><strong class="text-gray-700">End:</strong> <?= date('M d, Y h:i A', strtotime($election['end_datetime'])) ?></p>
+                <p><strong class="text-gray-700">Status:</strong> <?= ucfirst($status) ?></p>
+                <p><strong class="text-gray-700">Partial Results:</strong> <?= $election['realtime_results'] ? 'Yes' : 'No' ?></p>
+                <p><strong class="text-gray-700">Allowed Voters:</strong> <?= htmlspecialchars($allowed_positions) ?></p>
+                
     <?php
     $positions = explode(',', $election['target_position']);
 
     if (in_array('non-academic', $positions)) {
-        echo '<p class="text-sm text-gray-700"><strong>Allowed Department:</strong> ' . htmlspecialchars($election['allowed_colleges'] ?: 'All') . '</p>';
+        echo '<p class="text-xs text-gray-700"><strong>Allowed Department:</strong> ' . htmlspecialchars($election['allowed_departments'] ?: 'All') . '</p>';
     } elseif (in_array('faculty', $positions) || in_array('student', $positions)) {
-        echo '<p class="text-sm text-gray-700"><strong>Allowed Colleges:</strong> ' . htmlspecialchars($election['allowed_colleges'] ?: 'All') . '</p>';
+        echo '<p class="text-xs text-gray-700"><strong>Allowed Colleges:</strong> ' . htmlspecialchars($election['allowed_colleges'] ?: 'All') . '</p>';
     }
     // Optional: You can skip printing anything for COOP-only elections
     ?>
     <?php if (strpos($election['target_position'], 'student') !== false): ?>
-        <p class="text-sm text-gray-700"><strong>Allowed Courses:</strong> 
+        <p class="text-xs text-gray-700"><strong>Allowed Courses:</strong> 
             <?= !empty($election['allowed_courses']) ? htmlspecialchars($election['allowed_courses']) : 'All' ?>
         </p>
     <?php endif; ?>
     
     <?php if (strpos($election['target_position'], 'faculty') !== false): ?>
-      <p class="text-sm text-gray-700"><strong>Allowed Courses:</strong> 
-            <?= !empty($election['allowed_courses']) ? htmlspecialchars($election['allowed_courses']) : 'All' ?>
-        </p>
-        <p class="text-sm text-gray-700"><strong>Allowed Status:</strong> 
+        <p class="text-xs text-gray-700"><strong>Allowed Status:</strong> 
             <?= !empty($election['allowed_status']) ? htmlspecialchars($election['allowed_status']) : 'All' ?>
         </p>
     <?php endif; ?>
+
     <?php if (strpos($election['target_position'], 'coop') !== false): ?>
-        <p class="text-sm text-gray-700"><strong>Allowed Status:</strong> 
+        <p class="text-xs text-gray-700"><strong>Allowed Status:</strong> 
             <?= !empty($election['allowed_status']) ? htmlspecialchars($election['allowed_status']) : 'All' ?>
         </p>
     <?php endif; ?>
     <?php if (strpos($election['target_position'], 'non-academic') !== false): ?>
-      <p class="text-sm text-gray-700"><strong>Allowed Status:</strong> 
+      <p class="text-xs text-gray-700"><strong>Allowed Status:</strong> 
         <?= !empty($election['allowed_status']) ? htmlspecialchars($election['allowed_status']) : 'All' ?>
       </p>
     <?php endif; ?>
-
-    <div class="mt-6 flex gap-3">
-    <button 
-  type="button" 
-  onclick='openUpdateModal(<?= json_encode($election) ?>)'
-  class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded font-semibold transition"
-  data-election='<?= htmlspecialchars(json_encode($election), ENT_QUOTES, 'UTF-8') ?>'
->
-  Update
-</button>
-                <form action="delete_election.php" method="POST" onsubmit="return confirm('Are you sure you want to delete this election?');" class="flex-1">
-                    <input type="hidden" name="election_id" value="<?= htmlspecialchars($election['election_id']) ?>">
-                    <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded font-semibold transition">Delete</button>
-                </form>
             </div>
+        </div>
+
+        <!-- Large Circular Logo (Right Side) -->
+        <div class="w-40 h-40 flex-shrink-0 ml-4"> <!-- Increased size to w-40 h-40 -->
+            <?php if (!empty($election['logo_path'])): ?>
+                <div class="w-full h-full rounded-full overflow-hidden border-2 border-gray-200 flex items-center justify-center bg-gray-100">
+                    <img src="<?= htmlspecialchars($election['logo_path']) ?>" 
+                         alt="Election Logo" 
+                         class="min-w-full min-h-full object-cover">
+                </div>
+            <?php else: ?>
+                <div class="w-full h-full rounded-full bg-gray-200 border-2 border-gray-300 flex items-center justify-center">
+                    <span class="text-sm text-gray-500">Logo</span>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Action Buttons (Pushed to absolute bottom) -->
+    <div class="mt-auto pt-4"> <!-- mt-auto pushes to bottom -->
+        <div class="flex gap-3">
+            <button onclick='openUpdateModal(<?= json_encode($election) ?>)' 
+                    class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded font-semibold transition">
+                Update
+            </button>
+            <form action="delete_election.php" method="POST" onsubmit="return confirm('Are you sure?');" class="flex-1">
+                <input type="hidden" name="election_id" value="<?= $election['election_id'] ?>">
+                <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded font-semibold transition">
+                    Delete
+                </button>
+            </form>
+        </div>
+    </div>
 </div>
       <?php endforeach; ?>
     <?php endif; ?>
@@ -170,7 +187,7 @@ $elections = $stmt->fetchAll();
     <button id="closeModalBtn" class="absolute top-3 right-3 text-gray-600 hover:text-gray-900 text-2xl font-bold">&times;</button>
     <h2 class="text-2xl font-bold mb-6">Create Election</h2>
 
-    <form action="create_election.php" method="POST" class="space-y-6">
+    <form id="createElectionForm" enctype="multipart/form-data">
 
       <!-- Election Name -->
       <div>
@@ -178,18 +195,29 @@ $elections = $stmt->fetchAll();
         <input type="text" name="election_name" required class="w-full p-2 border rounded" />
       </div>
 
+      <!-- Election Logo -->
+      <div>
+        <label class="block mb-2 font-semibold">Election Logo</label>
+        <input type="file" name="election_logo" accept="image/*" class="w-full p-2 border rounded">
+        <p class="text-xs text-gray-500">Upload a JPG or PNG image (max 2MB).</p>
+      </div>
+      
       <!-- Description -->
       <div>
         <label class="block mb-2 font-semibold">Description</label>
         <textarea name="description" class="w-full p-2 border rounded"></textarea>
       </div>
 
-      <!-- Start & End Dates -->
+      <!-- Start & End DateTime -->
       <div>
         <label class="block mb-2 font-semibold">Start and End Date *</label>
         <div class="flex gap-2">
-          <input type="date" name="start_date" required class="w-1/2 p-2 border rounded">
-          <input type="date" name="end_date" required class="w-1/2 p-2 border rounded">
+          <input type="datetime-local" name="start_datetime" required 
+                 class="w-1/2 p-2 border rounded"
+                 min="<?= $now ?>" max="2100-12-31T23:59">
+          <input type="datetime-local" name="end_datetime" required 
+                 class="w-1/2 p-2 border rounded"
+                 min="<?= $now ?>" max="2100-12-31T23:59">
         </div>
       </div>
 
@@ -242,16 +270,6 @@ $elections = $stmt->fetchAll();
       }
       ?>
     </select>
-  </div>
-
-  <div id="academicCoursesContainer" class="hidden">
-    <label class="block mb-2 font-semibold">Allowed Courses (Academic)</label>
-    <div id="academicCoursesList" class="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto border p-2 rounded text-sm">
-      <!-- Courses will be loaded here dynamically -->
-    </div>
-    <div class="mt-1">
-      <button type="button" onclick="toggleAllCheckboxes('allowed_courses_academic[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
-    </div>
   </div>
 
   <div>
@@ -337,13 +355,21 @@ $elections = $stmt->fetchAll();
     <button onclick="closeUpdateModal()" class="absolute top-3 right-3 text-gray-600 hover:text-gray-900 text-2xl font-bold">&times;</button>
     <h2 class="text-2xl font-bold mb-6">Update Election</h2>
 
-    <form action="update_election.php" method="POST" class="space-y-6">
+    <form action="update_election.php" method="POST" enctype="multipart/form-data" class="space-y-6">
       <input type="hidden" name="election_id" id="update_election_id">
 
       <!-- Election Name -->
       <div>
         <label class="block mb-2 font-semibold">Election Name *</label>
         <input type="text" name="election_name" id="update_election_name" required class="w-full p-2 border rounded" />
+      </div>
+
+      <!-- Election Logo -->
+      <div class="mb-4">
+          <label class="block mb-2 font-semibold">Election Logo</label>
+          <input type="file" name="update_logo" id="update_logo" class="w-full p-2 border rounded" accept="image/*">
+          <?php if (!empty($election['logo_path'])): ?>
+          <?php endif; ?>
       </div>
 
       <!-- Description -->
@@ -415,17 +441,7 @@ $elections = $stmt->fetchAll();
             <?php foreach ($colleges as $college) { echo "<option value='$college'>$college</option>"; } ?>
           </select>
         </div>
-
-        <div id="update_facultyCoursesContainer" class="hidden">
-          <label class="block mb-2 font-semibold">Allowed Courses (Faculty)</label>
-          <div id="update_facultyCoursesList" class="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto border p-2 rounded text-sm">
-            <!-- Courses will be loaded here dynamically -->
-          </div>
-          <div class="mt-1">
-            <button type="button" onclick="toggleAllCheckboxes('update_allowed_courses_faculty[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
-          </div>
-        </div>
-
+        
         <div>
           <label class="block mb-2 font-semibold">Allowed Status (Faculty)</label>
           <div class="flex gap-6 text-sm border p-2 rounded">
@@ -491,6 +507,8 @@ $elections = $stmt->fetchAll();
 
 <script src="create_election.js"></script>
 <script src="update_election.js"></script>
+<script src="success.js"></script>
+
 <style>
   .modal-backdrop {
     background-color: rgba(0,0,0,0.5);

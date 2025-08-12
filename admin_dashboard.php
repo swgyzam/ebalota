@@ -21,9 +21,9 @@ try {
 }
 
 // Redirect if not logged in or not admin
-if (!isset($_SESSION['user_id']) || empty($_SESSION['is_admin'])) {
-    header('Location: login.php');
-    exit();
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+  header('Location: login.php');
+  exit();
 }
 
 // Fetch dashboard stats
