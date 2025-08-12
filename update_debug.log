@@ -924,3 +924,250 @@ Array
 )
 
 Update successful for election 185
+Executing with params:
+Array
+(
+    [:title] => tryyyyyyyyyyyyy
+    [:description] => sasas
+    [:start_datetime] => 2025-08-11 00:00:00
+    [:end_datetime] => 2025-08-11 23:59:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CON
+    [:allowed_courses] => 
+    [:allowed_status] => Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1754893674_prof.jpg
+    [:election_id] => 159
+)
+
+Update successful for election 159
+Executing with params:
+Array
+(
+    [:title] => meow
+    [:description] => sasas
+    [:start_datetime] => 2025-08-11 00:00:00
+    [:end_datetime] => 2025-08-11 23:59:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1754993189_pingwinnn.jpg
+    [:election_id] => 159
+)
+
+Update successful for election 159
+Executing with params:
+Array
+(
+    [:title] => meow
+    [:description] => sasas
+    [:start_datetime] => 2025-08-11 00:00:00
+    [:end_datetime] => 2025-08-11 23:59:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CVMBS
+    [:allowed_courses] => 
+    [:allowed_status] => Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1754993189_pingwinnn.jpg
+    [:election_id] => 159
+)
+
+Update successful for election 159
+Executing with params:
+Array
+(
+    [:title] => okkkk
+    [:description] => sasas
+    [:start_datetime] => 2025-08-13 02:05:00
+    [:end_datetime] => 2025-08-13 23:11:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Part-time
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => 
+    [:election_id] => 187
+)
+
+Update successful for election 187
+Executing with params:
+Array
+(
+    [:title] => meow
+    [:description] => sasas
+    [:start_datetime] => 2025-08-11 00:00:00
+    [:end_datetime] => 2025-08-11 23:59:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CVMBS
+    [:allowed_courses] => BSPV
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1754993189_pingwinnn.jpg
+    [:election_id] => 159
+)
+
+Update successful for election 159
+Executing with params:
+Array
+(
+    [:title] => meow
+    [:description] => sasas
+    [:start_datetime] => 2025-08-11 00:00:00
+    [:end_datetime] => 2025-08-11 23:59:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Part-time
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1754993189_pingwinnn.jpg
+    [:election_id] => 159
+)
+
+Update successful for election 159
+Executing with params:
+Array
+(
+    [:title] => meow
+    [:description] => sasas
+    [:start_datetime] => 2025-08-11 00:00:00
+    [:end_datetime] => 2025-08-11 23:59:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CTHM
+    [:allowed_courses] => 
+    [:allowed_status] => Part-time
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1754993189_pingwinnn.jpg
+    [:election_id] => 159
+)
+
+Update successful for election 159
+Executing with params:
+Array
+(
+    [:title] => last na
+    [:description] => sasasas
+    [:start_datetime] => 2025-08-12 11:11:00
+    [:end_datetime] => 2025-08-12 23:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => Part-time
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1754915127_NESCAFE Banner.jpg
+    [:election_id] => 182
+)
+
+Update successful for election 182
+Executing with params:
+Array
+(
+    [:title] => last na
+    [:description] => sasasas
+    [:start_datetime] => 2025-08-12 11:11:00
+    [:end_datetime] => 2025-08-12 23:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CVMBS
+    [:allowed_courses] => 
+    [:allowed_status] => Part-time
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1754915127_NESCAFE Banner.jpg
+    [:election_id] => 182
+)
+
+Update successful for election 182
+Executing with params:
+Array
+(
+    [:title] => okkkk
+    [:description] => sasas
+    [:start_datetime] => 2025-08-13 02:05:00
+    [:end_datetime] => 2025-08-13 23:11:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CVMBS
+    [:allowed_courses] => DVM
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => 
+    [:election_id] => 187
+)
+
+Update successful for election 187
+Executing with params:
+Array
+(
+    [:title] => okkkk
+    [:description] => sasas
+    [:start_datetime] => 2025-08-13 02:05:00
+    [:end_datetime] => 2025-08-13 23:11:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSECE,BSCE,BSME
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => 
+    [:election_id] => 187
+)
+
+Update successful for election 187
+Executing with params:
+Array
+(
+    [:title] => makiiii
+    [:description] => kjkj
+    [:start_datetime] => 2025-08-13 11:11:00
+    [:end_datetime] => 2025-08-13 23:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => Part-time
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1754995202_UMAAPOY.jpg
+    [:election_id] => 188
+)
+
+Update successful for election 188
+Executing with params:
+Array
+(
+    [:title] => okkkk
+    [:description] => sasas
+    [:start_datetime] => 2025-08-13 02:05:00
+    [:end_datetime] => 2025-08-13 23:11:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSIT,BSCpE,BSECE,BSCE,BSME,BSIE
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => 
+    [:election_id] => 187
+)
+
+Update successful for election 187

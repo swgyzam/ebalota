@@ -4,10 +4,10 @@ date_default_timezone_set('Asia/Manila');
 
 header('Content-Type: application/json'); // So JS receives JSON response
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
-    echo json_encode(['status' => 'error', 'message' => 'Unauthorized access.']);
-    exit();
-}
+//if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
+    //echo json_encode(['status' => 'error', 'message' => 'Unauthorized access.']);
+    //exit();
+//}
 
 $host = 'localhost';
 $db   = 'evoting_system';
@@ -117,14 +117,15 @@ switch ($target_voter) {
 
     case 'academic':
         $allowed_colleges = $_POST['allowed_colleges_academic'] ?? 'All';
-        if (!empty($_POST['allowed_courses_academic'])) {
-            $allowed_courses_arr = array_map('trim', $_POST['allowed_courses_academic']);
-            $allowed_courses = implode(',', $allowed_courses_arr);
-        }
+        
+        // Set allowed_courses to NULL for academic voters
+        $allowed_courses = null;
+        
         if (!empty($_POST['allowed_status_academic'])) {
             $allowed_status_arr = array_map('trim', $_POST['allowed_status_academic']);
             $allowed_status = implode(',', $allowed_status_arr);
         }
+        
         $target_position = 'faculty';
         break;
 

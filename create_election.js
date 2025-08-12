@@ -74,23 +74,21 @@
   
   // Function to load courses based on selected college
   function loadCourses(type) {
+    // Huwag mag-load ng courses para sa academic
+    if (type === 'academic') return;
+
     const collegeSelect = document.getElementById(`${type}CollegeSelect`);
     const coursesContainer = document.getElementById(`${type}CoursesContainer`);
     const coursesList = document.getElementById(`${type}CoursesList`);
-    
-    // Hide courses container if "All Colleges" is selected
+
     if (collegeSelect.value === 'all') {
       coursesContainer.classList.add('hidden');
       return;
     }
-    
-    // Clear existing courses
+
     coursesList.innerHTML = '';
-    
-    // Get courses for selected college
     const courses = collegeCourses[collegeSelect.value] || [];
-    
-    // Add courses to the list
+
     courses.forEach(course => {
       coursesList.innerHTML += `
         <label class="flex items-center">
@@ -99,10 +97,10 @@
         </label>
       `;
     });
-    
-    // Show courses container
+
     coursesContainer.classList.remove('hidden');
-  }
+}
+
   
   // Update the toggleAllCheckboxes function to work with dynamic checkboxes
   function toggleAllCheckboxes(name) {

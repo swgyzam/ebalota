@@ -21,10 +21,10 @@ try {
 }
 
 // Check user session and admin status
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
-    header('Location: login.html');
-    exit();
-}
+//if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
+    //header('Location: login.html');
+    //exit();
+//}
 
 // Check if election ID is sent via POST
 if (!isset($_POST['election_id']) || empty($_POST['election_id'])) {

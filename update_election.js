@@ -22,7 +22,7 @@ function openUpdateModal(election) {
 
     
     // Set target voter type and show appropriate fields
-    const targetPosition = election.target_position.toLowerCase();
+    const targetPosition = election.target_position.toLowerCase().replace(/\s+/g, '_');
     hideAllUpdateFields();
     
     if (targetPosition.includes('student')) {
@@ -35,7 +35,7 @@ function openUpdateModal(election) {
         document.getElementById('update_facultyFields').classList.remove('hidden');
         initializeFacultyFields(election);
     }
-    else if (targetPosition.includes('non_academic')) {
+    else if (targetPosition.includes('non-academic')) {
         document.getElementById('target_non_academic').checked = true;
         document.getElementById('update_nonAcademicFields').classList.remove('hidden');
         initializeNonAcademicFields(election);
@@ -78,12 +78,17 @@ function initializeStudentFields(election) {
 
 function initializeFacultyFields(election) {
     const collegeSelect = document.getElementById('update_allowed_colleges_faculty');
-    
+
     if (election.allowed_colleges && election.allowed_colleges !== 'all') {
         collegeSelect.value = election.allowed_colleges;
-        loadUpdateCourses('faculty', election.allowed_courses);
     }
-    
+
+    // Hide courses container only if it exists
+    const coursesContainer = document.getElementById('update_facultyCoursesContainer');
+    if (coursesContainer) {
+        coursesContainer.classList.add('hidden');
+    }
+
     // Set allowed status
     if (election.allowed_status && election.allowed_status !== 'all') {
         const statuses = election.allowed_status.split(',');
@@ -94,15 +99,36 @@ function initializeFacultyFields(election) {
 }
 
 function initializeNonAcademicFields(election) {
-    if (election.allowed_departments && election.allowed_departments !== 'all') {
-        document.getElementById('update_allowed_departments_nonacad').value = election.allowed_departments;
-    }    
-    
-    if (election.allowed_status && election.allowed_status !== 'all') {
-        const statuses = election.allowed_status.split(',');
-        document.querySelectorAll('#update_nonAcademicFields input[name="allowed_status_nonacad[]"]').forEach(checkbox => {
-            checkbox.checked = statuses.includes(checkbox.value);
-        });
+    // Departments (dropdown)
+    const deptSelect = document.getElementById('update_allowed_departments_nonacad');
+    if (election.allowed_departments) {
+        if (election.allowed_departments.toLowerCase() === 'all') {
+            deptSelect.value = 'all';
+        } else {
+            // Try to select the first department in the list (if dropdown is single select)
+            const depts = election.allowed_departments.split(',').map(d => d.trim());
+            if (deptSelect.multiple) {
+                // For multi-select dropdown
+                Array.from(deptSelect.options).forEach(option => {
+                    option.selected = depts.includes(option.value);
+                });
+            } else {
+                // If single select, just pick the first one
+                deptSelect.value = depts[0] || 'all';
+            }
+        }
+    }
+
+    // Status checkboxes
+    if (election.allowed_status) {
+        if (election.allowed_status.toLowerCase() === 'all') {
+            document.querySelectorAll('#update_nonAcademicFields input[name="allowed_status_nonacad[]"]').forEach(cb => cb.checked = true);
+        } else {
+            const statuses = election.allowed_status.split(',').map(s => s.trim());
+            document.querySelectorAll('#update_nonAcademicFields input[name="allowed_status_nonacad[]"]').forEach(checkbox => {
+                checkbox.checked = statuses.includes(checkbox.value);
+            });
+        }
     }
 }
 

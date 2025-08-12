@@ -3,10 +3,10 @@ session_start();
 date_default_timezone_set('Asia/Manila');
 
 // Check admin
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
-    header('Location: login.html');
-    exit();
-}
+//if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
+    //header('Location: login.html');
+    //exit();
+//}
 
 // DB connection
 try {
@@ -58,9 +58,10 @@ switch ($target_voter) {
 
     case 'faculty':
         $allowed_colleges = $_POST['allowed_colleges_faculty'] ?? 'All';
-        $allowed_courses = !empty($_POST['allowed_courses_faculty']) 
-            ? implode(',', array_map('trim', $_POST['allowed_courses_faculty']))
-            : '';
+        
+        // Always NULL for faculty
+        $allowed_courses = null;
+        
         $allowed_status = !empty($_POST['allowed_status_faculty']) 
             ? implode(',', array_map('trim', $_POST['allowed_status_faculty']))
             : null;
@@ -68,22 +69,21 @@ switch ($target_voter) {
         $target_department = 'Faculty';
         break;
 
-case 'non_academic':
-    $departments = $_POST['allowed_departments_nonacad'] ?? 'all';
-    $allowed_departments = (strtolower($departments) === 'all') ? 'All' : $departments;
+    case 'non_academic':
+        $departments = $_POST['allowed_departments_nonacad'] ?? 'all';
+        $allowed_departments = (strtolower($departments) === 'all') ? 'All' : $departments;
 
-    if (!empty($_POST['allowed_status_nonacad'])) {
-        $allowed_status_arr = array_map('trim', $_POST['allowed_status_nonacad']);
-        $allowed_status = implode(',', $allowed_status_arr);
-    } else {
-        $allowed_status = 'All';
-    }
+        if (!empty($_POST['allowed_status_nonacad'])) {
+            $allowed_status_arr = array_map('trim', $_POST['allowed_status_nonacad']);
+            $allowed_status = implode(',', $allowed_status_arr);
+        } else {
+            $allowed_status = 'All';
+        }
 
-    $allowed_courses = 'All'; // not applicable
-    $allowed_colleges = 'All'; // set this explicitly
-    $target_position = 'non-academic';
-    break;
-
+        $allowed_courses = 'All'; // not applicable
+        $allowed_colleges = 'All'; // set this explicitly
+        $target_position = 'non-academic';
+        break;
 
     case 'coop':
         // COOP doesn't need colleges or courses
