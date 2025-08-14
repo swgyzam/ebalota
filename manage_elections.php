@@ -97,8 +97,8 @@ $elections = $stmt->fetchAll();
           $allowed_status = $election['allowed_status'] ?: 'All';
         ?>
         <div class="bg-white rounded-lg shadow-md p-6 mb-6 border-l-4 <?= $status === 'ongoing' ? 'border-green-600' : ($status === 'completed' ? 'border-gray-400' : 'border-yellow-400') ?> flex flex-col">
-          <div class="flex flex-grow">
-            <div class="flex-1 pr-4 flex flex-col">
+        <div class="flex flex-col lg:flex-row flex-grow">
+            <div class="flex-1 pr-4 flex flex-col max-w-[calc(100%-10rem)]">
               <h2 class="text-lg font-bold text-[var(--cvsu-green-dark)] mb-2 truncate"><?= htmlspecialchars($election['title']) ?></h2>
               <div class="space-y-0.5 text-xs leading-tight">
               <p><strong class="text-gray-700">Start:</strong> <?= date('M d, Y h:i A', strtotime($election['start_datetime'])) ?></p>
@@ -437,7 +437,7 @@ $elections = $stmt->fetchAll();
             <!-- Courses will be loaded here dynamically -->
           </div>
           <div class="mt-1">
-            <button type="button" onclick="toggleAllCheckboxes('update_allowed_courses[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+            <button type="button" onclick="toggleUpdateCheckboxes('allowed_courses_student[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
           </div>
         </div>
       </div>
@@ -460,7 +460,7 @@ $elections = $stmt->fetchAll();
             <label class="flex items-center"><input type="checkbox" name="allowed_status_faculty[]" value="Contractual" class="mr-1">Contractual</label>
           </div>
           <div class="mt-1">
-            <button type="button" onclick="toggleAllCheckboxes('update_allowed_status_faculty[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+            <button type="button" onclick="toggleUpdateCheckboxes('allowed_status_faculty[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
           </div>
         </div>
       </div>
@@ -488,7 +488,7 @@ $elections = $stmt->fetchAll();
             <label class="flex items-center"><input type="checkbox" name="allowed_status_nonacad[]" value="Contractual" class="mr-1">Contractual</label>
           </div>
           <div class="mt-1">
-            <button type="button" onclick="toggleAllCheckboxes('update_allowed_status_nonacad[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+            <button type="button" onclick="toggleUpdateCheckboxes('allowed_status_nonacad[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
           </div>
         </div>
       </div>
@@ -501,7 +501,7 @@ $elections = $stmt->fetchAll();
             <label class="flex items-center"><input type="checkbox" name="allowed_status_coop[]" value="MIGS" class="mr-1">MIGS</label>
           </div>
           <div class="mt-1">
-            <button type="button" onclick="toggleAllCheckboxes('update_allowed_status_coop[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+            <button type="button" onclick="toggleUpdateCheckboxes('allowed_status_coop[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
           </div>
         </div>
       </div>
