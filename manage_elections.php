@@ -340,10 +340,20 @@ $elections = $stmt->fetchAll();
   </div>
 </div>
 
-      <!-- Submit -->
-      <div class="text-right">
-        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition">Create Election</button>
-      </div>
+<!-- Buttons -->
+<div class="flex justify-end gap-3 mt-6">
+  <!-- Clear Button -->
+  <button type="button" id="clearFormBtn" 
+          class="bg-yellow-500 text-white px-6 py-2 rounded hover:bg-yellow-600 transition">
+    Clear
+  </button>
+
+  <!-- Create Election Button -->
+  <button type="submit" 
+          class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 transition">
+    Create Election
+  </button>
+</div>
 
     </form>
   </div>
@@ -496,18 +506,27 @@ $elections = $stmt->fetchAll();
         </div>
       </div>
 
-      <!-- Submit -->
-      <div class="text-right">
-        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition">Update Election</button>
-      </div>
-    </form>
-  </div>
+<!-- Buttons -->
+<div class="flex justify-end gap-3 mt-6">
+  <!-- Clear Button -->
+  <button type="button" id="clearUpdateFormBtn" 
+          class="bg-yellow-500 text-white px-6 py-2 rounded hover:bg-yellow-600 transition">
+    Clear
+  </button>
+
+  <!-- Update Button -->
+  <button type="submit" 
+          class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 transition">
+    Update Election
+  </button>
 </div>
+
 
 
 <script src="create_election.js"></script>
 <script src="update_election.js"></script>
 <script src="success.js"></script>
+<script src="clear_button.js"></script>
 
 <style>
   .modal-backdrop {
