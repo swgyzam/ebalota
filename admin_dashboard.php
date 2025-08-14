@@ -2,6 +2,7 @@
 session_start();
 date_default_timezone_set('Asia/Manila');
 
+// --- DB Connection ---
 $host = 'localhost';
 $db   = 'evoting_system';
 $user = 'root';
@@ -20,26 +21,64 @@ try {
     die("Database connection failed: " . $e->getMessage());
 }
 
-// Redirect if not logged in or not admin
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
-  header('Location: login.php');
-  exit();
+// --- Auth check ---
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit();
 }
 
-// Fetch dashboard stats
-$stmt = $pdo->query("SELECT COUNT(*) AS total_voters FROM users WHERE is_verified = 1 AND is_admin = 0");
+$role = $_SESSION['role'];
+$scope = $_SESSION['assigned_scope'] ?? null;
+
+// --- Fetch dashboard stats ---
+
+// Total Voters
+if ($role === 'admin') {
+    $stmt = $pdo->prepare("SELECT COUNT(*) AS total_voters 
+        FROM users 
+        WHERE is_verified = 1 
+        AND is_admin = 0 
+        AND assigned_scope = :scope");
+    $stmt->execute([':scope' => $scope]);
+} else {
+    $stmt = $pdo->query("SELECT COUNT(*) AS total_voters 
+        FROM users 
+        WHERE is_verified = 1 
+        AND is_admin = 0");
+}
 $total_voters = $stmt->fetch()['total_voters'];
 
-$stmt = $pdo->query("SELECT COUNT(*) AS total_elections FROM elections");
+// Total Elections
+if ($role === 'admin') {
+    $stmt = $pdo->prepare("SELECT COUNT(*) AS total_elections 
+        FROM elections 
+        WHERE allowed_colleges = :scope");
+    $stmt->execute([':scope' => $scope]);
+} else {
+    $stmt = $pdo->query("SELECT COUNT(*) AS total_elections FROM elections");
+}
 $total_elections = $stmt->fetch()['total_elections'];
 
-$stmt = $pdo->query("SELECT COUNT(*) AS ongoing_elections FROM elections WHERE status = 'ongoing'");
+// Ongoing Elections
+if ($role === 'admin') {
+    $stmt = $pdo->prepare("SELECT COUNT(*) AS ongoing_elections 
+        FROM elections 
+        WHERE status = 'ongoing' 
+        AND allowed_colleges = :scope");
+    $stmt->execute([':scope' => $scope]);
+} else {
+    $stmt = $pdo->query("SELECT COUNT(*) AS ongoing_elections 
+        FROM elections WHERE status = 'ongoing'");
+}
 $ongoing_elections = $stmt->fetch()['ongoing_elections'];
 
-$now = date('Y-m-d H:i:s');
-$pdo->query("UPDATE elections SET status = 'completed' WHERE end_datetime < '$now'");
-$pdo->query("UPDATE elections SET status = 'ongoing' WHERE start_datetime <= '$now' AND end_datetime >= '$now'");
-$pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$now'");
+// --- Election status auto-update (optional: only for super_admin) ---
+if ($role === 'super_admin') {
+    $now = date('Y-m-d H:i:s');
+    $pdo->query("UPDATE elections SET status = 'completed' WHERE end_datetime < '$now'");
+    $pdo->query("UPDATE elections SET status = 'ongoing' WHERE start_datetime <= '$now' AND end_datetime >= '$now'");
+    $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$now'");
+}
 
 ?>
 
@@ -49,7 +88,7 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="assets/img/weblogo.png" type="image/png">
-  <title>eBalota - admin dashboard</title>
+  <title>eBalota - Admin Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     :root {
@@ -69,14 +108,14 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
 </head>
 <body class="bg-gray-50 text-gray-900-keft font-sans">
 
-  <div class="flex min-h-screen">
+<div class="flex min-h-screen">
 
-    <?php include 'sidebar.php'; ?>
+<?php include 'sidebar.php'; ?>
 
-      <!-- Top Bar -->
+<!-- Top Bar -->
 <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:rgb(25, 72, 49);"> 
   <div class="flex items-center space-x-4">
-    <h1 class="text-xl font-bold text-white">ADMIN DASHBOARD</h1>
+    <h1 class="text-xl font-bold text-white"><?= strtoupper($role) ?> DASHBOARD</h1>
   </div>
   <div class="text-white">
     <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -85,15 +124,11 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
   </div>
 </header>
 
-
 <!-- Main Content Area -->
 <main class="flex-1 pt-20 px-8 ml-64">
-  <!-- Stats + Bar Chart in Two Columns -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-    
     <!-- LEFT COLUMN: Statistics Cards -->
     <div class="space-y-6">
-
       <!-- Total Population -->
       <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-[var(--cvsu-green)] hover:shadow-2xl transition-shadow duration-300">
         <div class="flex items-center justify-between">
@@ -101,11 +136,6 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
             <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Population</h2>
             <p class="text-2xl md:text-4xl font-bold text-[var(--cvsu-green-dark)] mt-2 md:mt-3"><?= $total_voters ?></p>
           </div>
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-[var(--cvsu-green-light)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M12 12a4 4 0 100-8 4 4 0 000 8zm6 8v-2a4 4 0 00-3-3.87M6 20v-2a4 4 0 013-3.87" />
-          </svg>
-
-
         </div>
       </div>
 
@@ -116,9 +146,6 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
             <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Elections</h2>
             <p class="text-2xl md:text-4xl font-bold text-yellow-600 mt-2 md:mt-3"><?= $total_elections ?></p>
           </div>
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M5 6h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2zm5 6h4" />
-          </svg>
         </div>
       </div>
 
@@ -129,13 +156,8 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
             <h2 class="text-base md:text-lg font-semibold text-gray-700">Ongoing Elections</h2>
             <p class="text-2xl md:text-4xl font-bold text-blue-600 mt-2 md:mt-3"><?= $ongoing_elections ?></p>
           </div>
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-
         </div>
       </div>
-
     </div>
 
     <!-- RIGHT COLUMN: Bar Chart -->
@@ -143,53 +165,13 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
       <h2 class="text-base md:text-lg font-semibold text-gray-700 mb-4">Population of Voters per Colleges</h2>
       <canvas id="collegeChart" class="w-full h-64"></canvas>
     </div>
-
   </div>
-
-  <div class="flex flex-col lg:flex-row gap-10 mb-6">
-  <!-- By Gender Chart -->
-  <div class="bg-white p-6 rounded-xl shadow-lg w-full lg:max-w-sm">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="font-semibold text-gray-700">By Gender</h2>
-      <select class="border border-gray-300 rounded px-2 py-1 text-sm">
-        <option>All Colleges</option>
-        <option>CAS</option>
-        <option>CCJ</option>
-        <option>CED</option>
-        <option>CEIT</option>
-        <option>CON</option>
-        <option>CEMDS</option>
-        <option>CHTM</option>
-        <option>CAFENR</option>
-        <option>CSPEAR</option>
-        <option>CVMBS</option>
-      </select>
-    </div>
-    <canvas id="genderChart" height="180"></canvas>
-  </div>
-
-  <!-- Previous Election Analytics Chart -->
-  <div class="bg-white p-6 rounded-xl shadow-lg flex-1">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="font-semibold text-gray-700">Previous Election Analytics Report</h2>
-      <select class="border border-gray-300 rounded px-2 py-1 text-sm">
-        <option value="2024">2024</option>
-        <option value="2025">2025</option>
-      </select>
-    </div>
-    <canvas id="analyticsChart" height="80"></canvas>
-  </div>
+</main>
 </div>
 
-<div class="p-5">
-      <?php include 'footer.php'; ?>
-  </div>
-
-    </main>
-  </div>
-</body>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+// Chart placeholders - you can make these dynamic later
 const collegeChart = new Chart(document.getElementById('collegeChart'), {
   type: 'bar',
   data: {
@@ -199,47 +181,8 @@ const collegeChart = new Chart(document.getElementById('collegeChart'), {
       backgroundColor: ['#e62e00', '#003300','#0033cc', '#ff9933', '#b3b3b3', '#008000', '#ff6699', '#00b33c', '#993300', '#990099' ]
     }]
   },
-  options: {
-    plugins: {
-      legend: {
-        display: false
-      }
-    }
-  }
+  options: { plugins: { legend: { display: false } } }
 });
-
-
-  const analyticsChart = new Chart(document.getElementById('analyticsChart'), {
-  type: 'line',
-  data: {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-    datasets: [{
-      // Remove or empty the label
-      label: '',
-      data: [100, 400, 300, 600, 500, 100, 20, 200, 400, 321, 202, 1000],
-      borderColor: '#FFD166',
-      fill: false
-    }]
-  },
-  options: {
-    plugins: {
-      legend: {
-        display: false // disables the legend
-      }
-    }
-  }
-});
-
-
-  const genderChart = new Chart(document.getElementById('genderChart'), {
-    type: 'doughnut',
-    data: {
-      labels: ['Male', 'Female'],
-      datasets: [{
-        data: [5234, 6284],
-        backgroundColor: ['#0066ff', '#ff6699']
-      }]
-    }
-  });
 </script>
+</body>
 </html>
