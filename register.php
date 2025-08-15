@@ -151,12 +151,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mail->isSMTP();
             $mail->Host = 'smtp.gmail.com';
             $mail->SMTPAuth = true;
-            $mail->Username = 'mark.anthony.mark233@gmail.com';
-            $mail->Password = 'dbqwfzasqmaitlty';
+            $mail->Username = 'makimaki.maki123567@gmail.com';
+            $mail->Password = 'neqlotimpppfzmwj';
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port = 587;
 
-            $mail->setFrom('your-email@gmail.com', 'eBalota');
+            $mail->setFrom('makimaki.maki123567@gmail.com', 'eBalota');
             $mail->addAddress($email, "$first_name $last_name");
 
             $mail->isHTML(true);

@@ -29,6 +29,7 @@ try {
 
 // Function to send super admin verification email
 function sendSuperAdminVerificationEmail($email, $first_name, $last_name, $token) {
+    error_log("[EMAIL DEBUG] sendSuperAdminVerificationEmail() CALLED for $email at " . date('Y-m-d H:i:s'));
     $mail = new PHPMailer(true);
     $verificationUrl = "http://localhost/ebalota/super_admin_verify.php?token=$token";
 
@@ -36,12 +37,12 @@ function sendSuperAdminVerificationEmail($email, $first_name, $last_name, $token
         $mail->isSMTP();
         $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
-        $mail->Username = 'mark.anthony.mark233@gmail.com';
-        $mail->Password = 'dbqwfzasqmaitlty';
+        $mail->Username = 'makimaki.maki123567@gmail.com';
+        $mail->Password = 'neqlotimpppfzmwj';
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
 
-        $mail->setFrom('mark.anthony.mark233@gmail.com', 'eBalota System');
+        $mail->setFrom('makimaki.maki1234567@gmail.com', 'eBalota System');
         $mail->addAddress($email, "$first_name $last_name");
 
         $mail->isHTML(true);
@@ -77,6 +78,7 @@ function sendSuperAdminVerificationEmail($email, $first_name, $last_name, $token
 
 // Function to send admin verification email
 function sendAdminVerificationEmail($email, $first_name, $last_name, $token) {
+    error_log("[EMAIL DEBUG] sendSuperAdminVerificationEmail() CALLED for $email at " . date('Y-m-d H:i:s'));
     $mail = new PHPMailer(true);
     $verificationUrl = "http://localhost/ebalota/admin_verify_token.php?token=$token";
 
@@ -84,12 +86,12 @@ function sendAdminVerificationEmail($email, $first_name, $last_name, $token) {
         $mail->isSMTP();
         $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
-        $mail->Username = 'mark.anthony.mark233@gmail.com';
-        $mail->Password = 'dbqwfzasqmaitlty';
+        $mail->Username = 'makimaki.maki123567@gmail.com';
+        $mail->Password = 'neqlotimpppfzmwj';
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
 
-        $mail->setFrom('mark.anthony.mark233@gmail.com', 'eBalota');
+        $mail->setFrom('makimaki.maki1234567@gmail.com', 'eBalota');
         $mail->addAddress($email, "$first_name $last_name");
 
         $mail->isHTML(true);

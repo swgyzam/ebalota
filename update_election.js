@@ -174,7 +174,7 @@ function loadUpdateCourses(type, allowedCourses = '') {
 }
 
 // Toggle Checkboxes Function
-function toggleUpdateCheckboxes(name) {
+function toggleAllCheckboxes(name) {
     const checkboxes = document.querySelectorAll(`input[name="${name}"]`);
     if (checkboxes.length === 0) return;
     
