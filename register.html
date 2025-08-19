@@ -6,6 +6,9 @@
   <link rel="icon" href="assets/img/weblogo.png" type="image/png">
   <title>eBalota - register</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link href="assets/styles/index.css" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script>
     tailwind.config = {
       theme: {
@@ -21,41 +24,10 @@
       }
     }
   </script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    /* Sticky Navigation Bar */
-    nav {
-      position: sticky;
-      top: 0;
-      z-index: 50;
-    }
-
-    html, body {
-      height: 100%;
-    }
-    
-    body {
-      display: flex;
-      flex-direction: column;
-    }
-    
-    main {
-      flex: 1 0 auto;
-    }
-    
-    footer {
-      flex-shrink: 0;
-      background-color: #0a5f2d;
-      color: white;
-      text-align: center;
-      padding: 1rem;
-      width: 100%;
-    }
-    
     .nav-link {
       position: relative;
     }
-    
     .nav-link:after {
       content: '';
       position: absolute;
@@ -66,44 +38,57 @@
       background-color: rgb(6, 81, 16);
       transition: width 0.3s ease;
     }
-    
     .nav-link:hover:after {
       width: 100%;
     }
   </style>
 </head>
+<body class="min-h-screen flex flex-col bg-cvsu-light font-sans">
 
-<body class="bg-cvsu-light font-sans">
-
+  <!-- Navigation -->
   <nav class="sticky top-0 z-50 text-black shadow-lg bg-white">
-    <div class="container mx-auto px-6 py-3 flex justify-between items-center">
-      <div class="ebalotalogo">
-        <a href="index.html" style="max-width: 100%; height: auto;">
-          <img src="assets/img/ebalota_logo.png" alt="logo" width="200">
+    <div class="container mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
+      <div class="ebalotalogo flex-shrink-0">
+        <a href="index.html" class="block">
+          <img 
+            src="assets/img/ebalota_logo.png" 
+            alt="logo" 
+            class="w-32 sm:w-30 md:w-42 lg:w-56 xl:w-60 h-auto"
+            style="max-width:100%; height:auto;">
         </a>
       </div>
-      <div class="hidden md:flex space-x-8">
+      <div class="hidden md:flex space-x-8 items-center">
         <a href="register.html" class="nav-link font-medium">REGISTER</a>
         <a href="login.html" class="nav-link font-medium">LOGIN</a>
       </div>
-      <button class="md:hidden text-2xl">☰</button>
+      <!-- Hamburger Dropdown -->
+      <div class="md:hidden relative">
+        <button id="menuBtn" class="text-2xl focus:outline-none">
+          ☰
+        </button>
+        <div id="mobileMenu" class="absolute right-0 mt-2 w-40 bg-white rounded shadow-lg py-2 border hidden z-50">
+          <a href="register.html" class="block px-4 py-2 text-gray-800 hover:bg-green-100">REGISTER</a>
+          <a href="login.html" class="block px-4 py-2 text-gray-800 hover:bg-green-100">LOGIN</a>
+        </div>
+      </div>
     </div>
   </nav>
 
+  <!-- Registration Form -->
   <main class="flex-1">
-    <div class="max-w-md mx-auto my-10 bg-white p-8 rounded-xl shadow-md">
+    <div class="max-w-lg mx-auto my-10 bg-white p-8 rounded-xl shadow-md">
       <div class="text-center mb-6">
         <img src="assets/img/weblogo.png" alt="CvSU Logo" class="h-16 mx-auto mb-4">
-        <h2 class="text-2xl font-bold text-gray-800">Create Your eBalota Account</h2>
+        <h2 class="text-2xl md:text-3xl font-bold text-gray-800">Create Your eBalota Account</h2>
         <p class="text-gray-600">Fill in your information to register</p>
       </div>
 
       <form action="register.php" method="POST" class="space-y-4" id="registrationForm">
-        <div class="flex space-x-2">
-          <div class="w-1/2">
+        <div class="flex flex-col md:flex-row md:space-x-2 space-y-2 md:space-y-0">
+          <div class="md:w-1/2">
             <input type="text" name="first_name" placeholder="First Name" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary" required>
           </div>
-          <div class="w-1/2">
+          <div class="md:w-1/2">
             <input type="text" name="last_name" placeholder="Last Name" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary" required>
           </div>
         </div>
@@ -113,7 +98,6 @@
           <span class="absolute right-3 top-3 text-gray-400">
             <i class="fas fa-envelope"></i>
           </span>
-          <!-- Error message display -->
           <div id="email-error" class="text-red-500 text-sm mt-1 hidden">
             Please enter a valid CVSU email address (@cvsu.edu.ph)
           </div>
@@ -285,11 +269,35 @@
     </div>
   </main>
 
-  <footer class="bg-cvsu-primary text-white text-center p-4 mt-10">
-    <p>© 2025 Cavite State University - eBalota. All rights reserved.</p>
+  <!-- FOOTER -->
+  <footer class="bg-cvsu-primary text-white text-center p-4">
+    <p>© eBalota . All rights reserved.</p>
   </footer>
 
-  <script src="register.js"></script>
+  <script>
+    // Hamburger Dropdown Menu Script
+    const menuBtn = document.getElementById('menuBtn');
+    const mobileMenu = document.getElementById('mobileMenu');
 
+    menuBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      mobileMenu.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!mobileMenu.classList.contains('hidden')) {
+        if (!mobileMenu.contains(e.target) && e.target !== menuBtn) {
+          mobileMenu.classList.add('hidden');
+        }
+      }
+    });
+
+    window.addEventListener('resize', function() {
+      if (window.innerWidth >= 768) {
+        mobileMenu.classList.add('hidden');
+      }
+    });
+  </script>
+  <script src="register.js"></script>
 </body>
 </html>

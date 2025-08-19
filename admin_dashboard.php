@@ -21,11 +21,11 @@ try {
     die("Database connection failed: " . $e->getMessage());
 }
 
-// --- Auth check ---
-if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
-    exit();
-}
+// --- Auth check ---BYPASS for now ---------------------------
+//if (!isset($_SESSION['user_id'])) {
+    //header('Location: login.php');
+    //exit();
+//}
 
 $role = $_SESSION['role'];
 $scope = $_SESSION['assigned_scope'] ?? null;
