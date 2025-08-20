@@ -26,8 +26,8 @@ try {
 
 // Redirect if not logged in or not super admin
 //if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
-  //header('Location: login.php');
-  //exit();
+//  header('Location: login.php');
+//  exit();
 //}
 
 // Fetch dashboard stats
@@ -71,30 +71,63 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
       background-color: var(--cvsu-green-light);
       border-radius: 3px;
     }
+    @media (max-width: 767px) {
+      .main-content {
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+      }
+      .fixed-header {
+        left: 0 !important;
+        width: 100vw !important;
+      }
+    }
+    @media (min-width: 768px) {
+      .main-content {
+        margin-left: 16rem !important;
+      }
+      .fixed-header {
+        left: 16rem !important;
+        width: calc(100vw - 16rem) !important;
+      }
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
 
-  <div class="flex min-h-screen">
+  <!-- Sidebar drawer and overlay -->
+  <?php include 'super_admin_sidebar.php'; ?>
 
-    <?php include 'super_admin_sidebar.php'; ?>
-
-    <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:rgb(25, 72, 49);"> 
-      <div class="flex items-center space-x-4">
-        <h1 class="text-xl font-bold text-white">SUPER ADMIN DASHBOARD</h1>
-      </div>
-      <div class="text-white">
-        <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M5.121 17.804A10.95 10.95 0 0112 15c2.485 0 4.779.91 6.879 2.404M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+  <!-- Responsive header: hamburger menu inside header -->
+  <header class="fixed-header w-full fixed top-0 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:rgb(25, 72, 49);">
+    <div class="flex items-center space-x-4">
+      <!-- Hamburger button (always shown on mobile, hidden on desktop) -->
+      <button 
+        id="sidebarToggle" 
+        class="md:hidden mr-2 p-2 rounded bg-[var(--cvsu-green-dark)] text-white shadow-lg focus:outline-none flex items-center justify-center"
+        aria-label="Open sidebar"
+        type="button"
+      >
+        <svg id="sidebarToggleIcon" xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <!-- Hamburger bars (default, will swap with X via JS) -->
+          <path id="hamburgerIcon" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h16M4 17h16"/>
+          <!-- X icon (hidden by default, shown when sidebar is open) -->
+          <path id="closeIcon" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
-      </div>
-    </header>
+      </button>
+      <h1 class="text-lg font-bold text-white">SUPER ADMIN DASHBOARD</h1>
+    </div>
+    <div class="text-white">
+      <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5.121 17.804A10.95 10.95 0 0112 15c2.485 0 4.779.91 6.879 2.404M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    </div>
+  </header>
 
-    <main class="flex-1 pt-20 px-8 ml-64">
-
+    <!-- Main content: spacing adapts for sidebar and header -->
+    <main class="main-content flex-1 pt-20 px-1 md:px-8">
       <!-- Dashboard Cards -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-
+      <div class="grid grid-cols-2 lg:grid-cols-2 gap-3 mb-6">
         <!-- Total Population -->
         <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-[var(--cvsu-green)] hover:shadow-2xl transition-shadow duration-300">
           <div class="flex items-center justify-between">
@@ -107,20 +140,18 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
             </svg>
           </div>
         </div>
-
         <!-- Total Admin Accounts -->
         <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-green-500 hover:shadow-2xl transition-shadow duration-300">
-        <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between">
             <div>
-            <h2 class="text-base md:text-lg font-semibold text-gray-700">Admin Accounts</h2>
-            <p class="text-2xl md:text-4xl font-bold text-green-700 mt-2 md:mt-3"><?= $total_admins ?></p>
+              <h2 class="text-base md:text-lg font-semibold text-gray-700">Admin Accounts</h2>
+              <p class="text-2xl md:text-4xl font-bold text-green-700 mt-2 md:mt-3"><?= $total_admins ?></p>
             </div>
             <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2a4 4 0 013-3.87M15 17v-2a4 4 0 00-3-3.87m0 0a4 4 0 100-8 4 4 0 000 8z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2a4 4 0 013-3.87M15 17v-2a4 4 0 00-3-3.87m0 0a4 4 0 100-8 4 4 0 000 8z" />
             </svg>
+          </div>
         </div>
-        </div>
-
         <!-- Total Elections -->
         <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-yellow-400 hover:shadow-2xl transition-shadow duration-300">
           <div class="flex items-center justify-between">
@@ -133,7 +164,6 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
             </svg>
           </div>
         </div>
-
         <!-- Ongoing Elections -->
         <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-blue-500 hover:shadow-2xl transition-shadow duration-300">
           <div class="flex items-center justify-between">
@@ -146,12 +176,10 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
             </svg>
           </div>
         </div>
-
       </div>
 
       <!-- Charts -->
       <div class="flex flex-col lg:flex-row gap-10 mb-6">
-
         <!-- By Gender -->
         <div class="bg-white p-6 rounded-xl shadow-lg w-full lg:max-w-sm">
           <div class="flex justify-between items-center mb-4">
@@ -172,7 +200,6 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
           </div>
           <canvas id="genderChart" height="180"></canvas>
         </div>
-
         <!-- Analytics -->
         <div class="bg-white p-6 rounded-xl shadow-lg flex-1">
           <div class="flex justify-between items-center mb-4">
@@ -195,7 +222,6 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
       <div class="p-5">
         <?php include 'footer.php'; ?>
       </div>
-
     </main>
   </div>
 
@@ -249,6 +275,65 @@ $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$n
       }]
     }
   });
+  <!-- Sidebar toggle JS for hamburger/X icon -->
+  document.addEventListener('DOMContentLoaded', function () {
+  const sidebar = document.getElementById('sidebar');
+  const toggleBtn = document.getElementById('sidebarToggle');
+  const overlay = document.getElementById('sidebarOverlay');
+  const navLinks = sidebar.querySelectorAll('a');
+  const hamburgerIcon = document.getElementById('hamburgerIcon');
+  const closeIcon = document.getElementById('closeIcon');
+
+  function openSidebar() {
+    sidebar.classList.remove('-translate-x-full');
+    overlay.classList.remove('hidden');
+    setTimeout(() => overlay.classList.add('opacity-100'), 10);
+    document.body.style.overflow = 'hidden';
+    // Swap icons
+    hamburgerIcon.classList.add('hidden');
+    closeIcon.classList.remove('hidden');
+  }
+
+  function closeSidebar() {
+    sidebar.classList.add('-translate-x-full');
+    overlay.classList.add('hidden');
+    overlay.classList.remove('opacity-100');
+    document.body.style.overflow = '';
+    hamburgerIcon.classList.remove('hidden');
+    closeIcon.classList.add('hidden');
+  }
+
+  toggleBtn.addEventListener('click', function () {
+    if (sidebar.classList.contains('-translate-x-full')) openSidebar();
+    else closeSidebar();
+  });
+
+  overlay.addEventListener('click', closeSidebar);
+
+  navLinks.forEach(link => {
+    link.addEventListener('click', function () {
+      if (window.innerWidth < 768) closeSidebar();
+    });
+  });
+
+  function handleResize() {
+    if (window.innerWidth >= 768) {
+      sidebar.classList.remove('-translate-x-full');
+      overlay.classList.add('hidden');
+      overlay.classList.remove('opacity-100');
+      document.body.style.overflow = '';
+      hamburgerIcon.classList.remove('hidden');
+      closeIcon.classList.add('hidden');
+    } else {
+      sidebar.classList.add('-translate-x-full');
+      hamburgerIcon.classList.remove('hidden');
+      closeIcon.classList.add('hidden');
+    }
+  }
+
+  window.addEventListener('resize', handleResize);
+  handleResize();
+});
 </script>
 </body>
 </html>

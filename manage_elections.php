@@ -51,19 +51,54 @@ $elections = $stmt->fetchAll();
       --cvsu-green-light: #37A66B;
       --cvsu-yellow: #FFD166;
     }
+    @media (max-width: 767px) {
+      .main-content {
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+      }
+      .fixed-header {
+        left: 0 !important;
+        width: 100vw !important;
+      }
+    }
+    @media (min-width: 768px) {
+      .main-content {
+        margin-left: 16rem !important;
+      }
+      .fixed-header {
+        left: 16rem !important;
+        width: calc(100vw - 16rem) !important;
+      }
+    }
   </style>
 </head>
-<body class="bg-gray-50 font-sans min-h-screen flex">
+<body class="bg-gray-50 font-sans min-h-screen">
+
 <?php include 'super_admin_sidebar.php'; ?>
 
-<main class="flex-1 p-8 ml-64">
-  <header class="bg-[var(--cvsu-green-dark)] text-white p-6 flex justify-between items-center shadow-md rounded-md mb-8">
-    <h1 class="text-3xl font-extrabold">Manage Elections</h1>
-    <button id="openModalBtn" class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded font-semibold transition">+ Create Election</button>
-  </header>
+<header class="fixed-header w-full fixed top-0 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:rgb(25, 72, 49);">
+  <div class="flex items-center space-x-4">
+    <!-- Hamburger button (always shown on mobile, hidden on desktop) -->
+    <button 
+      id="sidebarToggle" 
+      class="md:hidden mr-2 p-2 rounded bg-[var(--cvsu-green-dark)] text-white shadow-lg focus:outline-none flex items-center justify-center"
+      aria-label="Open sidebar"
+      type="button"
+    >
+      <svg id="sidebarToggleIcon" xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path id="hamburgerIcon" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h16M4 17h16"/>
+        <path id="closeIcon" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+    <h1 class="text-lg font-bold text-white">Manage Elections</h1>
+  </div>
+  <button id="openModalBtn" class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 text-xs rounded font-semibold transition">+ Create Election</button>
+</header>
 
+<main class="main-content flex-1 pt-20 px-2 md:px-8">
   <!-- Filter Buttons -->
-  <div class="flex justify-center mb-6">
+  <div class="flex justify-center mb-6 mt-2">
     <div class="inline-flex bg-gray-100 rounded-full shadow-sm p-1">
       <?php
         $statuses = ['all' => 'All', 'upcoming' => 'Upcoming', 'ongoing' => 'Ongoing', 'completed' => 'Completed'];
@@ -81,102 +116,97 @@ $elections = $stmt->fetchAll();
     </div>
   </div>
 
-  <!-- Election Cards -->
-  <section class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-    <?php if (count($elections) === 0): ?>
-      <p class="text-gray-700 col-span-full text-center mt-12">No elections found.</p>
-    <?php else: ?>
-      <?php foreach ($elections as $election): ?>
-        <?php
-          $start = $election['start_datetime'];
-          $end = $election['end_datetime'];
-          $status = ($now < $start) ? 'upcoming' : (($now >= $start && $now <= $end) ? 'ongoing' : 'completed');
+<!-- Election Cards -->
+<section class="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+  <?php if (count($elections) === 0): ?>
+    <p class="text-gray-700 col-span-full text-center mt-12">No elections found.</p>
+  <?php else: ?>
+    <?php foreach ($elections as $election): ?>
+      <?php
+        $start = $election['start_datetime'];
+        $end = $election['end_datetime'];
+        $status = ($now < $start) ? 'upcoming' : (($now >= $start && $now <= $end) ? 'ongoing' : 'completed');
 
-          $allowed_positions = $election['target_position'] ?: 'All';
-          $allowed_courses = $election['allowed_courses'] ?: 'All';
-          $allowed_status = $election['allowed_status'] ?: 'All';
-        ?>
-        <div class="bg-white rounded-lg shadow-md p-6 mb-6 border-l-4 <?= $status === 'ongoing' ? 'border-green-600' : ($status === 'completed' ? 'border-gray-400' : 'border-yellow-400') ?> flex flex-col">
-        <div class="flex flex-col lg:flex-row flex-grow">
-            <div class="flex-1 pr-4 flex flex-col max-w-[calc(100%-10rem)]">
+        $allowed_positions = $election['target_position'] ?: 'All';
+        $allowed_courses = $election['allowed_courses'] ?: 'All';
+        $allowed_status = $election['allowed_status'] ?: 'All';
+      ?>
+      <div class="grid bg-white rounded-lg shadow-md p-6 mb-6 border-l-4 grid-cols-2 <?= $status === 'ongoing' ? 'border-green-600' : ($status === 'completed' ? 'border-gray-400' : 'border-yellow-400') ?>">
+        <!-- Outer Container for Info and Logo -->
+         <!-- Logo Container (Right) -->
+          <div class="flex items-center justify-center">
+            <div class="w-32 h-32 lg:w-40 lg:h-40 rounded-full overflow-hidden border-2 border-gray-200 bg-gray-100 flex items-center justify-center">
+              <?php if (!empty($election['logo_path'])): ?>
+                <img src="<?= htmlspecialchars($election['logo_path']) ?>" 
+                     alt="Election Logo" 
+                     class="min-w-full min-h-full object-cover">
+              <?php else: ?>
+                <span class="text-sm text-gray-500">Logo</span>
+              <?php endif; ?>
+            </div>
+          </div>
+        <div class="flex flex-col lg:flex-row gap-6">
+          <!-- Info Container (Left) -->
+          <div class="flex-1 flex flex-col justify-between">
+            <div>
               <h2 class="text-lg font-bold text-[var(--cvsu-green-dark)] mb-2 truncate"><?= htmlspecialchars($election['title']) ?></h2>
               <div class="space-y-0.5 text-xs leading-tight">
-              <p><strong class="text-gray-700">Start:</strong> <?= date('M d, Y h:i A', strtotime($election['start_datetime'])) ?></p>
+                <p><strong class="text-gray-700">Start:</strong> <?= date('M d, Y h:i A', strtotime($election['start_datetime'])) ?></p>
                 <p><strong class="text-gray-700">End:</strong> <?= date('M d, Y h:i A', strtotime($election['end_datetime'])) ?></p>
                 <p><strong class="text-gray-700">Status:</strong> <?= ucfirst($status) ?></p>
                 <p><strong class="text-gray-700">Partial Results:</strong> <?= $election['realtime_results'] ? 'Yes' : 'No' ?></p>
                 <p><strong class="text-gray-700">Allowed Voters:</strong> <?= htmlspecialchars($allowed_positions) ?></p>
-                
-    <?php
-    $positions = explode(',', $election['target_position']);
-
-    if (in_array('non-academic', $positions)) {
-        echo '<p class="text-xs text-gray-700"><strong>Allowed Department:</strong> ' . htmlspecialchars($election['allowed_departments'] ?: 'All') . '</p>';
-    } elseif (in_array('faculty', $positions) || in_array('student', $positions)) {
-        echo '<p class="text-xs text-gray-700"><strong>Allowed Colleges:</strong> ' . htmlspecialchars($election['allowed_colleges'] ?: 'All') . '</p>';
-    }
-    // Optional: You can skip printing anything for COOP-only elections
-    ?>
-    <?php if (strpos($election['target_position'], 'student') !== false): ?>
-        <p class="text-xs text-gray-700"><strong>Allowed Courses:</strong> 
-            <?= !empty($election['allowed_courses']) ? htmlspecialchars($election['allowed_courses']) : 'All' ?>
-        </p>
-    <?php endif; ?>
-    
-    <?php if (strpos($election['target_position'], 'faculty') !== false): ?>
-        <p class="text-xs text-gray-700"><strong>Allowed Status:</strong> 
-            <?= !empty($election['allowed_status']) ? htmlspecialchars($election['allowed_status']) : 'All' ?>
-        </p>
-    <?php endif; ?>
-
-    <?php if (strpos($election['target_position'], 'coop') !== false): ?>
-        <p class="text-xs text-gray-700"><strong>Allowed Status:</strong> 
-            <?= !empty($election['allowed_status']) ? htmlspecialchars($election['allowed_status']) : 'All' ?>
-        </p>
-    <?php endif; ?>
-    <?php if (strpos($election['target_position'], 'non-academic') !== false): ?>
-      <p class="text-xs text-gray-700"><strong>Allowed Status:</strong> 
-        <?= !empty($election['allowed_status']) ? htmlspecialchars($election['allowed_status']) : 'All' ?>
-      </p>
-    <?php endif; ?>
+                <?php
+                $positions = explode(',', $election['target_position']);
+                if (in_array('non-academic', $positions)) {
+                  echo '<p class="text-xs text-gray-700"><strong>Allowed Department:</strong> ' . htmlspecialchars($election['allowed_departments'] ?: 'All') . '</p>';
+                } elseif (in_array('faculty', $positions) || in_array('student', $positions)) {
+                  echo '<p class="text-xs text-gray-700"><strong>Allowed Colleges:</strong> ' . htmlspecialchars($election['allowed_colleges'] ?: 'All') . '</p>';
+                }
+                ?>
+                <?php if (strpos($election['target_position'], 'student') !== false): ?>
+                  <p class="text-xs text-gray-700"><strong>Allowed Courses:</strong> 
+                    <?= !empty($election['allowed_courses']) ? htmlspecialchars($election['allowed_courses']) : 'All' ?>
+                  </p>
+                <?php endif; ?>
+                <?php if (strpos($election['target_position'], 'faculty') !== false): ?>
+                  <p class="text-xs text-gray-700"><strong>Allowed Status:</strong> 
+                    <?= !empty($election['allowed_status']) ? htmlspecialchars($election['allowed_status']) : 'All' ?>
+                  </p>
+                <?php endif; ?>
+                <?php if (strpos($election['target_position'], 'coop') !== false): ?>
+                  <p class="text-xs text-gray-700"><strong>Allowed Status:</strong> 
+                    <?= !empty($election['allowed_status']) ? htmlspecialchars($election['allowed_status']) : 'All' ?>
+                  </p>
+                <?php endif; ?>
+                <?php if (strpos($election['target_position'], 'non-academic') !== false): ?>
+                  <p class="text-xs text-gray-700"><strong>Allowed Status:</strong> 
+                    <?= !empty($election['allowed_status']) ? htmlspecialchars($election['allowed_status']) : 'All' ?>
+                  </p>
+                <?php endif; ?>
+              </div>
             </div>
-        </div>
-
-        <!-- Large Circular Logo (Right Side) -->
-        <div class="w-40 h-40 flex-shrink-0 ml-4"> <!-- Increased size to w-40 h-40 -->
-            <?php if (!empty($election['logo_path'])): ?>
-                <div class="w-full h-full rounded-full overflow-hidden border-2 border-gray-200 flex items-center justify-center bg-gray-100">
-                    <img src="<?= htmlspecialchars($election['logo_path']) ?>" 
-                         alt="Election Logo" 
-                         class="min-w-full min-h-full object-cover">
-                </div>
-            <?php else: ?>
-                <div class="w-full h-full rounded-full bg-gray-200 border-2 border-gray-300 flex items-center justify-center">
-                    <span class="text-sm text-gray-500">Logo</span>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-
-    <!-- Action Buttons (Pushed to absolute bottom) -->
-    <div class="mt-auto pt-4"> <!-- mt-auto pushes to bottom -->
-        <div class="flex gap-3">
-            <button onclick='openUpdateModal(<?= json_encode($election) ?>)' 
-                    class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded font-semibold transition">
-                Update
-            </button>
-            <form action="delete_election.php" method="POST" onsubmit="return confirm('Are you sure?');" class="flex-1">
-                <input type="hidden" name="election_id" value="<?= $election['election_id'] ?>">
-                <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded font-semibold transition">
-                    Delete
+            <!-- Action Buttons (Bottom of Info, left side) -->
+            <div class="pt-4">
+              <div class="flex gap-3">
+                <button onclick='openUpdateModal(<?= json_encode($election) ?>)' 
+                        class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded font-semibold transition">
+                  Update
                 </button>
-            </form>
+                <form action="delete_election.php" method="POST" onsubmit="return confirm('Are you sure?');" class="flex-1">
+                  <input type="hidden" name="election_id" value="<?= $election['election_id'] ?>">
+                  <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded font-semibold transition">
+                    Delete
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
         </div>
-    </div>
-</div>
-      <?php endforeach; ?>
-    <?php endif; ?>
-  </section>
+      </div>
+    <?php endforeach; ?>
+  <?php endif; ?>
+</section>
 
   <?php include 'footer.php'; ?>
 </main>
@@ -227,7 +257,7 @@ $elections = $stmt->fetchAll();
         <div class="flex gap-6">
           <label class="flex items-center gap-1"><input type="radio" name="target_voter" value="student" required> Student</label>
           <label class="flex items-center gap-1"><input type="radio" name="target_voter" value="academic" required> Academic</label>
-          <label class="flex items-center gap-1"><input type="radio" name="target_voter" value="non_academic" required> Non-Academic</label>
+          <label class="flex items-center gap-1 text-sm"><input type="radio" name="target_voter" value="non_academic" required> Non-Academic</label>
           <label class="flex items-center gap-1"><input type="radio" name="target_voter" value="coop" required> COOP</label>
         </div>
       </div>
@@ -528,10 +558,64 @@ $elections = $stmt->fetchAll();
 <script src="success.js"></script>
 <script src="clear_button.js"></script>
 
-<style>
-  .modal-backdrop {
-    background-color: rgba(0,0,0,0.5);
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const sidebar = document.getElementById('sidebar');
+  const toggleBtn = document.getElementById('sidebarToggle');
+  const overlay = document.getElementById('sidebarOverlay');
+  const navLinks = sidebar.querySelectorAll('a');
+  const hamburgerIcon = document.getElementById('hamburgerIcon');
+  const closeIcon = document.getElementById('closeIcon');
+
+  function openSidebar() {
+    sidebar.classList.remove('-translate-x-full');
+    overlay.classList.remove('hidden');
+    setTimeout(() => overlay.classList.add('opacity-100'), 10);
+    document.body.style.overflow = 'hidden';
+    hamburgerIcon.classList.add('hidden');
+    closeIcon.classList.remove('hidden');
   }
-</style>
+
+  function closeSidebar() {
+    sidebar.classList.add('-translate-x-full');
+    overlay.classList.add('hidden');
+    overlay.classList.remove('opacity-100');
+    document.body.style.overflow = '';
+    hamburgerIcon.classList.remove('hidden');
+    closeIcon.classList.add('hidden');
+  }
+
+  toggleBtn.addEventListener('click', function () {
+    if (sidebar.classList.contains('-translate-x-full')) openSidebar();
+    else closeSidebar();
+  });
+
+  overlay.addEventListener('click', closeSidebar);
+
+  navLinks.forEach(link => {
+    link.addEventListener('click', function () {
+      if (window.innerWidth < 768) closeSidebar();
+    });
+  });
+
+  function handleResize() {
+    if (window.innerWidth >= 768) {
+      sidebar.classList.remove('-translate-x-full');
+      overlay.classList.add('hidden');
+      overlay.classList.remove('opacity-100');
+      document.body.style.overflow = '';
+      hamburgerIcon.classList.remove('hidden');
+      closeIcon.classList.add('hidden');
+    } else {
+      sidebar.classList.add('-translate-x-full');
+      hamburgerIcon.classList.remove('hidden');
+      closeIcon.classList.add('hidden');
+    }
+  }
+
+  window.addEventListener('resize', handleResize);
+  handleResize();
+});
+</script>
 </body>
 </html>
