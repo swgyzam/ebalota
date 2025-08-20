@@ -21,22 +21,22 @@ try {
 }
 
 // --- Session timeout 1 hour ---
-$timeout_duration = 3600;
-if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY']) > $timeout_duration) {
-    session_unset();
-    session_destroy();
-    header('Location: login.php?error=Session expired. Please login again.');
-    exit();
-}
+//$timeout_duration = 3600;
+//if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY']) > $timeout_duration) {
+    //session_unset();
+    //session_destroy();
+    //header('Location: login.php?error=Session expired. Please login again.');
+    //exit();
+//}
 $_SESSION['LAST_ACTIVITY'] = time();
 
 // --- Check if logged in and super admin ---
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
-  header('Location: login.php');
-  exit();
-}
+//if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
+  //header('Location: login.php');
+  //exit();
+//}
 
-$currentUserId = $_SESSION['user_id'];
+//$currentUserId = $_SESSION['user_id'];
 
 // --- Handle Activate/Deactivate/Delete ---
 if (isset($_GET['action'], $_GET['id'])) {
