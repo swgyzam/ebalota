@@ -340,6 +340,50 @@ $elections = $stmt->fetchAll();
   </div>
 </div>
 
+<!-- Assign Admin -->
+<div class="mb-4">
+  <label class="block font-semibold mb-1">Assign Admin *</label>
+  <select name="assigned_admin_id" required class="w-full p-2 border rounded">
+    <option value="">-- Select Admin --</option>
+    <?php
+    // ----- College Admins -----
+    $collegeScopes = "('CAFENR','CEIT','CAS','CVMBS','CED','CEMDS','CSPEAR','CCJ','CON','CTHM','COM','GS-OLC')";
+    $stmt = $pdo->query("SELECT user_id, first_name, last_name, assigned_scope FROM users WHERE role='admin' AND assigned_scope IN $collegeScopes");
+    $collegeAdmins = $stmt->fetchAll();
+    if ($collegeAdmins) {
+        echo "<optgroup label='College Admins'>";
+        foreach ($collegeAdmins as $row) {
+            echo "<option value='{$row['user_id']}'>{$row['first_name']} {$row['last_name']} ({$row['assigned_scope']})</option>";
+        }
+        echo "</optgroup>";
+    }
+
+    // ----- Other Sectors -----
+    $otherScopes = "('FACULTY_ASSOCIATION','COOP','NON_ACADEMIC')";
+    $stmt = $pdo->query("SELECT user_id, first_name, last_name, assigned_scope FROM users WHERE role='admin' AND assigned_scope IN $otherScopes");
+    $otherAdmins = $stmt->fetchAll();
+    if ($otherAdmins) {
+        echo "<optgroup label='Other Sectors'>";
+        foreach ($otherAdmins as $row) {
+            echo "<option value='{$row['user_id']}'>{$row['first_name']} {$row['last_name']} ({$row['assigned_scope']})</option>";
+        }
+        echo "</optgroup>";
+    }
+
+    // ----- CSG Admins -----
+    $stmt = $pdo->query("SELECT user_id, first_name, last_name FROM users WHERE role='admin' AND assigned_scope = 'CSG_ADMIN'");
+    $csgAdmins = $stmt->fetchAll();
+    if ($csgAdmins) {
+        echo "<optgroup label='CSG Admins'>";
+        foreach ($csgAdmins as $row) {
+            echo "<option value='{$row['user_id']}'>{$row['first_name']} {$row['last_name']}</option>";
+        }
+        echo "</optgroup>";
+    }
+    ?>
+  </select>
+</div>
+
 <!-- Buttons -->
 <div class="flex justify-end gap-3 mt-6">
   <!-- Clear Button -->
@@ -437,7 +481,7 @@ $elections = $stmt->fetchAll();
             <!-- Courses will be loaded here dynamically -->
           </div>
           <div class="mt-1">
-            <button type="button" onclick="toggleUpdateCheckboxes('allowed_courses_student[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+            <button type="button" onclick="toggleAllCheckboxes('allowed_courses_student[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
           </div>
         </div>
       </div>
@@ -460,7 +504,7 @@ $elections = $stmt->fetchAll();
             <label class="flex items-center"><input type="checkbox" name="allowed_status_faculty[]" value="Contractual" class="mr-1">Contractual</label>
           </div>
           <div class="mt-1">
-            <button type="button" onclick="toggleUpdateCheckboxes('allowed_status_faculty[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+            <button type="button" onclick="toggleAllCheckboxes('allowed_status_faculty[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
           </div>
         </div>
       </div>
@@ -488,7 +532,7 @@ $elections = $stmt->fetchAll();
             <label class="flex items-center"><input type="checkbox" name="allowed_status_nonacad[]" value="Contractual" class="mr-1">Contractual</label>
           </div>
           <div class="mt-1">
-            <button type="button" onclick="toggleUpdateCheckboxes('allowed_status_nonacad[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+            <button type="button" onclick="toggleAllCheckboxes('allowed_status_nonacad[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
           </div>
         </div>
       </div>
@@ -501,10 +545,60 @@ $elections = $stmt->fetchAll();
             <label class="flex items-center"><input type="checkbox" name="allowed_status_coop[]" value="MIGS" class="mr-1">MIGS</label>
           </div>
           <div class="mt-1">
-            <button type="button" onclick="toggleUpdateCheckboxes('allowed_status_coop[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+            <button type="button" onclick="toggleAllCheckboxes('allowed_status_coop[]')" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
           </div>
         </div>
       </div>
+
+<!-- Assign Admin -->
+<div class="mb-4">
+    <label class="block font-semibold mb-1">Assign Admin *</label>
+    <select name="assigned_admin_id" id="update_assigned_admin_id" required class="w-full p-2 border rounded">
+        <option value="">-- Select Admin --</option>
+        <?php
+        // make sure we have the assigned admin id from election
+        $assignedAdminId = $election['assigned_admin_id'] ?? null;
+
+        // ----- College Admins -----
+        $collegeScopes = "('CAFENR','CEIT','CAS','CVMBS','CED','CEMDS','CSPEAR','CCJ','CON','CTHM','COM','GS-OLC')";
+        $stmt = $pdo->query("SELECT user_id, first_name, last_name, assigned_scope FROM users WHERE role='admin' AND assigned_scope IN $collegeScopes");
+        $collegeAdmins = $stmt->fetchAll();
+        if ($collegeAdmins) {
+            echo "<optgroup label='College Admins'>";
+            foreach ($collegeAdmins as $row) {
+                $selected = ($row['user_id'] == $assignedAdminId) ? 'selected' : '';
+                echo "<option value='{$row['user_id']}' $selected>{$row['first_name']} {$row['last_name']} ({$row['assigned_scope']})</option>";
+            }
+            echo "</optgroup>";
+        }
+
+        // ----- Other Sectors -----
+        $otherScopes = "('FACULTY_ASSOCIATION','COOP','NON_ACADEMIC')";
+        $stmt = $pdo->query("SELECT user_id, first_name, last_name, assigned_scope FROM users WHERE role='admin' AND assigned_scope IN $otherScopes");
+        $otherAdmins = $stmt->fetchAll();
+        if ($otherAdmins) {
+            echo "<optgroup label='Other Sectors'>";
+            foreach ($otherAdmins as $row) {
+                $selected = ($row['user_id'] == $assignedAdminId) ? 'selected' : '';
+                echo "<option value='{$row['user_id']}' $selected>{$row['first_name']} {$row['last_name']} ({$row['assigned_scope']})</option>";
+            }
+            echo "</optgroup>";
+        }
+
+        // ----- CSG Admins -----
+        $stmt = $pdo->query("SELECT user_id, first_name, last_name FROM users WHERE role='admin' AND assigned_scope = 'CSG_ADMIN'");
+        $csgAdmins = $stmt->fetchAll();
+        if ($csgAdmins) {
+            echo "<optgroup label='CSG Admins'>";
+            foreach ($csgAdmins as $row) {
+                $selected = ($row['user_id'] == $assignedAdminId) ? 'selected' : '';
+                echo "<option value='{$row['user_id']}' $selected>{$row['first_name']} {$row['last_name']}</option>";
+            }
+            echo "</optgroup>";
+        }
+        ?>
+    </select>
+</div>
 
 <!-- Buttons -->
 <div class="flex justify-end gap-3 mt-6">
@@ -520,8 +614,6 @@ $elections = $stmt->fetchAll();
     Update Election
   </button>
 </div>
-
-
 
 <script src="create_election.js"></script>
 <script src="update_election.js"></script>

@@ -77,7 +77,7 @@ $admins = $stmt->fetchAll();
         <select name="scope" id="scope" onchange="this.form.submit()" class="px-2 py-1 border border-gray-300 rounded">
           <option value="">All</option>
           <?php
-            $scopes = ['CAFENR','CEIT','CAS','CVMBS','CED','CEMDS','CSPEAR','CCJ','CON','CTHM','COM','GS-OLC','FACULTY_ASSOCIATION','COOP','NON_ACADEMIC'];
+            $scopes = ['CAFENR','CEIT','CAS','CVMBS','CED','CEMDS','CSPEAR','CCJ','CON','CTHM','COM','GS-OLC','FACULTY_ASSOCIATION','COOP','NON_ACADEMIC', 'CSG_ADMIN'];
             foreach ($scopes as $scope) {
               $selected = $filterScope === $scope ? 'selected' : '';
               echo "<option value=\"$scope\" $selected>$scope</option>";

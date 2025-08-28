@@ -1532,3 +1532,748 @@ Array
 )
 
 Update successful for election 188
+Executing with params:
+Array
+(
+    [:title] => makiiii
+    [:description] => kjkj
+    [:start_datetime] => 2025-08-21 11:11:00
+    [:end_datetime] => 2025-08-21 23:11:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSIT
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755158671_NESCAFE Banner.jpg
+    [:election_id] => 188
+)
+
+Update successful for election 188
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-23 01:11:00
+    [:end_datetime] => 2025-08-23 23:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 91
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-23 01:11:00
+    [:end_datetime] => 2025-08-23 23:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-23 01:11:00
+    [:end_datetime] => 2025-08-23 23:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 91
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-23 01:11:00
+    [:end_datetime] => 2025-08-23 23:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-23 01:11:00
+    [:end_datetime] => 2025-08-23 23:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 91
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-23 01:11:00
+    [:end_datetime] => 2025-08-23 23:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-23 01:11:00
+    [:end_datetime] => 2025-08-23 23:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 91
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-23 01:11:00
+    [:end_datetime] => 2025-08-23 23:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-23 01:11:00
+    [:end_datetime] => 2025-08-23 23:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 91
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-23 01:11:00
+    [:end_datetime] => 2025-08-23 23:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 91
+)
+
+Update failed but changes detected:
+Array
+(
+    [:election_id] => 191
+    [:assigned_admin_id] => 91
+)
+
+Executing with params:
+Array
+(
+    [:title] => makiiii
+    [:description] => kjkj
+    [:start_datetime] => 2025-08-21 11:11:00
+    [:end_datetime] => 2025-08-21 23:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755158671_NESCAFE Banner.jpg
+    [:election_id] => 188
+    [:assigned_admin_id] => 91
+)
+
+Update successful for election 188
+Executing with params:
+Array
+(
+    [:title] => makiiii
+    [:description] => kjkj
+    [:start_datetime] => 2025-08-22 11:11:00
+    [:end_datetime] => 2025-08-22 23:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755158671_NESCAFE Banner.jpg
+    [:election_id] => 188
+    [:assigned_admin_id] => 91
+)
+
+Update successful for election 188
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-27 01:11:00
+    [:end_datetime] => 2025-08-27 23:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-27 02:11:00
+    [:end_datetime] => 2025-08-27 22:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => coop
+    [:description] => coop
+    [:start_datetime] => 2025-08-26 14:48:00
+    [:end_datetime] => 2025-08-26 22:00:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755411585_tortang talong.jpg
+    [:election_id] => 189
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 189
+Executing with params:
+Array
+(
+    [:title] => okkkk
+    [:description] => sasas
+    [:start_datetime] => 2025-08-27 02:05:00
+    [:end_datetime] => 2025-08-27 23:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755158000_prof.jpg
+    [:election_id] => 187
+    [:assigned_admin_id] => 91
+)
+
+Update successful for election 187
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-27 02:11:00
+    [:end_datetime] => 2025-08-27 22:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-27 03:11:00
+    [:end_datetime] => 2025-08-27 22:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-27 03:11:00
+    [:end_datetime] => 2025-08-27 22:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 91
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => okkkk
+    [:description] => sasas
+    [:start_datetime] => 2025-08-27 02:05:00
+    [:end_datetime] => 2025-08-27 23:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755158000_prof.jpg
+    [:election_id] => 187
+    [:assigned_admin_id] => 91
+)
+
+Update successful for election 187
+Executing with params:
+Array
+(
+    [:title] => coop
+    [:description] => coop
+    [:start_datetime] => 2025-08-26 14:48:00
+    [:end_datetime] => 2025-08-26 22:00:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755411585_tortang talong.jpg
+    [:election_id] => 189
+    [:assigned_admin_id] => 91
+)
+
+Update successful for election 189
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-27 03:11:00
+    [:end_datetime] => 2025-08-27 22:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => okkkk
+    [:description] => sasas
+    [:start_datetime] => 2025-08-27 02:05:00
+    [:end_datetime] => 2025-08-27 23:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755158000_prof.jpg
+    [:election_id] => 187
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 187
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-26 16:00:00
+    [:end_datetime] => 2025-08-27 22:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => okkkk
+    [:description] => sasas
+    [:start_datetime] => 2025-08-28 02:05:00
+    [:end_datetime] => 2025-08-28 23:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755158000_prof.jpg
+    [:election_id] => 187
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 187
+Executing with params:
+Array
+(
+    [:title] => okkkk
+    [:description] => sasas
+    [:start_datetime] => 2025-08-28 02:05:00
+    [:end_datetime] => 2025-08-28 23:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755158000_prof.jpg
+    [:election_id] => 187
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 187
+Executing with params:
+Array
+(
+    [:title] => okkkk
+    [:description] => sasas
+    [:start_datetime] => 2025-08-29 02:05:00
+    [:end_datetime] => 2025-08-29 23:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755158000_prof.jpg
+    [:election_id] => 187
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 187
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-28 15:00:00
+    [:end_datetime] => 2025-08-29 22:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => coop
+    [:description] => coop
+    [:start_datetime] => 2025-08-28 14:48:00
+    [:end_datetime] => 2025-08-29 22:00:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755411585_tortang talong.jpg
+    [:election_id] => 189
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 189
+Executing with params:
+Array
+(
+    [:title] => meow
+    [:description] => sasas
+    [:start_datetime] => 2025-08-28 00:00:00
+    [:end_datetime] => 2025-08-29 12:59:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Part-time
+    [:allowed_departments] => MAINTENANCE
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1754993189_pingwinnn.jpg
+    [:election_id] => 159
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 159
+Executing with params:
+Array
+(
+    [:title] => okkkk
+    [:description] => sasas
+    [:start_datetime] => 2025-08-22 02:05:00
+    [:end_datetime] => 2025-08-22 23:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755158000_prof.jpg
+    [:election_id] => 187
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 187
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-28 15:00:00
+    [:end_datetime] => 2025-08-29 22:11:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-28 15:00:00
+    [:end_datetime] => 2025-08-29 22:11:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CTHM
+    [:allowed_courses] => BSHM,BSTM
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => aaaaaaaaaaaaaaaa
+    [:description] => sasasasassa
+    [:start_datetime] => 2025-08-28 15:00:00
+    [:end_datetime] => 2025-08-29 22:11:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSIT
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755837308_s-l1600.jpg
+    [:election_id] => 191
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 191
+Executing with params:
+Array
+(
+    [:title] => coop
+    [:description] => coop
+    [:start_datetime] => 2025-08-28 14:48:00
+    [:end_datetime] => 2025-08-29 22:00:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755411585_tortang talong.jpg
+    [:election_id] => 189
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 189
+Executing with params:
+Array
+(
+    [:title] => okkkk
+    [:description] => sasas
+    [:start_datetime] => 2025-08-28 08:05:00
+    [:end_datetime] => 2025-08-29 23:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755158000_prof.jpg
+    [:election_id] => 187
+    [:assigned_admin_id] => 89
+)
+
+Update successful for election 187

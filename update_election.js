@@ -1,4 +1,4 @@
-// Update Modal Functions
+//// Update Modal Functions
 function openUpdateModal(election) {
     // Fill basic info
     document.getElementById('update_election_id').value = election.election_id;
@@ -12,7 +12,7 @@ function openUpdateModal(election) {
         const hh = String(date.getHours()).padStart(2, '0');
         const min = String(date.getMinutes()).padStart(2, '0');
         return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
-      }
+    }
       
     // Format dates
     const startDate = new Date(election.start_datetime);
@@ -20,7 +20,29 @@ function openUpdateModal(election) {
     document.getElementById('update_start_datetime').value = formatDateTimeForInput(startDate);
     document.getElementById('update_end_datetime').value = formatDateTimeForInput(endDate);
 
-    
+    // ✅ NEW: Set assigned admin dropdown safely
+    const assignedAdminSelect = document.getElementById('update_assigned_admin_id');
+    if (election.assigned_admin_id) {
+        const optionExists = Array.from(assignedAdminSelect.options).some(
+            opt => opt.value == election.assigned_admin_id
+        );
+
+        if (optionExists) {
+            // kung existing admin, ise-set lang value
+            assignedAdminSelect.value = election.assigned_admin_id;
+        } else {
+            // kung wala sa list, mag-aappend tayo ng "Unknown Admin"
+            const tempOption = document.createElement('option');
+            tempOption.value = election.assigned_admin_id;
+            tempOption.text = "Unknown Admin (ID: " + election.assigned_admin_id + ")";
+            tempOption.selected = true;
+            assignedAdminSelect.appendChild(tempOption);
+        }
+    } else {
+        // kung walang assigned admin, i-default sa blank
+        assignedAdminSelect.value = "";
+    }
+
     // Set target voter type and show appropriate fields
     const targetPosition = election.target_position.toLowerCase().replace(/\s+/g, '_');
     hideAllUpdateFields();
@@ -49,6 +71,7 @@ function openUpdateModal(election) {
     // Show the modal
     document.getElementById('updateModal').classList.remove('hidden');
 }
+
 
 function closeUpdateModal() {
     document.getElementById('updateModal').classList.add('hidden');
