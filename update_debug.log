@@ -1608,3 +1608,22 @@ Array
 )
 
 Update successful for election 187
+Executing with params:
+Array
+(
+    [:title] => Alejandro
+    [:description] => sasas
+    [:start_datetime] => 2025-08-25 02:05:00
+    [:end_datetime] => 2025-08-29 23:11:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1755158000_prof.jpg
+    [:election_id] => 187
+)
+
+Update successful for election 187

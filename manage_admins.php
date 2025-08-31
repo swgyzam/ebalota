@@ -21,12 +21,6 @@ try {
     die("DB Error: " . $e->getMessage());
 }
 
-// --- Auth check ---
-//if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
-//header('Location: login.php');
-//exit();
-//}
-
 // --- Filtering ---
 $filterScope = isset($_GET['scope']) ? $_GET['scope'] : '';
 $scopeQuery = '';
@@ -48,34 +42,68 @@ $admins = $stmt->fetchAll();
 <head>
   <meta charset="UTF-8">
   <title>Manage Admins - Super Admin Panel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    :root {
-      --cvsu-green-dark: #154734;
-      --cvsu-green: #1E6F46;
-      --cvsu-green-light: #37A66B;
-      --cvsu-yellow: #FFD166;
+  :root {
+    --cvsu-green-dark: #154734;
+    --cvsu-green: #1E6F46;
+    --cvsu-green-light: #37A66B;
+    --cvsu-yellow: #FFD166;
+  }
+  @media (max-width: 767px) {
+    .main-content {
+      margin-left: 0 !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
     }
-    @media (max-width: 767px) {
-      .main-content {
-        margin-left: 0 !important;
-        padding-left: 0 !important;
-        padding-right: 0 !important;
-      }
-      .fixed-header {
-        left: 0 !important;
-        width: 100vw !important;
-      }
+    .fixed-header {
+      left: 0 !important;
+      width: 100vw !important;
     }
-    @media (min-width: 768px) {
-      .main-content {
-        margin-left: 16rem !important;
-      }
-      .fixed-header {
-        left: 16rem !important;
-        width: calc(100vw - 16rem) !important;
-      }
+    .responsive-table-container {
+      width: 100vw;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch;
     }
+    .responsive-table {
+      min-width: 900px;
+      width: 900px;
+      display: block;
+    }
+  }
+  @media (min-width: 768px) {
+    .main-content {
+      margin-left: 16rem !important;
+    }
+    .fixed-header {
+      left: 16rem !important;
+      width: calc(100vw - 16rem) !important;
+    }
+    .responsive-table-container {
+      width: 100%;
+      overflow-x: visible;
+    }
+    .responsive-table {
+      min-width: 900px;
+      width: 100%;
+      display: table;
+    }
+  }
+  /* Custom scrollbar for Chrome, Safari, Edge */
+  .responsive-table-container::-webkit-scrollbar {
+    height: 8px;
+    background: #e5e7eb;
+  }
+  .responsive-table-container::-webkit-scrollbar-thumb {
+    background: #1E6F46;
+    border-radius: 4px;
+  }
+  /* Custom scrollbar for Firefox */
+  .responsive-table-container {
+    scrollbar-color: #1E6F46 #e5e7eb;
+    scrollbar-width: thin;
+  }
   </style>
 </head>
 <body class="bg-gray-50 font-sans text-gray-900">
@@ -97,9 +125,9 @@ $admins = $stmt->fetchAll();
           <path id="closeIcon" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
-      <h1 class="text-xl font-bold text-white">Manage Admins</h1>
+      <h1 class="text-lg font-bold text-white">Manage Admins</h1>
     </div>
-    <div class="flex space-x-2">
+    <div class="flex space-x-2 text-sm">
       <button id="openModalBtn" onclick="document.getElementById('createModal').classList.remove('hidden')" class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded font-semibold transition">+ Add Admin</button>
     </div>
   </header>
@@ -120,43 +148,43 @@ $admins = $stmt->fetchAll();
       </select>
     </form>
 
-<!-- Responsive Admins Table -->
-<div class="w-full overflow-x-auto bg-white rounded shadow mt-4">
-  <table class="min-w-[600px] w-full divide-y divide-gray-200">
-    <thead class="bg-[var(--cvsu-green-light)] text-white">
-      <tr>
-        <th class="px-3 md:px-6 py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Full Name</th>
-        <th class="px-3 md:px-6 py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Email</th>
-        <th class="px-3 md:px-6 py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Assigned Scope</th>
-        <th class="px-3 md:px-6 py-3 text-center text-xs md:text-sm font-semibold whitespace-nowrap">Actions</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-gray-100">
-      <?php if (empty($admins)): ?>
-        <tr>
-          <td colspan="4" class="px-3 md:px-6 py-4 text-center text-gray-500">No admin accounts found.</td>
-        </tr>
-      <?php else: ?>
-        <?php foreach ($admins as $admin): ?>
-          <tr class="hover:bg-gray-50">
-            <td class="px-3 md:px-6 py-4 text-xs md:text-sm break-words max-w-[140px] md:max-w-none"><?= htmlspecialchars($admin['first_name'] . ' ' . $admin['last_name']) ?></td>
-            <td class="px-3 md:px-6 py-4 text-xs md:text-sm break-words max-w-[160px] md:max-w-none"><?= htmlspecialchars($admin['email']) ?></td>
-            <td class="px-3 md:px-6 py-4 text-xs md:text-sm break-words max-w-[120px] md:max-w-none"><?= htmlspecialchars($admin['assigned_scope']) ?></td>
-            <td class="px-3 md:px-6 py-4 text-center space-x-2">
-              <button 
-                onclick='triggerEditAdmin(<?= $admin["user_id"] ?>)'
-                class="px-2 md:px-3 py-1 text-xs md:text-sm rounded bg-yellow-500 text-white hover:bg-yellow-600 transition whitespace-nowrap">Edit</button>
-              <form action="delete_admin.php" method="POST" class="inline" onsubmit="return confirm('Delete this admin?')">
-                <input type="hidden" name="user_id" value="<?= $admin['user_id'] ?>">
-                <button type="submit" class="px-2 md:px-3 py-1 text-xs md:text-sm rounded bg-red-600 text-white hover:bg-red-700 transition whitespace-nowrap">Delete</button>
-              </form>
-            </td>
+    <!-- Responsive Table Container -->
+    <div class="responsive-table-container bg-white rounded shadow mt-4">
+      <table class="responsive-table min-w-full divide-y divide-gray-200">
+        <thead class="bg-[var(--cvsu-green-light)] text-white">
+          <tr>
+            <th class="px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">Full Name</th>
+            <th class="px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">Email</th>
+            <th class="px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">Assigned Scope</th>
+            <th class="px-6 py-3 text-center text-sm font-semibold whitespace-nowrap">Actions</th>
           </tr>
-        <?php endforeach; ?>
-      <?php endif; ?>
-    </tbody>
-  </table>
-</div>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          <?php if (empty($admins)): ?>
+            <tr>
+              <td colspan="4" class="px-6 py-4 text-center text-gray-500">No admin accounts found.</td>
+            </tr>
+          <?php else: ?>
+            <?php foreach ($admins as $admin): ?>
+              <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 text-sm break-words max-w-[140px] md:max-w-none"><?= htmlspecialchars($admin['first_name'] . ' ' . $admin['last_name']) ?></td>
+                <td class="px-6 py-4 text-sm break-words max-w-[160px] md:max-w-none"><?= htmlspecialchars($admin['email']) ?></td>
+                <td class="px-6 py-4 text-sm break-words max-w-[120px] md:max-w-none"><?= htmlspecialchars($admin['assigned_scope']) ?></td>
+                <td class="px-6 py-4 text-center space-x-2">
+                  <button 
+                    onclick='triggerEditAdmin(<?= $admin["user_id"] ?>)'
+                    class="px-3 py-1 text-sm rounded bg-yellow-500 text-white hover:bg-yellow-600 transition whitespace-nowrap">Edit</button>
+                  <form action="delete_admin.php" method="POST" class="inline" onsubmit="return confirm('Delete this admin?')">
+                    <input type="hidden" name="user_id" value="<?= $admin['user_id'] ?>">
+                    <button type="submit" class="px-3 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition whitespace-nowrap">Delete</button>
+                  </form>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          <?php endif; ?>
+        </tbody>
+      </table>
+    </div>
 
     <?php include 'admin_modal_create.php'; ?>
     <?php include 'admin_modal_update.php'; ?>
@@ -224,8 +252,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function openSidebar() {
     sidebar.classList.remove('-translate-x-full');
-    overlay.classList.remove('hidden');
-    setTimeout(() => overlay.classList.add('opacity-100'), 10);
+    if(overlay){ overlay.classList.remove('hidden'); setTimeout(() => overlay.classList.add('opacity-100'), 10);}
     document.body.style.overflow = 'hidden';
     hamburgerIcon.classList.add('hidden');
     closeIcon.classList.remove('hidden');
@@ -233,8 +260,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function closeSidebar() {
     sidebar.classList.add('-translate-x-full');
-    overlay.classList.add('hidden');
-    overlay.classList.remove('opacity-100');
+    if(overlay){ overlay.classList.add('hidden'); overlay.classList.remove('opacity-100'); }
     document.body.style.overflow = '';
     hamburgerIcon.classList.remove('hidden');
     closeIcon.classList.add('hidden');
@@ -245,7 +271,7 @@ document.addEventListener('DOMContentLoaded', function () {
     else closeSidebar();
   });
 
-  overlay.addEventListener('click', closeSidebar);
+  if(overlay) overlay.addEventListener('click', closeSidebar);
 
   navLinks.forEach(link => {
     link.addEventListener('click', function () {
@@ -256,8 +282,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function handleResize() {
     if (window.innerWidth >= 768) {
       sidebar.classList.remove('-translate-x-full');
-      overlay.classList.add('hidden');
-      overlay.classList.remove('opacity-100');
+      if(overlay){ overlay.classList.add('hidden'); overlay.classList.remove('opacity-100'); }
       document.body.style.overflow = '';
       hamburgerIcon.classList.remove('hidden');
       closeIcon.classList.add('hidden');

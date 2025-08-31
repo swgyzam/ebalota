@@ -130,112 +130,242 @@ $users = $stmt->fetchAll();
       --cvsu-green-light: #37A66B;
       --cvsu-yellow: #FFD166;
     }
+    @media (max-width: 767px) {
+      .main-content {
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+      }
+      .fixed-header {
+        left: 0 !important;
+        width: 100vw !important;
+      }
+      .overflow-x-auto {
+        -webkit-overflow-scrolling: touch;
+      }
+      .responsive-table-container {
+        width: 100%;
+        overflow-x: auto;
+      }
+      .responsive-table {
+        min-width: 900px;
+        width: 900px;
+        display: block;
+      }
+    }
+    @media (min-width: 768px) {
+      .main-content {
+        margin-left: 16rem !important;
+      }
+      .fixed-header {
+        left: 16rem !important;
+        width: calc(100vw - 16rem) !important;
+      }
+      .responsive-table-container {
+        width: 100%;
+        overflow-x: visible;
+      }
+      .responsive-table {
+        min-width: 900px;
+        width: 100%;
+        display: table;
+      }
+    }
+    /* Custom scrollbar for Chrome, Safari, Edge */
+    .responsive-table-container::-webkit-scrollbar {
+      height: 8px;
+      background: #e5e7eb;
+    }
+    .responsive-table-container::-webkit-scrollbar-thumb {
+      background: #1E6F46;
+      border-radius: 4px;
+    }
+    /* Custom scrollbar for Firefox */
+    .responsive-table-container {
+      scrollbar-color: #1E6F46 #e5e7eb;
+      scrollbar-width: thin;
+    }
   </style>
 </head>
 <body class="bg-gray-50 font-sans text-gray-900">
 
-  <div class="flex min-h-screen">
-    <?php include 'super_admin_sidebar.php'; ?>
+  <?php include 'super_admin_sidebar.php'; ?>
 
-    <main class="flex-1 p-8 ml-64">
-    <header class="bg-[var(--cvsu-green-dark)] text-white p-6 flex justify-between items-center shadow-md rounded-md mb-8">
-  <h1 class="text-3xl font-extrabold">Manage Users</h1>
-  <div class="flex space-x-2">
-    <a href="restrict_users.php" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-semibold transition">Restrict User</a>
-  </div>
-</header>
+  <!-- Responsive header: hamburger menu inside header -->
+  <header class="fixed-header w-full fixed top-0 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:rgb(25, 72, 49);">
+    <div class="flex items-center space-x-4">
+      <!-- Hamburger button (always shown on mobile, hidden on desktop) -->
+      <button 
+        id="sidebarToggle" 
+        class="md:hidden mr-2 p-2 rounded bg-[var(--cvsu-green-dark)] text-white shadow-lg focus:outline-none flex items-center justify-center"
+        aria-label="Open sidebar"
+        type="button"
+      >
+        <svg id="sidebarToggleIcon" xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path id="hamburgerIcon" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h16M4 17h16"/>
+          <path id="closeIcon" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+      <h1 class="text-xl font-bold text-white">Manage Users</h1>
+    </div>
+    <div class="flex space-x-2">
+      <a href="restrict_users.php" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded font-semibold transition">Restrict User</a>
+    </div>
+  </header>
 
+  <main class="main-content flex-1 pt-20 px-2 md:px-8">
+    <form method="GET" class="mb-4">
+      <label for="position" class="mr-2">Filter by Position:</label>
+      <select name="position" id="position" onchange="this.form.submit()" class="px-2 py-1 border border-gray-300 rounded">
+        <option value="">All</option>
+        <option value="student" <?= $filterPosition === 'student' ? 'selected' : '' ?>>Student</option>
+        <option value="academic" <?= $filterPosition === 'academic' ? 'selected' : '' ?>>Faculty</option>
+        <option value="non-academic" <?= $filterPosition === 'non-academic' ? 'selected' : '' ?>>Non-Academic</option>
+        <option value="coop" <?= $filterPosition === 'coop' ? 'selected' : '' ?>>COOP</option>
+      </select>
+    </form>
 
-      <form method="GET" class="mb-4">
-        <label for="position" class="mr-2">Filter by Position:</label>
-        <select name="position" id="position" onchange="this.form.submit()" class="px-2 py-1 border border-gray-300 rounded">
-          <option value="">All</option>
-          <option value="student" <?= $filterPosition === 'student' ? 'selected' : '' ?>>Student</option>
-          <option value="academic" <?= $filterPosition === 'academic' ? 'selected' : '' ?>>Faculty</option>
-          <option value="non-academic" <?= $filterPosition === 'non-academic' ? 'selected' : '' ?>>Non-Academic</option>
-          <option value="coop" <?= $filterPosition === 'coop' ? 'selected' : '' ?>>COOP</option>
-        </select>
-      </form>
-
-      <div class="overflow-x-auto bg-white rounded shadow">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-[var(--cvsu-green-light)] text-white">
-            <tr>
-              <th class="px-6 py-3 text-left text-sm font-semibold">Name</th>
-              <th class="px-6 py-3 text-left text-sm font-semibold">Email</th>
-              <th class="px-6 py-3 text-left text-sm font-semibold">Position</th>
-              <?php if ($isCoopFilter): ?>
-                <th class="px-6 py-3 text-left text-sm font-semibold">MIGS Status</th>
-              <?php endif; ?>
-              <th class="px-6 py-3 text-left text-sm font-semibold">Verified</th>
-              <th class="px-6 py-3 text-left text-sm font-semibold">Registered At</th>
-              <th class="px-6 py-3 text-center text-sm font-semibold">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-            <?php if (empty($users)) : ?>
-              <tr>
-                <td colspan="<?= $isCoopFilter ? '8' : '7' ?>" class="px-6 py-4 text-center text-gray-500">No users found.</td>
-              </tr>
-            <?php else: ?>
-              <?php foreach ($users as $user): ?>
-                <tr>
-                  <td class="px-6 py-4"><?= htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) ?></td>
-                  <td class="px-6 py-4"><?= htmlspecialchars($user['email']) ?></td>
-                  <td class="px-6 py-4 capitalize"><?= htmlspecialchars($user['position']) ?></td>
-                  <?php if ($isCoopFilter): ?>
-                    <td class="px-6 py-4">
-                      <?= $user['migs_status'] ? '<span class="text-green-600 font-semibold">MIGS</span>' : '<span class="text-gray-600 font-semibold">Not MIGS</span>' ?>
-                    </td>
-                  <?php endif; ?>
-                  <td class="px-6 py-4">
-                    <?php if ($user['is_verified']): ?>
-                      <span class="text-green-600 font-semibold">Verified</span>
-                    <?php else: ?>
-                      <span class="text-red-600 font-semibold">Not Verified</span>
-                    <?php endif; ?>
-                  </td>
-                  <td class="px-6 py-4"><?= htmlspecialchars(date('M d, Y h:i A', strtotime($user['created_at']))) ?></td>
-                  <td class="px-6 py-4 text-center space-x-2">
-                    <a href="?action=toggle&id=<?= $user['user_id'] ?><?= !empty($filterPosition) ? '&position=' . urlencode($filterPosition) : '' ?>"
-                      onclick="return confirm('Are you sure you want to toggle <?= $filterPosition === 'coop' ? 'MIGS status' : 'verification status' ?> for this user?')"
-                      class="px-3 py-1 text-sm rounded bg-yellow-400 text-white hover:bg-yellow-500 transition">
-                      <?= ($filterPosition === 'coop' && $user['migs_status']) 
-                            ? 'Deactivate MIGS' 
-                            : ($filterPosition === 'coop' 
-                                ? 'Activate MIGS' 
-                                : ($user['is_verified'] ? 'Deactivate' : 'Activate')) ?>
-                    </a>
-                    <a href="?action=delete&id=<?= $user['user_id'] ?>"
-                       onclick="return confirm('Are you sure you want to delete this user? This action cannot be undone.')"
-                       class="px-3 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition">
-                      Delete
-                    </a>
-                  </td>
-                </tr>
-              <?php endforeach; ?>
+    <!-- Responsive Table Container -->
+    <div class="responsive-table-container bg-white rounded shadow mt-4">
+      <table class="responsive-table min-w-full divide-y divide-gray-200">
+        <thead class="bg-[var(--cvsu-green-light)] text-white">
+          <tr>
+            <th class="px-6 py-3 text-left text-sm font-semibold">Name</th>
+            <th class="px-6 py-3 text-left text-sm font-semibold">Email</th>
+            <th class="px-6 py-3 text-left text-sm font-semibold">Position</th>
+            <?php if ($isCoopFilter): ?>
+              <th class="px-6 py-3 text-left text-sm font-semibold">MIGS Status</th>
             <?php endif; ?>
-          </tbody>
-        </table>
-      </div>
+            <th class="px-6 py-3 text-left text-sm font-semibold">Verified</th>
+            <th class="px-6 py-3 text-left text-sm font-semibold">Registered At</th>
+            <th class="px-6 py-3 text-center text-sm font-semibold">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          <?php if (empty($users)) : ?>
+            <tr>
+              <td colspan="<?= $isCoopFilter ? '8' : '7' ?>" class="px-6 py-4 text-center text-gray-500">No users found.</td>
+            </tr>
+          <?php else: ?>
+            <?php foreach ($users as $user): ?>
+              <tr>
+                <td class="px-6 py-4"><?= htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) ?></td>
+                <td class="px-6 py-4"><?= htmlspecialchars($user['email']) ?></td>
+                <td class="px-6 py-4 capitalize"><?= htmlspecialchars($user['position']) ?></td>
+                <?php if ($isCoopFilter): ?>
+                  <td class="px-6 py-4">
+                    <?= $user['migs_status'] ? '<span class="text-green-600 font-semibold">MIGS</span>' : '<span class="text-gray-600 font-semibold">Not MIGS</span>' ?>
+                  </td>
+                <?php endif; ?>
+                <td class="px-6 py-4">
+                  <?php if ($user['is_verified']): ?>
+                    <span class="text-green-600 font-semibold">Verified</span>
+                  <?php else: ?>
+                    <span class="text-red-600 font-semibold">Not Verified</span>
+                  <?php endif; ?>
+                </td>
+                <td class="px-6 py-4"><?= htmlspecialchars(date('M d, Y h:i A', strtotime($user['created_at']))) ?></td>
+                <td class="px-6 py-4 text-center space-x-2">
+                  <a href="?action=toggle&id=<?= $user['user_id'] ?><?= !empty($filterPosition) ? '&position=' . urlencode($filterPosition) : '' ?>"
+                    onclick="return confirm('Are you sure you want to toggle <?= $filterPosition === 'coop' ? 'MIGS status' : 'verification status' ?> for this user?')"
+                    class="px-3 py-1 text-sm rounded bg-yellow-400 text-white hover:bg-yellow-500 transition">
+                    <?= ($filterPosition === 'coop' && $user['migs_status']) 
+                          ? 'Deactivate MIGS' 
+                          : ($filterPosition === 'coop' 
+                              ? 'Activate MIGS' 
+                              : ($user['is_verified'] ? 'Deactivate' : 'Activate')) ?>
+                  </a>
+                  <a href="?action=delete&id=<?= $user['user_id'] ?>"
+                     onclick="return confirm('Are you sure you want to delete this user? This action cannot be undone.')"
+                     class="px-3 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition">
+                    Delete
+                  </a>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          <?php endif; ?>
+        </tbody>
+      </table>
+    </div>
 
-      <!-- Pagination -->
-      <div class="mt-6 flex justify-center space-x-2">
-        <?php if ($page > 1): ?>
-          <a href="?page=<?= $page - 1 ?>&position=<?= urlencode($filterPosition) ?>" class="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400">&laquo; Prev</a>
-        <?php endif; ?>
-        <?php for ($p = 1; $p <= $totalPages; $p++): ?>
-          <a href="?page=<?= $p ?>&position=<?= urlencode($filterPosition) ?>"
-             class="px-3 py-1 rounded <?= $p === $page ? 'bg-[var(--cvsu-green-light)] text-white' : 'bg-gray-200 hover:bg-gray-300' ?>">
-            <?= $p ?>
-          </a>
-        <?php endfor; ?>
-        <?php if ($page < $totalPages): ?>
-          <a href="?page=<?= $page + 1 ?>&position=<?= urlencode($filterPosition) ?>" class="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400">Next &raquo;</a>
-        <?php endif; ?>
-      </div>
-    </main>
-  </div>
+    <!-- Pagination -->
+    <div class="mt-6 flex justify-center space-x-2">
+      <?php if ($page > 1): ?>
+        <a href="?page=<?= $page - 1 ?>&position=<?= urlencode($filterPosition) ?>" class="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400">&laquo; Prev</a>
+      <?php endif; ?>
+      <?php for ($p = 1; $p <= $totalPages; $p++): ?>
+        <a href="?page=<?= $p ?>&position=<?= urlencode($filterPosition) ?>"
+           class="px-3 py-1 rounded <?= $p === $page ? 'bg-[var(--cvsu-green-light)] text-white' : 'bg-gray-200 hover:bg-gray-300' ?>">
+          <?= $p ?>
+        </a>
+      <?php endfor; ?>
+      <?php if ($page < $totalPages): ?>
+        <a href="?page=<?= $page + 1 ?>&position=<?= urlencode($filterPosition) ?>" class="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400">Next &raquo;</a>
+      <?php endif; ?>
+    </div>
+  </main>
 
+  <?php include 'super_admin_sidebar.php'; ?>
+
+<script>
+  // Responsive sidebar toggle (same as first code)
+  document.addEventListener('DOMContentLoaded', function () {
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.getElementById('sidebarToggle');
+    const overlay = document.getElementById('sidebarOverlay');
+    const navLinks = sidebar.querySelectorAll('a');
+    const hamburgerIcon = document.getElementById('hamburgerIcon');
+    const closeIcon = document.getElementById('closeIcon');
+
+    function openSidebar() {
+      sidebar.classList.remove('-translate-x-full');
+      overlay.classList.remove('hidden');
+      setTimeout(() => overlay.classList.add('opacity-100'), 10);
+      document.body.style.overflow = 'hidden';
+      hamburgerIcon.classList.add('hidden');
+      closeIcon.classList.remove('hidden');
+    }
+
+    function closeSidebar() {
+      sidebar.classList.add('-translate-x-full');
+      overlay.classList.add('hidden');
+      overlay.classList.remove('opacity-100');
+      document.body.style.overflow = '';
+      hamburgerIcon.classList.remove('hidden');
+      closeIcon.classList.add('hidden');
+    }
+
+    toggleBtn.addEventListener('click', function () {
+      if (sidebar.classList.contains('-translate-x-full')) openSidebar();
+      else closeSidebar();
+    });
+
+    overlay.addEventListener('click', closeSidebar);
+
+    navLinks.forEach(link => {
+      link.addEventListener('click', function () {
+        if (window.innerWidth < 768) closeSidebar();
+      });
+    });
+
+    function handleResize() {
+      if (window.innerWidth >= 768) {
+        sidebar.classList.remove('-translate-x-full');
+        overlay.classList.add('hidden');
+        overlay.classList.remove('opacity-100');
+        document.body.style.overflow = '';
+        hamburgerIcon.classList.remove('hidden');
+        closeIcon.classList.add('hidden');
+      } else {
+        sidebar.classList.add('-translate-x-full');
+        hamburgerIcon.classList.remove('hidden');
+        closeIcon.classList.add('hidden');
+      }
+    }
+
+    window.addEventListener('resize', handleResize);
+    handleResize();
+  });
+</script>
 </body>
 </html>
