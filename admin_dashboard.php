@@ -1,5 +1,5 @@
 <?php
-session_start();
+//session_start();
 date_default_timezone_set('Asia/Manila');
 
 // --- DB Connection ---
@@ -27,19 +27,19 @@ try {
     //exit();
 //}
 
-$userId = $_SESSION['user_id'];
+//$userId = $_SESSION['user_id'];
 
 // --- Fetch user info including scope ---
 $stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = :userId");
 $stmt->execute([':userId' => $userId]);
 $user = $stmt->fetch();
 
-if (!$user) {
+//if (!$user) {
     // User not found in DB, force logout
-    session_destroy();
-    header('Location: login.php');
-    exit();
-}
+    //session_destroy();
+    //header('Location: login.php');
+    //exit();
+//}
 
 $role = $user['role'];
 $scope = $user['assigned_scope'] ?? null;
@@ -129,18 +129,51 @@ if ($role === 'admin') {
       background-color: var(--cvsu-green-light);
       border-radius: 3px;
     }
+    @media (max-width: 767px) {
+      .main-content {
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+      }
+      .fixed-header {
+        left: 0 !important;
+        width: 100vw !important;
+      }
+    }
+    @media (min-width: 768px) {
+      .main-content {
+        margin-left: 16rem !important;
+      }
+      .fixed-header {
+        left: 16rem !important;
+        width: calc(100vw - 16rem) !important;
+      }
+    }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-900-keft font-sans">
+<body class="bg-gray-50 text-gray-900 font-sans">
 
-<div class="flex min-h-screen">
-
+<!-- Sidebar drawer and overlay -->
 <?php include 'sidebar.php'; ?>
 
-<!-- Top Bar -->
-<header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:rgb(25, 72, 49);"> 
+<!-- Responsive header: hamburger menu inside header -->
+<header class="fixed-header w-full fixed top-0 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:rgb(25, 72, 49);">
   <div class="flex items-center space-x-4">
-    <h1 class="text-2xl font-bold">
+    <!-- Hamburger button (always shown on mobile, hidden on desktop) -->
+    <button 
+      id="sidebarToggle" 
+      class="md:hidden mr-2 p-2 rounded bg-[var(--cvsu-green-dark)] text-white shadow-lg focus:outline-none flex items-center justify-center"
+      aria-label="Open sidebar"
+      type="button"
+    >
+      <svg id="sidebarToggleIcon" xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <!-- Hamburger bars (default, will swap with X via JS) -->
+        <path id="hamburgerIcon" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h16M4 17h16"/>
+        <!-- X icon (hidden by default, shown when sidebar is open) -->
+        <path id="closeIcon" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+    <h1 class="text-lg md:text-2xl font-bold text-white">
       <?php echo htmlspecialchars($scope) . " ADMIN DASHBOARD"; ?>
     </h1>
   </div>
@@ -151,53 +184,57 @@ if ($role === 'admin') {
   </div>
 </header>
 
-
-
 <!-- Main Content Area -->
-<main class="flex-1 pt-20 px-8 ml-64">
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-    <!-- LEFT COLUMN: Statistics Cards -->
-    <div class="space-y-6">
-      <!-- Total Population -->
-      <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-[var(--cvsu-green)] hover:shadow-2xl transition-shadow duration-300">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Population</h2>
-            <p class="text-2xl md:text-4xl font-bold text-[var(--cvsu-green-dark)] mt-2 md:mt-3"><?= $total_voters ?></p>
-          </div>
+<main class="main-content flex-1 pt-20 px-1 md:px-8">
+  <div class="grid grid-cols-1 lg:grid-cols-1 gap-3 mb-6">
+    <!-- Total Population -->
+    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-[var(--cvsu-green)] hover:shadow-2xl transition-shadow duration-300">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Population</h2>
+          <p class="text-2xl md:text-4xl font-bold text-[var(--cvsu-green-dark)] mt-2 md:mt-3"><?= $total_voters ?></p>
         </div>
-      </div>
-
-      <!-- Total Elections -->
-      <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-yellow-400 hover:shadow-2xl transition-shadow duration-300">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Elections</h2>
-            <p class="text-2xl md:text-4xl font-bold text-yellow-600 mt-2 md:mt-3"><?= $total_elections ?></p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Ongoing Elections -->
-      <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-blue-500 hover:shadow-2xl transition-shadow duration-300">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-base md:text-lg font-semibold text-gray-700">Ongoing Elections</h2>
-            <p class="text-2xl md:text-4xl font-bold text-blue-600 mt-2 md:mt-3"><?= $ongoing_elections ?></p>
-          </div>
-        </div>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-[var(--cvsu-green-light)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M12 12a4 4 0 100-8 4 4 0 000 8zm6 8v-2a4 4 0 00-3-3.87M6 20v-2a4 4 0 013-3.87" />
+        </svg>
       </div>
     </div>
 
-    <!-- RIGHT COLUMN: Bar Chart -->
-    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
-      <h2 class="text-base md:text-lg font-semibold text-gray-700 mb-4">Population of Voters per Colleges</h2>
-      <canvas id="collegeChart" class="w-full h-64"></canvas>
+    <!-- Total Elections -->
+    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-yellow-400 hover:shadow-2xl transition-shadow duration-300">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Elections</h2>
+          <p class="text-2xl md:text-4xl font-bold text-yellow-600 mt-2 md:mt-3"><?= $total_elections ?></p>
+        </div>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M5 6h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2zm5 6h4" />
+        </svg>
+      </div>
+    </div>
+
+    <!-- Ongoing Elections -->
+    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-blue-500 hover:shadow-2xl transition-shadow duration-300">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base md:text-lg font-semibold text-gray-700">Ongoing Elections</h2>
+          <p class="text-2xl md:text-4xl font-bold text-blue-600 mt-2 md:mt-3"><?= $ongoing_elections ?></p>
+        </div>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 md:h-12 md:w-12 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
     </div>
   </div>
   
+  <!-- Population per College -->
+  <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg mb-8">
+    <h2 class="text-base md:text-lg font-semibold text-gray-700 mb-4">Population of Voters per Colleges</h2>
+    <canvas id="collegeChart" class="w-full h-64"></canvas>
+  </div>
+  
   <!-- Recent Elections Section -->
-  <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg mt-6">
+  <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg mb-8">
     <h2 class="text-xl font-semibold text-gray-700 mb-4">Recent Elections</h2>
     <?php if (!empty($elections)): ?>
       <div class="overflow-x-auto">
@@ -218,12 +255,10 @@ if ($role === 'admin') {
                 <td class="px-6 py-4 whitespace-nowrap"><?= date('M d, Y h:i A', strtotime($election['start_datetime'])) ?></td>
                 <td class="px-6 py-4 whitespace-nowrap"><?= date('M d, Y h:i A', strtotime($election['end_datetime'])) ?></td>
                 <td class="px-6 py-4 whitespace-nowrap"><?= htmlspecialchars($election['allowed_colleges']) ?></td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <span class="px-2 py-1 text-xs font-semibold rounded-full 
-                    <?= $election['status'] === 'ongoing' ? 'bg-green-100 text-green-800' : 
-                       ($election['status'] === 'upcoming' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800') ?>">
-                    <?= ucfirst($election['status']) ?>
-                  </span>
+                <td class="px-2 py-1 text-xs font-semibold rounded-full 
+                  <?= $election['status'] === 'ongoing' ? 'bg-green-100 text-green-800' : 
+                     ($election['status'] === 'upcoming' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800') ?>">
+                  <?= ucfirst($election['status']) ?>
                 </td>
               </tr>
             <?php endforeach; ?>
@@ -234,8 +269,10 @@ if ($role === 'admin') {
       <p class="text-gray-500">No elections found for your assignment.</p>
     <?php endif; ?>
   </div>
+  <div class="p-5">
+    <?php include 'footer.php'; ?>
+  </div>
 </main>
-</div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
@@ -249,6 +286,77 @@ const collegeChart = new Chart(document.getElementById('collegeChart'), {
     }]
   },
   options: { plugins: { legend: { display: false } } }
+});
+
+// Sidebar toggle JS for hamburger/X icon
+document.addEventListener('DOMContentLoaded', function () {
+  const sidebar = document.getElementById('sidebar');
+  const toggleBtn = document.getElementById('sidebarToggle');
+  const overlay = document.getElementById('sidebarOverlay');
+  const navLinks = sidebar ? sidebar.querySelectorAll('a') : [];
+  const hamburgerIcon = document.getElementById('hamburgerIcon');
+  const closeIcon = document.getElementById('closeIcon');
+
+  function openSidebar() {
+    if (!sidebar) return;
+    sidebar.classList.remove('-translate-x-full');
+    if (overlay) {
+      overlay.classList.remove('hidden');
+      setTimeout(() => overlay.classList.add('opacity-100'), 10);
+    }
+    document.body.style.overflow = 'hidden';
+    if (hamburgerIcon) hamburgerIcon.classList.add('hidden');
+    if (closeIcon) closeIcon.classList.remove('hidden');
+  }
+
+  function closeSidebar() {
+    if (!sidebar) return;
+    sidebar.classList.add('-translate-x-full');
+    if (overlay) {
+      overlay.classList.add('hidden');
+      overlay.classList.remove('opacity-100');
+    }
+    document.body.style.overflow = '';
+    if (hamburgerIcon) hamburgerIcon.classList.remove('hidden');
+    if (closeIcon) closeIcon.classList.add('hidden');
+  }
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', function () {
+      if (!sidebar) return;
+      if (sidebar.classList.contains('-translate-x-full')) openSidebar();
+      else closeSidebar();
+    });
+  }
+
+  if (overlay) overlay.addEventListener('click', closeSidebar);
+
+  navLinks.forEach(link => {
+    link.addEventListener('click', function () {
+      if (window.innerWidth < 768) closeSidebar();
+    });
+  });
+
+  function handleResize() {
+    if (!sidebar) return;
+    if (window.innerWidth >= 768) {
+      sidebar.classList.remove('-translate-x-full');
+      if (overlay) {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('opacity-100');
+      }
+      document.body.style.overflow = '';
+      if (hamburgerIcon) hamburgerIcon.classList.remove('hidden');
+      if (closeIcon) closeIcon.classList.add('hidden');
+    } else {
+      sidebar.classList.add('-translate-x-full');
+      if (hamburgerIcon) hamburgerIcon.classList.remove('hidden');
+      if (closeIcon) closeIcon.classList.add('hidden');
+    }
+  }
+
+  window.addEventListener('resize', handleResize);
+  handleResize();
 });
 </script>
 </body>
