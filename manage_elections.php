@@ -77,7 +77,7 @@ $elections = $stmt->fetchAll();
 
 <?php include 'super_admin_sidebar.php'; ?>
 
-<header class="fixed-header w-full fixed top-0 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:rgb(25, 72, 49);">
+<header class="w-full fixed top-0 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:rgb(25, 72, 49);">
   <div class="flex items-center space-x-4">
     <!-- Hamburger button (always shown on mobile, hidden on desktop) -->
     <button 

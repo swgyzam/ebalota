@@ -1,5 +1,5 @@
 <?php 
-session_start();
+//session_start();
 date_default_timezone_set('Asia/Manila');
 
 // --- DB Connection ---
@@ -22,10 +22,10 @@ try {
 }
 
 // --- Auth check ---
-if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
-    exit();
-}
+//if (!isset($_SESSION['user_id'])) {
+//    header('Location: login.php');
+//    exit();
+//}
 
 $userId = $_SESSION['user_id'];
 
@@ -34,11 +34,11 @@ $stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = :u
 $stmt->execute([':userId' => $userId]);
 $user = $stmt->fetch();
 
-if (!$user) {
-    session_destroy();
-    header('Location: login.php');
-    exit();
-}
+//if (!$user) {
+//    session_destroy();
+//    header('Location: login.php');
+//    exit();
+//}
 
 $role = $user['role'];
 
@@ -93,10 +93,18 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
 <?php include 'sidebar.php'; ?>
 
 <!-- Top Bar -->
-<header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center px-6" style="background-color:rgb(25, 72, 49);"> 
-  <h1 class="text-2xl font-bold text-white">
-    Manage Elections
-  </h1>
+<header class="w-full fixed top-0 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:rgb(25, 72, 49);"> 
+  <!-- Left section (hamburger + title) -->
+  <div class="flex items-center gap-4">
+    <!-- Hamburger (mobile only) -->
+    <button id="menuToggle" class="md:hidden text-white focus:outline-none">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
+    <h1 class="text-lg font-bold text-white">MANAGE ELECTIONS</h1>
+  </div>
 </header>
 
 <!-- Toast Notification -->
@@ -116,7 +124,7 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
 <?php endif; ?>
 
 <!-- Main Content -->
-<main class="flex-1 pt-20 px-8 ml-64">
+<main class="flex-1 pt-20 px-4 md:px-8 md:ml-64 transition-all duration-300">
   <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
 
     <?php if (!empty($elections)): ?>
@@ -127,7 +135,6 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
             $end = $election['end_datetime'];
             $status = ($now < $start) ? 'upcoming' : (($now >= $start && $now <= $end) ? 'ongoing' : 'completed');
             
-            // Status colors and icons
             $statusColors = [
               'ongoing' => 'border-l-green-600 bg-green-50',
               'completed' => 'border-l-gray-500 bg-gray-50',
@@ -142,9 +149,7 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
           ?>
           <div class="bg-white rounded-lg shadow-md overflow-hidden border-l-4 <?= $statusColors[$status] ?> flex flex-col h-full transition-transform hover:scale-[1.02]">
             <div class="p-5 flex flex-grow">
-              <!-- Logo - Larger and on the Left -->
               <div class="flex-shrink-0 w-32 h-32 mr-5 relative">
-                <!-- Status indicator sa taas ng logo sa left side -->
                 <div class="absolute -top-3 left-0 z-10">
                   <span class="text-xs font-medium px-2 py-1 rounded-br-lg bg-white border shadow-sm">
                     <?= $statusIcons[$status] ?> <?= ucfirst($status) ?>
@@ -164,16 +169,13 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
                 <?php endif; ?>
               </div>
 
-              <!-- Info -->
               <div class="flex-1">
                 <h2 class="text-lg font-bold text-[var(--cvsu-green-dark)] mb-2 truncate">
                   <?= htmlspecialchars($election['title']) ?>
                 </h2>
-                
                 <p class="text-gray-700 text-sm mb-4 line-clamp-2">
                   <?= nl2br(htmlspecialchars($election['description'] ?? '')) ?>
                 </p>
-                
                 <div class="space-y-2 text-sm">
                   <div class="flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -191,7 +193,6 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
               </div>
             </div>
 
-            <!-- Actions -->
             <div class="mt-auto p-4 bg-gray-50 border-t">
               <div class="flex flex-col sm:flex-row gap-3">
                 <?php if ($election['creation_stage'] !== 'ready_for_voters'): ?>
@@ -234,7 +235,6 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
   <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
     <h2 class="text-lg font-bold text-gray-800 mb-4">Confirm Launch</h2>
     <p id="modalMessage" class="text-gray-600 mb-6"></p>
-
     <div class="flex justify-end space-x-3">
       <button onclick="closeModal()" 
               class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition">
@@ -262,6 +262,21 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
     document.getElementById('launchModal').classList.add('hidden');
     document.getElementById('launchModal').classList.remove('flex');
   }
+
+  // Sidebar toggle
+  const sidebar = document.getElementById("sidebar");
+  const overlay = document.getElementById("sidebarOverlay");
+  const menuToggle = document.getElementById("menuToggle");
+
+  menuToggle.addEventListener("click", () => {
+    sidebar.classList.remove("-translate-x-full");
+    overlay.classList.remove("hidden");
+  });
+
+  overlay.addEventListener("click", () => {
+    sidebar.classList.add("-translate-x-full");
+    overlay.classList.add("hidden");
+  });
 </script>
 
 </body>

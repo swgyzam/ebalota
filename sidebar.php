@@ -22,7 +22,7 @@
             </svg>
             View Elections
         </a>
-        <a href="admin_manage_user.php" class="flex items-center gap-3 py-3 px-8 hover:bg-[var(--cvsu-green-light)] rounded-r-lg transition duration-300">
+        <a href="admin_manage_users.php" class="flex items-center gap-3 py-3 px-8 hover:bg-[var(--cvsu-green-light)] rounded-r-lg transition duration-300">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--cvsu-yellow)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2a4 4 0 018 0v2m-1 4H8a1 1 0 01-1-1v-2a3 3 0 013-3h2" />
             </svg>
