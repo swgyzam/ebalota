@@ -1,4 +1,4 @@
-<?php 
+<?php  
 //session_start();
 date_default_timezone_set('Asia/Manila');
 
@@ -23,8 +23,8 @@ try {
 
 // --- Auth check ---
 //if (!isset($_SESSION['user_id'])) {
-//    header('Location: login.php');
-//    exit();
+    //header('Location: login.php');
+    //exit();
 //}
 
 $userId = $_SESSION['user_id'];
@@ -35,9 +35,10 @@ $stmt->execute([':userId' => $userId]);
 $user = $stmt->fetch();
 
 //if (!$user) {
-//    session_destroy();
-//    header('Location: login.php');
-//    exit();
+    // Invalid session user → force logout
+    //session_destroy();
+    //header('Location: login.php');
+    //exit();
 //}
 
 $role = $user['role'];
@@ -48,10 +49,10 @@ if ($role === 'admin') {
                                    WHERE assigned_admin_id = :adminId
                                    ORDER BY start_datetime DESC");
     $electionStmt->execute([':adminId' => $userId]);
-    $elections = $electionStmt->fetchAll();
+    $elections = $electionStmt->fetchAll() ?: [];
 } else {
     $electionStmt = $pdo->query("SELECT * FROM elections ORDER BY start_datetime DESC");
-    $elections = $electionStmt->fetchAll();
+    $elections = $electionStmt ? $electionStmt->fetchAll() : [];
 }
 
 $now = date('Y-m-d H:i:s');
@@ -77,9 +78,7 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
       --cvsu-green-light: #37A66B;
       --cvsu-yellow: #FFD166;
     }
-    ::-webkit-scrollbar {
-      width: 6px;
-    }
+    ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-thumb {
       background-color: var(--cvsu-green-light);
       border-radius: 3px;
@@ -94,9 +93,7 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
 
 <!-- Top Bar -->
 <header class="w-full fixed top-0 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:rgb(25, 72, 49);"> 
-  <!-- Left section (hamburger + title) -->
   <div class="flex items-center gap-4">
-    <!-- Hamburger (mobile only) -->
     <button id="menuToggle" class="md:hidden text-white focus:outline-none">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
