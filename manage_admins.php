@@ -132,21 +132,20 @@ $admins = $stmt->fetchAll();
     </div>
   </header>
 
-  <main class="main-content flex-1 pt-20 px-2 md:px-8">
-    <!-- Filter by Scope -->
-    <form method="GET" class="mb-4">
-      <label for="scope" class="mr-2">Filter by Scope:</label>
-      <select name="scope" id="scope" onchange="this.form.submit()" class="px-2 py-1 border border-gray-300 rounded">
-        <option value="">All</option>
-        <?php
-          $scopes = ['CAFENR','CEIT','CAS','CVMBS','CED','CEMDS','CSPEAR','CCJ','CON','CTHM','COM','GS-OLC','FACULTY_ASSOCIATION','COOP','NON_ACADEMIC'];
-          foreach ($scopes as $scope) {
-            $selected = $filterScope === $scope ? 'selected' : '';
-            echo "<option value=\"$scope\" $selected>$scope</option>";
-          }
-        ?>
-      </select>
-    </form>
+      <!-- Filter by Scope -->
+      <form method="GET" class="mb-4">
+        <label for="scope" class="mr-2">Filter by Scope:</label>
+        <select name="scope" id="scope" onchange="this.form.submit()" class="px-2 py-1 border border-gray-300 rounded">
+          <option value="">All</option>
+          <?php
+            $scopes = ['CAFENR','CEIT','CAS','CVMBS','CED','CEMDS','CSPEAR','CCJ','CON','CTHM','COM','GS-OLC','FACULTY_ASSOCIATION','COOP','NON_ACADEMIC'];
+            foreach ($scopes as $scope) {
+              $selected = $filterScope === $scope ? 'selected' : '';
+              echo "<option value=\"$scope\" $selected>$scope</option>";
+            }
+          ?>
+        </select>
+      </form>
 
     <!-- Responsive Table Container -->
     <div class="responsive-table-container bg-white rounded shadow mt-4">

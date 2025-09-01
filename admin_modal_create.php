@@ -82,6 +82,9 @@
               <option value="COOP">COOP</option>
               <option value="NON_ACADEMIC">Non-Academic</option>
             </optgroup>
+            <optgroup label="Special Scope">
+              <option value="CSG Admin">CSG Admin</option>
+            </optgroup>
           </select>
         </div>
 

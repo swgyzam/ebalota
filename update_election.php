@@ -44,6 +44,7 @@ $allowed_status = null;
 $allowed_departments = null;
 $target_position = 'All';
 $target_department = 'All';
+$assigned_admin_id = !empty($_POST['assigned_admin_id']) ? (int)$_POST['assigned_admin_id'] : null;
 
 // Process voter type
 switch ($target_voter) {
@@ -184,7 +185,8 @@ try {
     allowed_status = :allowed_status,
     allowed_departments = :allowed_departments,
     realtime_results = :realtime_results,
-    logo_path = :logo_path
+    logo_path = :logo_path,
+    assigned_admin_id = :assigned_admin_id
     WHERE election_id = :election_id";
 
     $stmt = $pdo->prepare($sql);
@@ -202,7 +204,8 @@ try {
         ':allowed_departments' => $allowed_departments,
         ':realtime_results' => $realtime_results,
         ':logo_path' => $logoPath,
-        ':election_id' => $election_id
+        ':election_id' => $election_id,
+        ':assigned_admin_id' => $assigned_admin_id
     ];
 
     file_put_contents('update_debug.log', "Executing with params:\n".print_r($params, true)."\n", FILE_APPEND);

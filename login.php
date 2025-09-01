@@ -194,6 +194,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['course'] = $user['course'] ?? '';
         $_SESSION['status'] = $user['status'] ?? '';
 
+        if ($user['role'] === 'admin') {
+            $_SESSION['assigned_scope'] = $user['assigned_scope'] ?? '';
+        }        
+
         // Remember me
         if ($remember) {
             $token = bin2hex(random_bytes(32));

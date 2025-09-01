@@ -27,33 +27,47 @@ try {
     //exit();
 //}
 
-$role = $_SESSION['role'];
-$scope = $_SESSION['assigned_scope'] ?? null;
+$userId = $_SESSION['user_id'];
+
+// --- Fetch user info including scope ---
+$stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = :userId");
+$stmt->execute([':userId' => $userId]);
+$user = $stmt->fetch();
+
+if (!$user) {
+    // User not found in DB, force logout
+    session_destroy();
+    header('Location: login.php');
+    exit();
+}
+
+$role = $user['role'];
+$scope = $user['assigned_scope'] ?? null;
 
 // --- Fetch dashboard stats ---
 
 // Total Voters
 if ($role === 'admin') {
     $stmt = $pdo->prepare("SELECT COUNT(*) AS total_voters 
-        FROM users 
-        WHERE is_verified = 1 
-        AND is_admin = 0 
-        AND assigned_scope = :scope");
+                           FROM users 
+                           WHERE is_verified = 1 
+                             AND is_admin = 0 
+                             AND assigned_scope = :scope");
     $stmt->execute([':scope' => $scope]);
 } else {
     $stmt = $pdo->query("SELECT COUNT(*) AS total_voters 
-        FROM users 
-        WHERE is_verified = 1 
-        AND is_admin = 0");
+                         FROM users 
+                         WHERE is_verified = 1 
+                           AND is_admin = 0");
 }
 $total_voters = $stmt->fetch()['total_voters'];
 
 // Total Elections
 if ($role === 'admin') {
     $stmt = $pdo->prepare("SELECT COUNT(*) AS total_elections 
-        FROM elections 
-        WHERE allowed_colleges = :scope");
-    $stmt->execute([':scope' => $scope]);
+                           FROM elections 
+                           WHERE assigned_admin_id = :adminId");
+    $stmt->execute([':adminId' => $userId]);
 } else {
     $stmt = $pdo->query("SELECT COUNT(*) AS total_elections FROM elections");
 }
@@ -62,17 +76,17 @@ $total_elections = $stmt->fetch()['total_elections'];
 // Ongoing Elections
 if ($role === 'admin') {
     $stmt = $pdo->prepare("SELECT COUNT(*) AS ongoing_elections 
-        FROM elections 
-        WHERE status = 'ongoing' 
-        AND allowed_colleges = :scope");
-    $stmt->execute([':scope' => $scope]);
+                           FROM elections 
+                           WHERE assigned_admin_id = :adminId 
+                             AND status = 'ongoing'");
+    $stmt->execute([':adminId' => $userId]);
 } else {
     $stmt = $pdo->query("SELECT COUNT(*) AS ongoing_elections 
-        FROM elections WHERE status = 'ongoing'");
+                         FROM elections WHERE status = 'ongoing'");
 }
 $ongoing_elections = $stmt->fetch()['ongoing_elections'];
 
-// --- Election status auto-update (optional: only for super_admin) ---
+// --- Election status auto-update (only for super_admin) ---
 if ($role === 'super_admin') {
     $now = date('Y-m-d H:i:s');
     $pdo->query("UPDATE elections SET status = 'completed' WHERE end_datetime < '$now'");
@@ -80,6 +94,17 @@ if ($role === 'super_admin') {
     $pdo->query("UPDATE elections SET status = 'upcoming' WHERE start_datetime > '$now'");
 }
 
+// --- Fetch elections for display ---
+if ($role === 'admin') {
+    $electionStmt = $pdo->prepare("SELECT * FROM elections 
+                                   WHERE assigned_admin_id = :adminId
+                                   ORDER BY start_datetime DESC");
+    $electionStmt->execute([':adminId' => $userId]);
+    $elections = $electionStmt->fetchAll();
+} else {
+    $electionStmt = $pdo->query("SELECT * FROM elections ORDER BY start_datetime DESC");
+    $elections = $electionStmt->fetchAll();
+}
 ?>
 
 <!DOCTYPE html>
@@ -115,7 +140,9 @@ if ($role === 'super_admin') {
 <!-- Top Bar -->
 <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:rgb(25, 72, 49);"> 
   <div class="flex items-center space-x-4">
-    <h1 class="text-xl font-bold text-white"><?= strtoupper($role) ?> DASHBOARD</h1>
+    <h1 class="text-2xl font-bold">
+      <?php echo htmlspecialchars($scope) . " ADMIN DASHBOARD"; ?>
+    </h1>
   </div>
   <div class="text-white">
     <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -123,6 +150,8 @@ if ($role === 'super_admin') {
     </svg>
   </div>
 </header>
+
+
 
 <!-- Main Content Area -->
 <main class="flex-1 pt-20 px-8 ml-64">
@@ -166,12 +195,50 @@ if ($role === 'super_admin') {
       <canvas id="collegeChart" class="w-full h-64"></canvas>
     </div>
   </div>
+  
+  <!-- Recent Elections Section -->
+  <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg mt-6">
+    <h2 class="text-xl font-semibold text-gray-700 mb-4">Recent Elections</h2>
+    <?php if (!empty($elections)): ?>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scope</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <?php foreach ($elections as $election): ?>
+              <tr>
+                <td class="px-6 py-4 whitespace-nowrap"><?= htmlspecialchars($election['title']) ?></td>
+                <td class="px-6 py-4 whitespace-nowrap"><?= date('M d, Y h:i A', strtotime($election['start_datetime'])) ?></td>
+                <td class="px-6 py-4 whitespace-nowrap"><?= date('M d, Y h:i A', strtotime($election['end_datetime'])) ?></td>
+                <td class="px-6 py-4 whitespace-nowrap"><?= htmlspecialchars($election['allowed_colleges']) ?></td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                    <?= $election['status'] === 'ongoing' ? 'bg-green-100 text-green-800' : 
+                       ($election['status'] === 'upcoming' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800') ?>">
+                    <?= ucfirst($election['status']) ?>
+                  </span>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    <?php else: ?>
+      <p class="text-gray-500">No elections found for your assignment.</p>
+    <?php endif; ?>
+  </div>
 </main>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-// Chart placeholders - you can make these dynamic later
 const collegeChart = new Chart(document.getElementById('collegeChart'), {
   type: 'bar',
   data: {

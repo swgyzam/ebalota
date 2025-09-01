@@ -45,6 +45,14 @@ $election_name   = $_POST['election_name'] ?? '';
 $start_datetime  = $_POST['start_datetime'] ?? '';
 $end_datetime    = $_POST['end_datetime'] ?? '';
 $target_voter    = $_POST['target_voter'] ?? '';
+$assigned_admin_id = $_POST['assigned_admin_id'] ?? null;
+
+if (!$assigned_admin_id) {
+    echo json_encode(['status' => 'error', 'message' => 'Please assign an election admin.']);
+    exit();
+}
+
+$assigned_admin_id = (int)$assigned_admin_id;
 
 if (empty($election_name) || empty($start_datetime) || empty($end_datetime) || empty($target_voter)) {
     echo json_encode(['status' => 'error', 'message' => 'Please fill all required fields.']);
@@ -161,11 +169,11 @@ $realtime_results = isset($_POST['realtime_results']) ? 1 : 0;
 $sql = "INSERT INTO elections 
 (title, description, start_datetime, end_datetime, 
  allowed_colleges, allowed_courses, allowed_status, 
- target_position, realtime_results, status, creation_stage, logo_path)
+ target_position, realtime_results, status, creation_stage, logo_path, assigned_admin_id)
 VALUES 
 (:title, :description, :start_datetime, :end_datetime, 
  :allowed_colleges, :allowed_courses, :allowed_status, 
- :target_position, :realtime_results, :status, :creation_stage, :logo_path)";
+ :target_position, :realtime_results, :status, :creation_stage, :logo_path, :assigned_admin_id)";
 
 $stmt = $pdo->prepare($sql);
 
@@ -182,8 +190,9 @@ try {
         ':realtime_results' => $realtime_results,
         ':status' => 'upcoming',
         ':creation_stage' => 'pending_admin',
-        ':logo_path' => $logoPath
-    ]);
+        ':logo_path' => $logoPath,
+        ':assigned_admin_id' => $assigned_admin_id
+    ]);    
 
     echo json_encode(['status' => 'success', 'message' => 'Election created successfully.']);
 } catch (PDOException $e) {

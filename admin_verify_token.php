@@ -30,7 +30,8 @@ if (!isset($_GET['token'])) {
 
 $token = filter_input(INPUT_GET, 'token', FILTER_SANITIZE_STRING);
 $stmt = $pdo->prepare("
-    SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, u.is_verified
+    SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, 
+           u.is_verified, u.assigned_scope
     FROM admin_login_tokens alt
     JOIN users u ON alt.user_id = u.user_id
     WHERE alt.token = ? AND alt.expires_at > NOW()
@@ -57,6 +58,8 @@ $_SESSION['is_verified'] = (bool)$user['is_verified']; // Ensure boolean value
 $_SESSION['CREATED'] = time();
 $_SESSION['LAST_ACTIVITY'] = time();
 
+// ✅ Important: set assigned_scope for admins
+$_SESSION['assigned_scope'] = $user['assigned_scope'] ?? '';
 // If user isn't verified in DB, update them
 if (!$user['is_verified']) {
     $pdo->prepare("UPDATE users SET is_verified = 1 WHERE user_id = ?")
