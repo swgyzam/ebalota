@@ -91,8 +91,8 @@ while (($row = fgetcsv($file)) !== FALSE) {
         
         // Insert new restricted user (only essential fields)
         $insertStmt = $pdo->prepare("INSERT INTO pending_users 
-            (first_name, last_name, email, position, source, status) 
-            VALUES (?, ?, ?, ?, 'csv', 'restricted')");
+            (first_name, last_name, email, position, source, is_restricted) 
+            VALUES (?, ?, ?, ?, 'csv', 1)");
         
         $insertStmt->execute([
             $first_name,

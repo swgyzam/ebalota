@@ -148,13 +148,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pending_normal_stmt->execute([$email]);
     $pending_normal_count = $pending_normal_stmt->fetchColumn();
     
-    $pending_csv_stmt = $pdo->prepare("SELECT COUNT(*) FROM pending_users WHERE email = ? AND source = 'csv'");
-    $pending_csv_stmt->execute([$email]);
-    $pending_csv_count = $pending_csv_stmt->fetchColumn();
+    // Check for CSV users that are NOT restricted (need verification)
+    $pending_csv_verify_stmt = $pdo->prepare("SELECT COUNT(*) FROM pending_users WHERE email = ? AND source = 'csv' AND is_restricted = 0");
+    $pending_csv_verify_stmt->execute([$email]);
+    $pending_csv_verify_count = $pending_csv_verify_stmt->fetchColumn();
     
-    if ($user_count > 0 || $pending_normal_count > 0) {
+    // Check for CSV users that ARE restricted (banned)
+    $pending_csv_restrict_stmt = $pdo->prepare("SELECT COUNT(*) FROM pending_users WHERE email = ? AND source = 'csv' AND is_restricted = 1");
+    $pending_csv_restrict_stmt->execute([$email]);
+    $pending_csv_restrict_count = $pending_csv_restrict_stmt->fetchColumn();
+    
+    if ($user_count > 0) {
         $errors[] = "Email already registered.";
-    } elseif ($pending_csv_count > 0) {
+    } elseif ($pending_normal_count > 0) {
+        $errors[] = "Email already registered. Please check your email to verify your account.";
+    } elseif ($pending_csv_verify_count > 0) {
+        $errors[] = "This email was already uploaded by an administrator. Please check your email to verify your account and access the voting system.";
+    } elseif ($pending_csv_restrict_count > 0) {
         $errors[] = "You're not allowed to vote.";
     }
 
@@ -181,8 +191,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             // Updated INSERT to include new fields
             $stmt = $pdo->prepare("INSERT INTO pending_users 
-                (first_name, last_name, email, position, department, department1, course, status, password, token, expires_at, is_coop_member, student_number, employee_number) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                (first_name, last_name, email, position, department, department1, course, status, password, token, expires_at, is_coop_member, student_number, employee_number, source, is_restricted) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'normal', 0)");
             $stmt->execute([
                 $first_name,    // Now properly formatted
                 $last_name,     // Now properly formatted
