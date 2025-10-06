@@ -78,9 +78,9 @@
               <option value="GS-OLC">GS-OLC</option>
             </optgroup>
             <optgroup label="Other Sectors">
-              <option value="FACULTY_ASSOCIATION">Faculty Association</option>
+              <option value="Faculty Association">Faculty Association</option>
               <option value="COOP">COOP</option>
-              <option value="NON_ACADEMIC">Non-Academic</option>
+              <option value="Non-Academic">Non-Academic</option>
             </optgroup>
             <optgroup label="Special Scope">
               <option value="CSG Admin">CSG Admin</option>

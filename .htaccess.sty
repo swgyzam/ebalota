@@ -1,0 +1,14 @@
+# Root .htaccess
+Options -Indexes
+
+# Protect config files
+<Files "config.php">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Protect upload directories
+<FilesMatch "\.(php|phtml|php3|php4|php5|pl|py|jsp|asp|sh|cgi)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>

@@ -342,46 +342,50 @@ $elections = $stmt->fetchAll();
 
 <!-- Assign Admin -->
 <div class="mb-4">
-  <label class="block font-semibold mb-1">Assign Admin *</label>
-  <select name="assigned_admin_id" required class="w-full p-2 border rounded">
-    <option value="">-- Select Admin --</option>
-    <?php
-    // ----- College Admins -----
-    $collegeScopes = "('CAFENR','CEIT','CAS','CVMBS','CED','CEMDS','CSPEAR','CCJ','CON','CTHM','COM','GS-OLC')";
-    $stmt = $pdo->query("SELECT user_id, first_name, last_name, assigned_scope FROM users WHERE role='admin' AND assigned_scope IN $collegeScopes");
-    $collegeAdmins = $stmt->fetchAll();
-    if ($collegeAdmins) {
-        echo "<optgroup label='College Admins'>";
-        foreach ($collegeAdmins as $row) {
-            echo "<option value='{$row['user_id']}'>{$row['first_name']} {$row['last_name']} ({$row['assigned_scope']})</option>";
+    <label class="block font-semibold mb-1">Assign Admin *</label>
+    <select name="assigned_admin_id" id="update_assigned_admin_id" required class="w-full p-2 border rounded">
+        <option value="">-- Select Admin --</option>
+        <?php
+        // make sure we have the assigned admin id from election
+        $assignedAdminId = $election['assigned_admin_id'] ?? null;
+        // ----- College Admins -----
+        $collegeScopes = "('CAFENR','CEIT','CAS','CVMBS','CED','CEMDS','CSPEAR','CCJ','CON','CTHM','COM','GS-OLC')";
+        $stmt = $pdo->query("SELECT user_id, first_name, last_name, assigned_scope FROM users WHERE role='admin' AND assigned_scope IN $collegeScopes");
+        $collegeAdmins = $stmt->fetchAll();
+        if ($collegeAdmins) {
+            echo "<optgroup label='College Admins'>";
+            foreach ($collegeAdmins as $row) {
+                $selected = ($row['user_id'] == $assignedAdminId) ? 'selected' : '';
+                echo "<option value='{$row['user_id']}' $selected>{$row['first_name']} {$row['last_name']} ({$row['assigned_scope']})</option>";
+            }
+            echo "</optgroup>";
         }
-        echo "</optgroup>";
-    }
-
-    // ----- Other Sectors -----
-    $otherScopes = "('FACULTY_ASSOCIATION','COOP','NON_ACADEMIC')";
-    $stmt = $pdo->query("SELECT user_id, first_name, last_name, assigned_scope FROM users WHERE role='admin' AND assigned_scope IN $otherScopes");
-    $otherAdmins = $stmt->fetchAll();
-    if ($otherAdmins) {
-        echo "<optgroup label='Other Sectors'>";
-        foreach ($otherAdmins as $row) {
-            echo "<option value='{$row['user_id']}'>{$row['first_name']} {$row['last_name']} ({$row['assigned_scope']})</option>";
+        // ----- Other Sectors -----
+        // Using UPPER() for case-insensitive comparison
+        $stmt = $pdo->query("SELECT user_id, first_name, last_name, assigned_scope FROM users WHERE role='admin' AND UPPER(assigned_scope) IN ('FACULTY ASSOCIATION','COOP','NON-ACADEMIC')");
+        $otherAdmins = $stmt->fetchAll();
+        if ($otherAdmins) {
+            echo "<optgroup label='Other Sectors'>";
+            foreach ($otherAdmins as $row) {
+                $selected = ($row['user_id'] == $assignedAdminId) ? 'selected' : '';
+                echo "<option value='{$row['user_id']}' $selected>{$row['first_name']} {$row['last_name']} ({$row['assigned_scope']})</option>";
+            }
+            echo "</optgroup>";
         }
-        echo "</optgroup>";
-    }
-
-    // ----- CSG Admins -----
-    $stmt = $pdo->query("SELECT user_id, first_name, last_name FROM users WHERE role='admin' AND assigned_scope = 'CSG_ADMIN'");
-    $csgAdmins = $stmt->fetchAll();
-    if ($csgAdmins) {
-        echo "<optgroup label='CSG Admins'>";
-        foreach ($csgAdmins as $row) {
-            echo "<option value='{$row['user_id']}'>{$row['first_name']} {$row['last_name']}</option>";
+        // ----- CSG Admins -----
+        // Using UPPER() for case-insensitive comparison
+        $stmt = $pdo->query("SELECT user_id, first_name, last_name, assigned_scope FROM users WHERE role='admin' AND UPPER(assigned_scope) = 'CSG ADMIN'");
+        $csgAdmins = $stmt->fetchAll();
+        if ($csgAdmins) {
+            echo "<optgroup label='CSG Admins'>";
+            foreach ($csgAdmins as $row) {
+                $selected = ($row['user_id'] == $assignedAdminId) ? 'selected' : '';
+                echo "<option value='{$row['user_id']}' $selected>{$row['first_name']} {$row['last_name']} ({$row['assigned_scope']})</option>";
+            }
+            echo "</optgroup>";
         }
-        echo "</optgroup>";
-    }
-    ?>
-  </select>
+        ?>
+    </select>
 </div>
 
 <!-- Buttons -->
@@ -558,7 +562,6 @@ $elections = $stmt->fetchAll();
         <?php
         // make sure we have the assigned admin id from election
         $assignedAdminId = $election['assigned_admin_id'] ?? null;
-
         // ----- College Admins -----
         $collegeScopes = "('CAFENR','CEIT','CAS','CVMBS','CED','CEMDS','CSPEAR','CCJ','CON','CTHM','COM','GS-OLC')";
         $stmt = $pdo->query("SELECT user_id, first_name, last_name, assigned_scope FROM users WHERE role='admin' AND assigned_scope IN $collegeScopes");
@@ -571,10 +574,9 @@ $elections = $stmt->fetchAll();
             }
             echo "</optgroup>";
         }
-
         // ----- Other Sectors -----
-        $otherScopes = "('FACULTY_ASSOCIATION','COOP','NON_ACADEMIC')";
-        $stmt = $pdo->query("SELECT user_id, first_name, last_name, assigned_scope FROM users WHERE role='admin' AND assigned_scope IN $otherScopes");
+        // Using UPPER() for case-insensitive comparison
+        $stmt = $pdo->query("SELECT user_id, first_name, last_name, assigned_scope FROM users WHERE role='admin' AND UPPER(assigned_scope) IN ('FACULTY ASSOCIATION','COOP','NON-ACADEMIC')");
         $otherAdmins = $stmt->fetchAll();
         if ($otherAdmins) {
             echo "<optgroup label='Other Sectors'>";
@@ -584,15 +586,15 @@ $elections = $stmt->fetchAll();
             }
             echo "</optgroup>";
         }
-
         // ----- CSG Admins -----
-        $stmt = $pdo->query("SELECT user_id, first_name, last_name FROM users WHERE role='admin' AND assigned_scope = 'CSG_ADMIN'");
+        // Using UPPER() for case-insensitive comparison
+        $stmt = $pdo->query("SELECT user_id, first_name, last_name, assigned_scope FROM users WHERE role='admin' AND UPPER(assigned_scope) = 'CSG ADMIN'");
         $csgAdmins = $stmt->fetchAll();
         if ($csgAdmins) {
             echo "<optgroup label='CSG Admins'>";
             foreach ($csgAdmins as $row) {
                 $selected = ($row['user_id'] == $assignedAdminId) ? 'selected' : '';
-                echo "<option value='{$row['user_id']}' $selected>{$row['first_name']} {$row['last_name']}</option>";
+                echo "<option value='{$row['user_id']}' $selected>{$row['first_name']} {$row['last_name']} ({$row['assigned_scope']})</option>";
             }
             echo "</optgroup>";
         }

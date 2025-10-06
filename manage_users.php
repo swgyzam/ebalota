@@ -1,14 +1,12 @@
 <?php
 session_start();
 date_default_timezone_set('Asia/Manila');
-
 // --- DB Connection ---
 $host = 'localhost';
 $db   = 'evoting_system';
 $user = 'root';
 $pass = '';
 $charset = 'utf8mb4';
-
 $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
 $options = [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -19,7 +17,6 @@ try {
 } catch (\PDOException $e) {
     die("Database connection failed: " . $e->getMessage());
 }
-
 // --- Session timeout 1 hour ---
 $timeout_duration = 3600;
 if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY']) > $timeout_duration) {
@@ -29,24 +26,19 @@ if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY']) >
     exit();
 }
 $_SESSION['LAST_ACTIVITY'] = time();
-
 // --- Check if logged in and super admin ---
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
   header('Location: login.php');
   exit();
 }
-
 $currentUserId = $_SESSION['user_id'];
-
 // --- Handle Activate/Deactivate/Delete ---
 if (isset($_GET['action'], $_GET['id'])) {
     $userId = (int)$_GET['id'];
     $action = $_GET['action'];
-
     $stmt = $pdo->prepare("SELECT is_admin FROM users WHERE user_id = ?");
     $stmt->execute([$userId]);
     $user = $stmt->fetch();
-
 if ($user && $userId !== $currentUserId && !$user['is_admin']) {
   if ($action === 'toggle') {
     if (isset($_GET['position']) && $_GET['position'] === 'coop') {
@@ -55,13 +47,11 @@ if ($user && $userId !== $currentUserId && !$user['is_admin']) {
         $stmt = $pdo->prepare("UPDATE users SET is_verified = NOT is_verified WHERE user_id = ?");
     }
     $stmt->execute([$userId]);
-
 } elseif ($action === 'delete') {
     // Check if user has voting records
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM votes WHERE voter_id = ?");
     $stmt->execute([$userId]);
     $hasVotes = $stmt->fetchColumn();
-
     if ($hasVotes > 0) {
         // Soft delete: just deactivate
         $stmt = $pdo->prepare("UPDATE users SET is_active = 0 WHERE user_id = ?");
@@ -73,38 +63,31 @@ if ($user && $userId !== $currentUserId && !$user['is_admin']) {
     }
 }
 }
-
     header('Location: manage_users.php');
     exit();
 }
-
 // --- Filtering ---
 $filterPosition = isset($_GET['position']) ? $_GET['position'] : '';
 $filterQuery = '';
 $params = [];
-
 if (!empty($filterPosition)) {
     if ($filterPosition === 'coop') {
         $filterQuery = " AND is_coop_member = 1";
     } else {
-        $filterQuery = " AND position = :position";
+        $filterQuery = " AND position = :position"; 
         $params[':position'] = $filterPosition;
     }
 }
-
 $isCoopFilter = ($filterPosition === 'coop');
-
 // --- Pagination Setup ---
 $perPage = 15;
 $page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $perPage;
-
 // --- Count total users (non-admins) ---
 $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'voter' $filterQuery");
 $totalStmt->execute($params);
 $totalUsers = $totalStmt->fetchColumn();
 $totalPages = ceil($totalUsers / $perPage);
-
 // --- Fetch users page ---
 $stmt = $pdo->prepare("SELECT * FROM users WHERE role = 'voter' $filterQuery ORDER BY user_id DESC LIMIT :limit OFFSET :offset");
 foreach ($params as $key => $val) {
@@ -115,7 +98,6 @@ $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $users = $stmt->fetchAll();
 ?>
-
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
@@ -123,6 +105,7 @@ $users = $stmt->fetchAll();
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Manage Users - Admin Panel</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     :root {
       --cvsu-green-dark: #154734;
@@ -130,112 +113,375 @@ $users = $stmt->fetchAll();
       --cvsu-green-light: #37A66B;
       --cvsu-yellow: #FFD166;
     }
+    
+    .gradient-bg {
+      background: linear-gradient(135deg, var(--cvsu-green-dark) 0%, var(--cvsu-green) 100%);
+    }
+    
+    .card {
+      transition: all 0.3s ease;
+      border-radius: 0.75rem;
+    }
+    
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+    
+    .btn-primary {
+      background-color: var(--cvsu-green);
+      transition: all 0.3s ease;
+    }
+    
+    .btn-primary:hover {
+      background-color: var(--cvsu-green-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn-danger {
+      background-color: #ef4444;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-danger:hover {
+      background-color: #dc2626;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn-warning {
+      background-color: #f59e0b;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-warning:hover {
+      background-color: #d97706;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    
+    .loading-spinner {
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top: 3px solid white;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .table-hover tbody tr:hover {
+      background-color: #f3f4f6;
+    }
   </style>
 </head>
-<body class="bg-gray-50 font-sans text-gray-900">
-
+<body class="bg-white font-sans text-gray-900">
   <div class="flex min-h-screen">
     <?php include 'super_admin_sidebar.php'; ?>
-
     <main class="flex-1 p-8 ml-64">
-    <header class="bg-[var(--cvsu-green-dark)] text-white p-6 flex justify-between items-center shadow-md rounded-md mb-8">
-  <h1 class="text-3xl font-extrabold">Manage Users</h1>
-  <div class="flex space-x-2">
-    <a href="restrict_users.php" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-semibold transition">Restrict User</a>
-  </div>
-</header>
-
-
-      <form method="GET" class="mb-4">
-        <label for="position" class="mr-2">Filter by Position:</label>
-        <select name="position" id="position" onchange="this.form.submit()" class="px-2 py-1 border border-gray-300 rounded">
-          <option value="">All</option>
-          <option value="student" <?= $filterPosition === 'student' ? 'selected' : '' ?>>Student</option>
-          <option value="academic" <?= $filterPosition === 'academic' ? 'selected' : '' ?>>Faculty</option>
-          <option value="non-academic" <?= $filterPosition === 'non-academic' ? 'selected' : '' ?>>Non-Academic</option>
-          <option value="coop" <?= $filterPosition === 'coop' ? 'selected' : '' ?>>COOP</option>
-        </select>
-      </form>
-
-      <div class="overflow-x-auto bg-white rounded shadow">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-[var(--cvsu-green-light)] text-white">
-            <tr>
-              <th class="px-6 py-3 text-left text-sm font-semibold">Name</th>
-              <th class="px-6 py-3 text-left text-sm font-semibold">Email</th>
-              <th class="px-6 py-3 text-left text-sm font-semibold">Position</th>
-              <?php if ($isCoopFilter): ?>
-                <th class="px-6 py-3 text-left text-sm font-semibold">MIGS Status</th>
-              <?php endif; ?>
-              <th class="px-6 py-3 text-left text-sm font-semibold">Verified</th>
-              <th class="px-6 py-3 text-left text-sm font-semibold">Registered At</th>
-              <th class="px-6 py-3 text-center text-sm font-semibold">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-            <?php if (empty($users)) : ?>
+      <!-- Header -->
+      <header class="gradient-bg text-white p-6 flex justify-between items-center shadow-xl rounded-xl mb-8">
+        <div class="flex items-center space-x-4">
+          <div class="w-14 h-14 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+            <i class="fas fa-users text-2xl"></i>
+          </div>
+          <div>
+            <h1 class="text-3xl font-extrabold">Manage Users</h1>
+            <p class="text-green-100 mt-1">Administer all registered users in the system</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-4">
+          <a href="restrict_users.php" class="bg-red-600 hover:bg-red-500 px-5 py-2.5 rounded-lg font-semibold transition flex items-center">
+            <i class="fas fa-user-slash mr-2"></i>Restrict Users
+          </a>
+        </div>
+      </header>
+      
+      <!-- Stats Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white rounded-xl shadow-md p-6 card border border-gray-100">
+          <div class="flex items-center">
+            <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+              <i class="fas fa-users text-xl"></i>
+            </div>
+            <div class="ml-4">
+              <p class="text-sm font-medium text-gray-600">Total Users</p>
+              <p class="text-2xl font-bold text-gray-900"><?= $totalUsers ?></p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-md p-6 card border border-gray-100">
+          <div class="flex items-center">
+            <div class="p-3 rounded-full bg-green-100 text-green-600">
+              <i class="fas fa-check-circle text-xl"></i>
+            </div>
+            <div class="ml-4">
+              <p class="text-sm font-medium text-gray-600">Verified</p>
+              <p class="text-2xl font-bold text-gray-900">
+                <?php 
+                $verifiedStmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'voter' AND is_verified = 1");
+                $verifiedStmt->execute();
+                echo $verifiedStmt->fetchColumn();
+                ?>
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-md p-6 card border border-gray-100">
+          <div class="flex items-center">
+            <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
+              <i class="fas fa-user-clock text-xl"></i>
+            </div>
+            <div class="ml-4">
+              <p class="text-sm font-medium text-gray-600">Pending</p>
+              <p class="text-2xl font-bold text-gray-900">
+                <?php 
+                $pendingStmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'voter' AND is_verified = 0");
+                $pendingStmt->execute();
+                echo $pendingStmt->fetchColumn();
+                ?>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Filter Card -->
+      <div class="bg-white rounded-xl shadow-md p-6 mb-8 card border border-gray-100">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800 mb-1">Filter Users</h2>
+            <p class="text-gray-600 text-sm">Filter users by position or status</p>
+          </div>
+          <form method="GET" class="flex flex-col sm:flex-row gap-3">
+            <div class="relative">
+              <label for="position" class="block text-sm font-medium text-gray-700 mb-1">Position</label>
+              <div class="relative">
+                <select name="position" id="position" onchange="this.form.submit()" class="appearance-none block w-full pl-3 pr-10 py-2.5 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm rounded-lg">
+                  <option value="">All Positions</option>
+                  <option value="student" <?= $filterPosition === 'student' ? 'selected' : '' ?>>Student</option>
+                  <option value="academic" <?= $filterPosition === 'academic' ? 'selected' : '' ?>>Faculty</option>
+                  <option value="non-academic" <?= $filterPosition === 'non-academic' ? 'selected' : '' ?>>Non-Academic</option>
+                  <option value="coop" <?= $filterPosition === 'coop' ? 'selected' : '' ?>>COOP</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                  <i class="fas fa-chevron-down"></i>
+                </div>
+              </div>
+            </div>
+            <button type="button" onclick="window.location.href='manage_users.php'" class="self-end bg-gray-200 hover:bg-gray-300 px-4 py-2.5 rounded-lg font-medium transition flex items-center">
+              <i class="fas fa-sync-alt mr-2"></i>Reset
+            </button>
+          </form>
+        </div>
+      </div>
+      
+      <!-- Users Table -->
+      <div class="bg-white rounded-xl shadow-md overflow-hidden card border border-gray-100">
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+          <h2 class="text-xl font-bold text-gray-800">User List</h2>
+          <div class="text-sm text-gray-500">
+            Showing <?= count($users) ?> of <?= $totalUsers ?> users
+          </div>
+        </div>
+        
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200 table-hover">
+            <thead class="bg-gray-50">
               <tr>
-                <td colspan="<?= $isCoopFilter ? '8' : '7' ?>" class="px-6 py-4 text-center text-gray-500">No users found.</td>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
+                <?php if ($isCoopFilter): ?>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MIGS Status</th>
+                <?php endif; ?>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verified</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered At</th>
+                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
-            <?php else: ?>
-              <?php foreach ($users as $user): ?>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <?php if (empty($users)) : ?>
                 <tr>
-                  <td class="px-6 py-4"><?= htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) ?></td>
-                  <td class="px-6 py-4"><?= htmlspecialchars($user['email']) ?></td>
-                  <td class="px-6 py-4 capitalize"><?= htmlspecialchars($user['position']) ?></td>
-                  <?php if ($isCoopFilter): ?>
-                    <td class="px-6 py-4">
-                      <?= $user['migs_status'] ? '<span class="text-green-600 font-semibold">MIGS</span>' : '<span class="text-gray-600 font-semibold">Not MIGS</span>' ?>
-                    </td>
-                  <?php endif; ?>
-                  <td class="px-6 py-4">
-                    <?php if ($user['is_verified']): ?>
-                      <span class="text-green-600 font-semibold">Verified</span>
-                    <?php else: ?>
-                      <span class="text-red-600 font-semibold">Not Verified</span>
-                    <?php endif; ?>
-                  </td>
-                  <td class="px-6 py-4"><?= htmlspecialchars(date('M d, Y h:i A', strtotime($user['created_at']))) ?></td>
-                  <td class="px-6 py-4 text-center space-x-2">
-                    <a href="?action=toggle&id=<?= $user['user_id'] ?><?= !empty($filterPosition) ? '&position=' . urlencode($filterPosition) : '' ?>"
-                      onclick="return confirm('Are you sure you want to toggle <?= $filterPosition === 'coop' ? 'MIGS status' : 'verification status' ?> for this user?')"
-                      class="px-3 py-1 text-sm rounded bg-yellow-400 text-white hover:bg-yellow-500 transition">
-                      <?= ($filterPosition === 'coop' && $user['migs_status']) 
-                            ? 'Deactivate MIGS' 
-                            : ($filterPosition === 'coop' 
-                                ? 'Activate MIGS' 
-                                : ($user['is_verified'] ? 'Deactivate' : 'Activate')) ?>
-                    </a>
-                    <a href="?action=delete&id=<?= $user['user_id'] ?>"
-                       onclick="return confirm('Are you sure you want to delete this user? This action cannot be undone.')"
-                       class="px-3 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 transition">
-                      Delete
-                    </a>
+                  <td colspan="<?= $isCoopFilter ? '8' : '7' ?>" class="px-6 py-12 text-center">
+                    <div class="flex flex-col items-center justify-center">
+                      <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                        <i class="fas fa-users text-gray-400 text-2xl"></i>
+                      </div>
+                      <h3 class="text-lg font-medium text-gray-900 mb-1">No users found</h3>
+                      <p class="text-gray-500">Try adjusting your filter settings</p>
+                    </div>
                   </td>
                 </tr>
-              <?php endforeach; ?>
+              <?php else: ?>
+                <?php foreach ($users as $user): ?>
+                  <tr>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <div class="flex items-center">
+                        <div class="flex-shrink-0 h-10 w-10">
+                          <div class="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                            <span class="text-gray-600 font-semibold"><?= strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1)) ?></span>
+                          </div>
+                        </div>
+                        <div class="ml-4">
+                          <div class="text-sm font-medium text-gray-900"><?= htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) ?></div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <div class="text-sm text-gray-900"><?= htmlspecialchars($user['email']) ?></div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 capitalize">
+                        <?= htmlspecialchars($user['position']) ?>
+                      </span>
+                    </td>
+                    <?php if ($isCoopFilter): ?>
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <?php if ($user['migs_status']): ?>
+                          <span class="status-badge bg-green-100 text-green-800">
+                            <i class="fas fa-check-circle mr-1"></i>MIGS
+                          </span>
+                        <?php else: ?>
+                          <span class="status-badge bg-gray-100 text-gray-800">
+                            <i class="fas fa-times-circle mr-1"></i>Not MIGS
+                          </span>
+                        <?php endif; ?>
+                      </td>
+                    <?php endif; ?>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <?php if ($user['is_verified']): ?>
+                        <span class="status-badge bg-green-100 text-green-800">
+                          <i class="fas fa-check-circle mr-1"></i>Verified
+                        </span>
+                      <?php else: ?>
+                        <span class="status-badge bg-red-100 text-red-800">
+                          <i class="fas fa-times-circle mr-1"></i>Not Verified
+                        </span>
+                      <?php endif; ?>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <?= htmlspecialchars(date('M d, Y h:i A', strtotime($user['created_at']))) ?>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                      <a href="?action=toggle&id=<?= $user['user_id'] ?><?= !empty($filterPosition) ? '&position=' . urlencode($filterPosition) : '' ?>"
+                        class="btn-warning text-white px-3 py-1 rounded-lg mr-2 inline-flex items-center">
+                        <i class="fas fa-sync-alt mr-1"></i>
+                        <?= ($filterPosition === 'coop' && $user['migs_status']) 
+                              ? 'Deactivate MIGS' 
+                              : ($filterPosition === 'coop' 
+                                  ? 'Activate MIGS' 
+                                  : ($user['is_verified'] ? 'Deactivate' : 'Activate')) ?>
+                      </a>
+                      <a href="?action=delete&id=<?= $user['user_id'] ?>"
+                        class="btn-danger text-white px-3 py-1 rounded-lg inline-flex items-center">
+                        <i class="fas fa-trash-alt mr-1"></i>Delete
+                      </a>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="bg-white px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+          <div class="text-sm text-gray-700">
+            Showing <span class="font-medium"><?= max(1, ($page - 1) * $perPage + 1) ?></span> to 
+            <span class="font-medium"><?= min($page * $perPage, $totalUsers) ?></span> of 
+            <span class="font-medium"><?= $totalUsers ?></span> results
+          </div>
+          <div class="flex space-x-2">
+            <?php if ($page > 1): ?>
+              <a href="?page=<?= $page - 1 ?>&position=<?= urlencode($filterPosition) ?>" class="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 flex items-center">
+                <i class="fas fa-chevron-left mr-1"></i> Previous
+              </a>
             <?php endif; ?>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Pagination -->
-      <div class="mt-6 flex justify-center space-x-2">
-        <?php if ($page > 1): ?>
-          <a href="?page=<?= $page - 1 ?>&position=<?= urlencode($filterPosition) ?>" class="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400">&laquo; Prev</a>
-        <?php endif; ?>
-        <?php for ($p = 1; $p <= $totalPages; $p++): ?>
-          <a href="?page=<?= $p ?>&position=<?= urlencode($filterPosition) ?>"
-             class="px-3 py-1 rounded <?= $p === $page ? 'bg-[var(--cvsu-green-light)] text-white' : 'bg-gray-200 hover:bg-gray-300' ?>">
-            <?= $p ?>
-          </a>
-        <?php endfor; ?>
-        <?php if ($page < $totalPages): ?>
-          <a href="?page=<?= $page + 1 ?>&position=<?= urlencode($filterPosition) ?>" class="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400">Next &raquo;</a>
-        <?php endif; ?>
+            
+            <?php 
+            $startPage = max(1, $page - 2);
+            $endPage = min($totalPages, $page + 2);
+            
+            if ($startPage > 1) {
+              echo '<a href="?page=1&position=' . urlencode($filterPosition) . '" class="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300">1</a>';
+              if ($startPage > 2) echo '<span class="px-2 text-gray-500">...</span>';
+            }
+            
+            for ($p = $startPage; $p <= $endPage; $p++): ?>
+              <a href="?page=<?= $p ?>&position=<?= urlencode($filterPosition) ?>"
+                 class="px-3 py-1 rounded-md <?= $p === $page ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300' ?>">
+                <?= $p ?>
+              </a>
+            <?php endfor; 
+            
+            if ($endPage < $totalPages) {
+              if ($endPage < $totalPages - 1) echo '<span class="px-2 text-gray-500">...</span>';
+              echo '<a href="?page=' . $totalPages . '&position=' . urlencode($filterPosition) . '" class="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300">' . $totalPages . '</a>';
+            }
+            ?>
+            
+            <?php if ($page < $totalPages): ?>
+              <a href="?page=<?= $page + 1 ?>&position=<?= urlencode($filterPosition) ?>" class="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 flex items-center">
+                Next <i class="fas fa-chevron-right ml-1"></i>
+              </a>
+            <?php endif; ?>
+          </div>
+        </div>
       </div>
     </main>
   </div>
-
+  
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="hidden fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+    <div class="bg-white p-6 rounded-lg shadow-xl flex flex-col items-center">
+      <div class="loading-spinner mb-4"></div>
+      <p class="text-gray-700">Processing, please wait...</p>
+    </div>
+  </div>
+  
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const actionLinks = document.querySelectorAll('a[href*="action="]');
+    actionLinks.forEach(link => {
+      link.addEventListener('click', function(e) {
+        // Get the action type from the href
+        const action = this.href.includes('delete') ? 'delete' : 'toggle';
+        
+        // Set the appropriate message based on action
+        let message;
+        if (action === 'delete') {
+          message = 'Are you sure you want to delete this user? This action cannot be undone.';
+        } else {
+          const isCoop = this.href.includes('position=coop');
+          message = `Are you sure you want to toggle ${isCoop ? 'MIGS status' : 'verification status'} for this user?`;
+        }
+        
+        // Show confirmation and loading overlay
+        if (confirm(message)) {
+          document.getElementById('loadingOverlay').classList.remove('hidden');
+        } else {
+          e.preventDefault();
+        }
+      });
+    });
+  });
+</script>
 </body>
 </html>
