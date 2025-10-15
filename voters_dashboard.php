@@ -1,12 +1,12 @@
 <?php
 session_start();
 date_default_timezone_set('Asia/Manila');
-$host = 'localhost';
-$db   = 'evoting_system';
-$user = 'root';
-$pass = '';
-$charset = 'utf8mb4';
-$department_map = [
+ $host = 'localhost';
+ $db   = 'evoting_system';
+ $user = 'root';
+ $pass = '';
+ $charset = 'utf8mb4';
+ $department_map = [
     'College of Engineering and Information Technology (CEIT)' => 'CEIT',
     'College of Arts and Sciences (CAS)' => 'CAS',
     'College of Criminal Justice (CCJ)' => 'CCJ',
@@ -20,7 +20,7 @@ $department_map = [
     'College of Medicine (COM)' => 'COM',
     'College of Tourism and Hospitality Management (CTHM)' => 'CTHM',
 ];
-$course_map = [
+ $course_map = [
   // CEIT
   'bs computer science' => 'bscs',
   'bs information technology' => 'bsit',
@@ -70,8 +70,8 @@ $course_map = [
   // CON
   'bs nursing' => 'bsn',
 ];
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
-$options = [
+ $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+ $options = [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_STRINGIFY_FETCHES => true, // Force datetime values as strings
@@ -87,30 +87,34 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'voter') {
     exit();
 }
 // After establishing the database connection, fetch the voter's migs_status
-$user_id = $_SESSION['user_id'];
-$stmt = $pdo->prepare("SELECT migs_status FROM users WHERE user_id = ?");
-$stmt->execute([$user_id]);
-$voter_data = $stmt->fetch();
+ $user_id = $_SESSION['user_id'];
+ $stmt = $pdo->prepare("SELECT migs_status FROM users WHERE user_id = ?");
+ $stmt->execute([$user_id]);
+ $voter_data = $stmt->fetch();
+
 // Add migs_status to session
-$_SESSION['migs_status'] = $voter_data['migs_status'] ?? 0;
-$is_coop_member = ($_SESSION['migs_status'] ?? 0) == 1;
-$voter_role = $_SESSION['position'] ?? '';
-$role_parts = explode(',', $voter_role);
-$is_coop = in_array('COOP', $role_parts);
-$is_student = in_array('student', $role_parts);
-$is_faculty = in_array('faculty', $role_parts);
-$is_non_academic = in_array('non-academic', $role_parts);
-$voter_college = strtolower(trim($_SESSION['department'] ?? ''));
-$voter_course_full = strtolower(trim($_SESSION['course'] ?? ''));
-$voter_status = strtolower(trim($_SESSION['status'] ?? ''));
+ $_SESSION['migs_status'] = $voter_data['migs_status'] ?? 0;
+ $is_coop_member = ($_SESSION['migs_status'] ?? 0) == 1; // Only MIGS members are COOP members for voting
+ $voter_role = $_SESSION['position'] ?? '';
+ $role_parts = explode(',', $voter_role);
+ $is_coop = in_array('COOP', $role_parts);
+ $is_student = in_array('student', $role_parts);
+ $is_faculty = in_array('faculty', $role_parts);
+ $is_non_academic = in_array('non-academic', $role_parts);
+ $voter_college = strtolower(trim($_SESSION['department'] ?? ''));
+ $voter_course_full = strtolower(trim($_SESSION['course'] ?? ''));
+ $voter_status = strtolower(trim($_SESSION['status'] ?? ''));
+
 // Normalize course name to code
-$voter_course = $course_map[$voter_course_full] ?? $voter_course_full;
+ $voter_course = $course_map[$voter_course_full] ?? $voter_course_full;
+
 // Fetch all elections
-$sql = "SELECT * FROM elections ORDER BY election_id DESC";
-$stmt = $pdo->query($sql);
-$all_elections = $stmt->fetchAll();
-$filtered_elections = [];
-$now = date('Y-m-d H:i:s'); // current server datetime
+ $sql = "SELECT * FROM elections ORDER BY election_id DESC";
+ $stmt = $pdo->query($sql);
+ $all_elections = $stmt->fetchAll();
+ $filtered_elections = [];
+ $now = date('Y-m-d H:i:s'); // current server datetime
+
 // 🔧 Mapper: users.position → elections.target_position
 function mapUserPositionToElection($user) {
   $pos = strtolower(trim($user['position'] ?? ''));
@@ -129,21 +133,24 @@ function mapUserPositionToElection($user) {
           return 'All';
   }
 }
+
 // 🔧 Kunin current voter info galing session
-$stmt = $pdo->prepare("SELECT * FROM users WHERE user_id = ?");
-$stmt->execute([$_SESSION['user_id']]);
-$voter = $stmt->fetch();
+ $stmt = $pdo->prepare("SELECT * FROM users WHERE user_id = ?");
+ $stmt->execute([$_SESSION['user_id']]);
+ $voter = $stmt->fetch();
 if (!$voter) {
     die("User not found.");
 }
+
 // 🔧 Election Filtering
-$filtered_elections = [];
-$positions = array_map('trim', explode(',', strtolower($voter['position'] ?? '')));
-$mappedPosition = in_array('COOP', $positions) ? 'coop' : (
+ $filtered_elections = [];
+ $positions = array_map('trim', explode(',', strtolower($voter['position'] ?? '')));
+ $mappedPosition = in_array('COOP', $positions) ? 'coop' : (
                     in_array('academic', $positions) ? 'faculty' : (
                     in_array('student', $positions) ? 'student' : (
                     in_array('non-academic', $positions) ? 'non-academic' : 'All'
                     )));
+
 foreach ($all_elections as $election) {
   $allowed_colleges = array_filter(array_map('strtolower', array_map('trim', explode(',', $election['allowed_colleges'] ?? ''))));
   $allowed_courses  = array_filter(array_map('strtolower', array_map('trim', explode(',', $election['allowed_courses'] ?? ''))));
@@ -152,20 +159,23 @@ foreach ($all_elections as $election) {
   $voter_course  = strtolower(trim($voter['course'] ?? ''));
   $voter_status  = strtolower(trim($voter['status'] ?? ''));
   $is_coop_election = ($election['target_position'] === 'coop');
-  $is_coop_member   = (bool)($voter['is_coop_member'] ?? 0);
+  
   // ✅ Allowed checks
   $college_allowed = empty($allowed_colleges) || in_array('all', $allowed_colleges) || in_array($voter_college, $allowed_colleges);
   $course_allowed  = empty($allowed_courses)  || in_array('all', $allowed_courses)  || in_array($voter_course, $allowed_courses);
   $status_allowed  = empty($allowed_status)   || in_array('all', $allowed_status)   || in_array($voter_status, $allowed_status);
+
+  // FIX: Only MIGS members can vote in COOP elections
   if ($election['target_position'] === 'coop') {
-    if ($voter['is_coop_member']) {   // only check COOP membership
+    if ($is_coop_member) {   // Check MIGS status
         $filtered_elections[] = $election;
     }
-} elseif (($election['target_position'] === 'All' || $election['target_position'] === $mappedPosition)
-          && $college_allowed && $course_allowed && $status_allowed) {
+  } elseif (($election['target_position'] === 'All' || $election['target_position'] === $mappedPosition)
+            && $college_allowed && $course_allowed && $status_allowed) {
     $filtered_elections[] = $election;
+  }
 }
-}
+
 include 'voters_sidebar.php';
 ?>
 <!DOCTYPE html>
