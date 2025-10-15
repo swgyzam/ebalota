@@ -2663,3 +2663,23 @@ Array
 )
 
 Update successful for election 196
+Executing with params:
+Array
+(
+    [:title] => COOP Testing
+    [:description] => try COOP
+    [:start_datetime] => 2025-10-15 21:28:00
+    [:end_datetime] => 2025-10-16 11:11:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1757510922_pingwinnn.jpg
+    [:election_id] => 195
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 195

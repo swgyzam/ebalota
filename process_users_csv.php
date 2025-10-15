@@ -44,7 +44,7 @@ if (!$adminType) {
 
 // Database connection
  $host = 'localhost';
- $db   = 'evoting_system';
+ $db = 'evoting_system';
  $user = 'root';
  $pass = '';
  $charset = 'utf8mb4';
@@ -84,8 +84,10 @@ if ($header && count($header) >= 6) {
  $inserted = 0;
  $duplicates = 0;
  $errors = 0;
+ $restrictedRows = 0; // New counter for restricted rows
  $emailSent = 0;
  $emailFailed = 0;
+ $errorMessages = []; // Store error messages for display
 
 // Set expected columns based on admin type
  $expectedColumns = 8; // Default for general admin
@@ -174,6 +176,7 @@ while (($row = fgetcsv($file)) !== FALSE) {
     // Check if we have the expected number of columns
     if (count($row) < $expectedColumns) {
         $errors++;
+        $errorMessages[] = "Row $totalRows: Insufficient columns";
         continue;
     }
     
@@ -195,6 +198,20 @@ while (($row = fgetcsv($file)) !== FALSE) {
             $department1 = $department;     // Store department in department1 field
             $employee_number = null;
             $status = null;                // No status for students
+            
+            // VALIDATION: Check if position is valid for this admin type
+            if (strtolower($position) !== 'student') {
+                $restrictedRows++;
+                $errorMessages[] = "Row $totalRows: Invalid position '$position' for admin_students. Only 'student' position is allowed.";
+                continue 2; // Skip to next iteration of while loop
+            }
+            
+            // VALIDATION: Check if college matches assigned scope (except for CSG ADMIN)
+            if ($assignedScope !== 'CSG ADMIN' && strtoupper($college) !== $assignedScope) {
+                $restrictedRows++;
+                $errorMessages[] = "Row $totalRows: College '$college' not in your assigned scope '$assignedScope'.";
+                continue 2; // Skip to next iteration of while loop
+            }
             break;
             
         case 'admin_academic':
@@ -213,6 +230,13 @@ while (($row = fgetcsv($file)) !== FALSE) {
             $department1 = $department;     // Store department in department1 field
             $student_number = null;
             $course = null;
+            
+            // VALIDATION: Check if position is valid for this admin type
+            if (strtolower($position) !== 'academic') {
+                $restrictedRows++;
+                $errorMessages[] = "Row $totalRows: Invalid position '$position' for admin_academic. Only 'academic' position is allowed.";
+                continue 2; // Skip to next iteration of while loop
+            }
             break;
             
         case 'admin_non_academic':
@@ -230,6 +254,13 @@ while (($row = fgetcsv($file)) !== FALSE) {
             $department1 = null;            // No department1 for non-academic
             $student_number = null;
             $course = null;
+            
+            // VALIDATION: Check if position is valid for this admin type
+            if (strtolower($position) !== 'non-academic') {
+                $restrictedRows++;
+                $errorMessages[] = "Row $totalRows: Invalid position '$position' for admin_non_academic. Only 'non-academic' position is allowed.";
+                continue 2; // Skip to next iteration of while loop
+            }
             break;
             
         case 'admin_coop':
@@ -246,6 +277,14 @@ while (($row = fgetcsv($file)) !== FALSE) {
             // Validate required fields
             if (empty($first_name) || empty($last_name) || empty($email) || empty($position) || empty($employee_number) || empty($department)) {
                 $errors++;
+                $errorMessages[] = "Row $totalRows: Missing required fields for COOP member.";
+                continue 2; // Skip to next iteration of while loop
+            }
+            
+            // VALIDATION: Check if position is valid for this admin type
+            if (!in_array(strtolower($position), ['academic', 'non-academic'])) {
+                $restrictedRows++;
+                $errorMessages[] = "Row $totalRows: Invalid position '$position' for admin_coop. Only 'academic' or 'non-academic' positions are allowed.";
                 continue 2; // Skip to next iteration of while loop
             }
             
@@ -258,7 +297,7 @@ while (($row = fgetcsv($file)) !== FALSE) {
                     
                     if (empty($college)) {
                         $errors++;
-                        error_log("Cannot determine college for academic staff: $email, department: $department");
+                        $errorMessages[] = "Row $totalRows: Cannot determine college for academic staff with department '$department'.";
                         continue 2; // Skip to next iteration of while loop
                     }
                 }
@@ -304,6 +343,7 @@ while (($row = fgetcsv($file)) !== FALSE) {
     
     if (empty($email) || empty($first_name) || empty($last_name)) {
         $errors++;
+        $errorMessages[] = "Row $totalRows: Missing required fields (first_name, last_name, or email).";
         continue;
     }
 
@@ -317,6 +357,7 @@ while (($row = fgetcsv($file)) !== FALSE) {
         
         if ($checkUserStmt->fetch() || $checkPendingStmt->fetch()) {
             $duplicates++;
+            $errorMessages[] = "Row $totalRows: Email '$email' already exists in the system.";
             continue;
         }
         
@@ -407,6 +448,7 @@ while (($row = fgetcsv($file)) !== FALSE) {
         }
     } catch (Exception $e) {
         $errors++;
+        $errorMessages[] = "Row $totalRows: Database error - " . $e->getMessage();
         error_log("Error processing user with email $email: " . $e->getMessage());
     }
 }
@@ -437,6 +479,11 @@ unlink($csvFilePath);
     .gradient-bg {
       background: linear-gradient(135deg, var(--cvsu-green-dark) 0%, var(--cvsu-green) 100%);
     }
+    
+    .error-container {
+      max-height: 300px;
+      overflow-y: auto;
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
@@ -463,7 +510,7 @@ unlink($csvFilePath);
       <div class="bg-white p-8 rounded-lg shadow-md max-w-3xl mx-auto">
         <h2 class="text-2xl font-bold mb-6">Processing Summary</h2>
         
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
           <div class="bg-blue-50 p-6 rounded-lg text-center">
             <div class="text-3xl font-bold text-blue-600"><?= $totalRows ?></div>
             <div class="text-gray-600">Total Rows</div>
@@ -474,11 +521,15 @@ unlink($csvFilePath);
           </div>
           <div class="bg-yellow-50 p-6 rounded-lg text-center">
             <div class="text-3xl font-bold text-yellow-600"><?= $duplicates ?></div>
-            <div class="text-gray-600">Duplicates Skipped</div>
+            <div class="text-gray-600">Duplicates</div>
           </div>
           <div class="bg-red-50 p-6 rounded-lg text-center">
             <div class="text-3xl font-bold text-red-600"><?= $errors ?></div>
             <div class="text-gray-600">Errors</div>
+          </div>
+          <div class="bg-purple-50 p-6 rounded-lg text-center">
+            <div class="text-3xl font-bold text-purple-600"><?= $restrictedRows ?></div>
+            <div class="text-gray-600">Restricted</div>
           </div>
         </div>
         
@@ -493,20 +544,110 @@ unlink($csvFilePath);
           </div>
         </div>
         
-        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-          <div class="flex">
-            <div class="flex-shrink-0">
-              <i class="fas fa-check-circle text-green-500 text-xl"></i>
+        <?php if ($inserted > 0): ?>
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-check-circle text-green-500 text-xl"></i>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-green-800">Users Added Successfully</h3>
+                        <div class="mt-2 text-sm text-green-700">
+                            <p><?= $inserted ?> user(s) in the CSV file have been added to the system. Verification emails have been sent to all successfully added users with their login credentials.</p>
+                            <p class="mt-2">Users will need to verify their email and change their password on first login.</p>
+                            <?php if ($duplicates > 0 || $errors > 0 || $restrictedRows > 0): ?>
+                                <p class="mt-2 font-medium">Note: Some rows were not processed due to duplicates, errors, or restrictions. See details below.</p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="ml-3">
-              <h3 class="text-sm font-medium text-green-800">Users Added Successfully</h3>
-              <div class="mt-2 text-sm text-green-700">
-                <p>The users in the CSV file have been added to the system. Verification emails have been sent to all users with their login credentials.</p>
-                <p class="mt-2">Users will need to verify their email and change their password on first login.</p>
-              </div>
+        <?php else: ?>
+            <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-exclamation-circle text-red-500 text-xl"></i>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-red-800">No Users Added</h3>
+                        <div class="mt-2 text-sm text-red-700">
+                            <p>No users were added to the system. Please check the details below for more information.</p>
+                        </div>
+                    </div>
+                </div>
             </div>
-          </div>
-        </div>
+        <?php endif; ?>
+
+        <?php if ($restrictedRows > 0): ?>
+            <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-exclamation-triangle text-purple-500 text-xl"></i>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-purple-800">Restricted Rows</h3>
+                        <div class="mt-2 text-sm text-purple-700">
+                            <p><?= $restrictedRows ?> row(s) were skipped because they contained users outside your admin scope.</p>
+                            <p class="mt-2">Please ensure you only upload users that fall within your assigned scope.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($duplicates > 0): ?>
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-exclamation-circle text-yellow-500 text-xl"></i>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-yellow-800">Duplicate Entries</h3>
+                        <div class="mt-2 text-sm text-yellow-700">
+                            <p><?= $duplicates ?> row(s) were skipped because the email addresses already exist in the system.</p>
+                            <p class="mt-2">Please check for duplicate entries in your CSV file.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($errors > 0): ?>
+            <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-exclamation-circle text-red-500 text-xl"></i>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-red-800">Processing Errors</h3>
+                        <div class="mt-2 text-sm text-red-700">
+                            <p><?= $errors ?> row(s) encountered errors during processing.</p>
+                            <p class="mt-2">Please check the error details below and correct your CSV file.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!empty($errorMessages)): ?>
+            <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-exclamation-circle text-red-500 text-xl"></i>
+                    </div>
+                    <div class="ml-3 w-full">
+                        <h3 class="text-sm font-medium text-red-800">Error Details</h3>
+                        <div class="mt-2 text-sm text-red-700 error-container">
+                            <ul class="list-disc pl-5 space-y-1">
+                                <?php foreach ($errorMessages as $message): ?>
+                                    <li><?= htmlspecialchars($message) ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
         
         <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <h3 class="font-medium text-yellow-800 mb-2">CSV Format Requirements:</h3>
@@ -528,6 +669,39 @@ unlink($csvFilePath);
                     break;
                 default:
                     echo '<code>first_name, last_name, email, position, student_number, employee_number, college, department, course, status, is_coop_member</code>';
+                    break;
+            }
+            ?>
+          </p>
+        </div>
+        
+        <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 class="font-medium text-blue-800 mb-2">Admin Scope Restrictions:</h3>
+          <p class="text-sm text-blue-700">
+            <?php
+            switch ($adminType) {
+                case 'admin_students':
+                    if ($assignedScope === 'CSG ADMIN') {
+                        echo "As a CSG Admin, you can upload students from all colleges.";
+                    } else {
+                        echo "As a College Admin, you can only upload students from your assigned college: <strong>$assignedScope</strong>.";
+                    }
+                    echo " You can only upload users with position 'student'.";
+                    break;
+                case 'admin_academic':
+                    echo "As a Faculty Association Admin, you can only upload users with position 'academic'.";
+                    break;
+                case 'admin_non_academic':
+                    echo "As a Non-Academic Admin, you can only upload users with position 'non-academic'.";
+                    break;
+                case 'admin_coop':
+                    echo "As a COOP Admin, you can only upload users with positions 'academic' or 'non-academic' who are COOP members.";
+                    break;
+                case 'super_admin':
+                    echo "As a Super Admin, you can upload users with any position.";
+                    break;
+                default:
+                    echo "As a General Admin, you can upload users with any position.";
                     break;
             }
             ?>

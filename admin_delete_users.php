@@ -71,7 +71,7 @@ else if ($assignedScope === 'FACULTY ASSOCIATION') {
     }
 }
 // Non-Academic Admin can only delete non-academic staff
-else if ($assignedScope === 'NON_ACADEMIC') {
+else if ($assignedScope === 'NON-ACADEMIC') {
     if ($userToDelete['position'] === 'non-academic') {
         $hasPermission = true;
     }

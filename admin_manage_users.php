@@ -125,6 +125,63 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
     .gradient-bg {
       background: linear-gradient(135deg, var(--cvsu-green-dark) 0%, var(--cvsu-green) 100%);
     }
+    
+    .btn-primary {
+      background-color: var(--cvsu-green);
+      transition: all 0.3s ease;
+    }
+    
+    .btn-primary:hover {
+      background-color: var(--cvsu-green-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn-danger {
+      background-color: #ef4444;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-danger:hover {
+      background-color: #dc2626;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn-warning {
+      background-color: #f59e0b;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-warning:hover {
+      background-color: #d97706;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn-info {
+      background-color: #3b82f6;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-info:hover {
+      background-color: #2563eb;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    
+    .table-hover tbody tr:hover {
+      background-color: #f3f4f6;
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
@@ -168,11 +225,19 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
             </p>
           </div>
         </div>
-        <!-- In manage_users.php, find this section in the header -->
         <div class="flex items-center gap-4">
-          <a href="admin_add_user.php" class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded font-semibold transition">Add User</a>
-          <!-- Add this new button -->
-          <a href="admin_restrict_users.php" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-semibold transition">Restrict Users</a>
+          <a href="admin_add_user.php" class="btn-primary text-white px-4 py-2 rounded font-semibold transition">
+            <i class="fas fa-user-plus mr-2"></i>Add User
+          </a>
+          <a href="admin_restrict_users.php" class="btn-danger text-white px-4 py-2 rounded font-semibold transition">
+            <i class="fas fa-user-slash mr-2"></i>Restrict Users
+          </a>
+          <!-- MIGS Status button for COOP admin -->
+          <?php if ($assignedScope === 'COOP'): ?>
+            <a href="admin_migs_status.php" class="btn-info text-white px-4 py-2 rounded font-semibold transition">
+              <i class="fas fa-id-card mr-2"></i>MIGS Status
+            </a>
+          <?php endif; ?>
         </div>
       </header>
       
@@ -253,7 +318,7 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
       
       <!-- Users Table -->
       <div class="overflow-x-auto bg-white rounded shadow-lg">
-        <table class="min-w-full table-auto">
+        <table class="min-w-full table-auto table-hover">
           <thead class="bg-[var(--cvsu-green)] text-white">
             <tr>
               <?php foreach ($columns as $column): ?>
@@ -346,9 +411,13 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
                   <?php if (in_array('MIGS Status', $columns)): ?>
                   <td class="py-3 px-6">
                     <?php if ($user['migs_status'] == 1): ?>
-                      <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">MIGS</span>
+                      <span class="status-badge bg-green-100 text-green-800">
+                        <i class="fas fa-check-circle mr-1"></i>MIGS
+                      </span>
                     <?php else: ?>
-                      <span class="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded">Non-MIGS</span>
+                      <span class="status-badge bg-gray-100 text-gray-800">
+                        <i class="fas fa-times-circle mr-1"></i>Non-MIGS
+                      </span>
                     <?php endif; ?>
                   </td>
                   <?php endif; ?>
@@ -371,8 +440,20 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
                       class="text-blue-500 hover:text-blue-600 font-semibold">
                       <i class="fas fa-edit mr-1"></i>Edit
                     </button>
-                    <a href="admin_delete_users.php?user_id=<?= $user['user_id'] ?>" class="text-red-600 hover:text-red-700 font-semibold" onclick="return confirm('Are you sure you want to delete this user?');">
-                        <i class="fas fa-trash mr-1"></i>Delete
+                    
+                    <!-- MIGS toggle button for COOP admin -->
+                    <?php if ($assignedScope === 'COOP'): ?>
+                      <a href="admin_toggle_migs.php?user_id=<?= $user['user_id'] ?>" 
+                         class="btn-warning text-white px-3 py-1 rounded font-semibold" 
+                         onclick="return confirm('Are you sure you want to toggle MIGS status for this user?');">
+                        <i class="fas fa-sync-alt mr-1"></i>Toggle MIGS
+                      </a>
+                    <?php endif; ?>
+                    
+                    <a href="admin_delete_users.php?user_id=<?= $user['user_id'] ?>" 
+                       class="btn-danger text-white px-3 py-1 rounded font-semibold" 
+                       onclick="return confirm('Are you sure you want to delete this user?');">
+                      <i class="fas fa-trash mr-1"></i>Delete
                     </a>
                   </td>
                 </tr>
