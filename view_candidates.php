@@ -15,7 +15,8 @@ date_default_timezone_set('Asia/Manila');
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (\PDOException $e) {
-    die("Database connection failed: " . $e->getMessage());
+    header("Location: error.php?message=database_connection_failed");
+    exit();
 }
 
 // Redirect if not logged in or not a voter
@@ -27,7 +28,8 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'voter') {
 // Get election ID from URL
  $election_id = isset($_GET['election_id']) ? (int)$_GET['election_id'] : 0;
 if ($election_id <= 0) {
-    die("Invalid election ID");
+    header("Location: error.php?message=invalid_election_id");
+    exit();
 }
 
 // Fetch election details
@@ -35,14 +37,14 @@ if ($election_id <= 0) {
  $stmt->execute([$election_id]);
  $election = $stmt->fetch();
 if (!$election) {
-    die("Election not found");
+    header("Location: error.php?message=election_not_found");
+    exit();
 }
 
 // Check if user has already voted in this election
  $stmt = $pdo->prepare("SELECT * FROM votes WHERE voter_id = ? AND election_id = ?");
  $stmt->execute([$_SESSION['user_id'], $election_id]);
 if ($stmt->fetch()) {
-    // Instead of showing an error, redirect to dashboard with a message
     header("Location: voters_dashboard.php?message=already_voted");
     exit();
 }
@@ -52,9 +54,38 @@ if ($stmt->fetch()) {
  $start = $election['start_datetime'];
  $end = $election['end_datetime'];
 if ($now < $start) {
-    die("This election has not started yet");
+    header("Location: error.php?message=election_not_started");
+    exit();
 } elseif ($now > $end) {
-    die("This election has already ended");
+    header("Location: error.php?message=election_ended");
+    exit();
+}
+
+// Check if this is a COOP election and verify MIGS status
+if ($election['target_position'] === 'coop') {
+    $stmt = $pdo->prepare("SELECT migs_status FROM users WHERE user_id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $voterData = $stmt->fetch();
+    
+    if (($voterData['migs_status'] ?? 0) != 1) {
+        header("Location: error.php?message=not_migs_member");
+        exit();
+    }
+}
+
+// Calculate time remaining
+ $endDateTime = new DateTime($election['end_datetime']);
+ $now = new DateTime();
+ $interval = $now->diff($endDateTime);
+
+if ($interval->days > 0) {
+    $timeLeft = $interval->days . " day" . ($interval->days > 1 ? "s" : "") . " left";
+} elseif ($interval->h > 0) {
+    $timeLeft = $interval->h . " hour" . ($interval->h > 1 ? "s" : "") . " left";
+} elseif ($interval->i > 0) {
+    $timeLeft = $interval->i . " minute" . ($interval->i > 1 ? "s" : "") . " left";
+} else {
+    $timeLeft = "Less than a minute left";
 }
 
 // Get candidates for this election through election_candidates table
@@ -135,6 +166,45 @@ try {
         ];
     }
     
+    // Get position types for all positions
+    $positionIds = array_keys($positions);
+    $placeholders = implode(',', array_fill(0, count($positionIds), '?'));
+    
+    $stmt = $pdo->prepare("
+        SELECT pt.position_id, pt.position_name, pt.allow_multiple, pt.max_votes
+        FROM position_types pt
+        WHERE (pt.position_id IN ($placeholders) AND pt.position_name = '')
+           OR (pt.position_id = 0 AND pt.position_name IN ($placeholders))
+    ");
+    $stmt->execute(array_merge($positionIds, $positionIds));
+    $positionTypes = [];
+    
+    while ($row = $stmt->fetch()) {
+        if ($row['position_id'] > 0) {
+            $positionTypes[$row['position_id']] = [
+                'allow_multiple' => (bool)$row['allow_multiple'],
+                'max_votes' => (int)$row['max_votes']
+            ];
+        } else {
+            $positionTypes[$row['position_name']] = [
+                'allow_multiple' => (bool)$row['allow_multiple'],
+                'max_votes' => (int)$row['max_votes']
+            ];
+        }
+    }
+    
+    // Add position type info to positions array
+    foreach ($positions as $key => $position) {
+        if (isset($positionTypes[$key])) {
+            $positions[$key]['allow_multiple'] = $positionTypes[$key]['allow_multiple'];
+            $positions[$key]['max_votes'] = $positionTypes[$key]['max_votes'];
+        } else {
+            // Default to single vote if not specified
+            $positions[$key]['allow_multiple'] = false;
+            $positions[$key]['max_votes'] = 1;
+        }
+    }
+    
     // Reindex positions array
     $positions = array_values($positions);
     
@@ -143,50 +213,6 @@ try {
     $electionCandidates = [];
     $candidatesByPosition = [];
     $positions = [];
-}
-
-// Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Validate that a candidate is selected for each position
-    $selectedCandidates = $_POST['candidates'] ?? [];
-    $validSelection = true;
-    
-    foreach ($positions as $position) {
-        $positionId = $position['position_id'];
-        if (!isset($selectedCandidates[$positionId]) || empty($selectedCandidates[$positionId])) {
-            $validSelection = false;
-            break;
-        }
-    }
-    
-    if ($validSelection) {
-        try {
-            // Start transaction
-            $pdo->beginTransaction();
-            
-            // Record the vote for each position
-            foreach ($selectedCandidates as $positionId => $candidateId) {
-                $stmt = $pdo->prepare("
-                    INSERT INTO votes (voter_id, election_id, candidate_id, position_id, vote_datetime)
-                    VALUES (?, ?, ?, ?, NOW())
-                ");
-                $stmt->execute([$_SESSION['user_id'], $election_id, $candidateId, $positionId]);
-            }
-            
-            // Commit transaction
-            $pdo->commit();
-            
-            // Redirect to success page
-            header("Location: vote_success.php?election_id=" . $election_id);
-            exit();
-        } catch (\PDOException $e) {
-            // Rollback transaction on error
-            $pdo->rollBack();
-            die("Error recording your vote: " . $e->getMessage());
-        }
-    } else {
-        $error = "Please select a candidate for each position before submitting your vote.";
-    }
 }
 
 include 'voters_sidebar.php';
@@ -252,7 +278,8 @@ include 'voters_sidebar.php';
       border-top-color: var(--cvsu-green);
     }
     
-    .candidate-card input[type="radio"] {
+    .candidate-card input[type="radio"], 
+    .candidate-card input[type="checkbox"] {
       margin: 0 auto;
       display: block;
       transform: scale(1.5); /* Make radio buttons larger for better visibility */
@@ -267,7 +294,7 @@ include 'voters_sidebar.php';
     
     .status-badge {
       display: inline-flex;
-      align-items: center;
+      items-center: center;
       padding: 0.25rem 0.75rem;
       border-radius: 9999px;
       font-weight: 600;
@@ -353,6 +380,17 @@ include 'voters_sidebar.php';
       border-top: 1px solid rgba(0,0,0,0.05);
       transition: all 0.3s ease;
     }
+    
+    .notification-banner {
+      transition: all 0.3s ease;
+    }
+    
+    .selection-counter {
+      text-align: center;
+      margin-top: 0.5rem;
+      font-weight: 600;
+      color: var(--cvsu-green);
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
@@ -377,6 +415,24 @@ include 'voters_sidebar.php';
         </div>
       </header>
       
+      <!-- COOP Election Notification -->
+      <?php if ($election['target_position'] === 'coop'): ?>
+        <div class="bg-green-50 border-l-4 border-green-500 p-4 mb-6 notification-banner">
+          <div class="flex items-center">
+            <i class="fas fa-info-circle text-green-500 mr-2"></i>
+            <p class="text-green-700">This is a COOP election. Only members with MIGS status can vote.</p>
+          </div>
+        </div>
+      <?php endif; ?>
+      
+      <!-- Time Remaining Notification -->
+      <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6 notification-banner">
+        <div class="flex items-center">
+          <i class="fas fa-clock text-yellow-500 mr-2"></i>
+          <p class="text-yellow-700">Election ends in: <?= $timeLeft ?></p>
+        </div>
+      </div>
+      
       <!-- Error Message -->
       <?php if (isset($error)): ?>
         <div class="error-message mb-6">
@@ -392,7 +448,7 @@ include 'voters_sidebar.php';
           <div>
             <h3 class="font-semibold text-blue-800 mb-1">How to Vote</h3>
             <ol class="list-decimal list-inside text-blue-700 text-sm space-y-1">
-              <li>Select one candidate for each position</li>
+              <li>Select one candidate for each position (or up to the allowed number for multi-candidate positions)</li>
               <li>Review your selections before submitting</li>
               <li>Click "Submit Your Vote" to finalize your vote</li>
             </ol>
@@ -450,6 +506,11 @@ include 'voters_sidebar.php';
                 <span class="inline-flex items-center px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
                   <i class="fas fa-user-check mr-1 text-xs"></i> <?= htmlspecialchars($election['allowed_status']) ?>
                 </span>
+                <?php if ($election['target_position'] === 'coop'): ?>
+                  <span class="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                    <i class="fas fa-users-cog mr-1 text-xs"></i> COOP Election (MIGS Members Only)
+                  </span>
+                <?php endif; ?>
               </div>
             </div>
           </div>
@@ -462,7 +523,7 @@ include 'voters_sidebar.php';
         <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 mb-8">
           <div class="p-5 border-b bg-gradient-to-r from-[var(--cvsu-green-dark)] to-[var(--cvsu-green)] text-white">
             <h2 class="text-xl font-bold">Select Your Candidates</h2>
-            <p class="text-green-100 text-sm">Please select one candidate for each position</p>
+            <p class="text-green-100 text-sm">Please select candidates for each position</p>
           </div>
           
           <div class="p-5">
@@ -477,7 +538,13 @@ include 'voters_sidebar.php';
                 <div class="position-section">
                   <div class="position-header">
                     <h3 class="text-lg font-bold"><?= htmlspecialchars($position['position_name']) ?></h3>
-                    <p class="text-sm text-green-100">Select one candidate</p>
+                    <p class="text-sm text-green-100">
+                      <?php if ($position['allow_multiple']): ?>
+                        Select up to <?= $position['max_votes'] ?> candidates
+                      <?php else: ?>
+                        Select one candidate
+                      <?php endif; ?>
+                    </p>
                   </div>
                   
                   <?php if (empty($candidatesByPosition[$position['position_id']])): ?>
@@ -485,7 +552,8 @@ include 'voters_sidebar.php';
                       <p class="text-gray-600">No candidates available for this position.</p>
                     </div>
                   <?php else: ?>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" role="radiogroup" aria-labelledby="position-<?= htmlspecialchars($position['position_id']) ?>">
+                      <h3 id="position-<?= htmlspecialchars($position['position_id']) ?>" class="sr-only"><?= htmlspecialchars($position['position_name']) ?></h3>
                       <?php foreach ($candidatesByPosition[$position['position_id']] as $candidate): ?>
                         <div class="candidate-card">
                           <label for="candidate_<?= htmlspecialchars($candidate['candidate_id']) ?>" class="card-content block">
@@ -532,17 +600,35 @@ include 'voters_sidebar.php';
                             </div>
                           </label>
                           
-                          <!-- Radio Button at the Bottom -->
+                          <!-- Radio/Checkbox Button at the Bottom -->
                           <div class="radio-container">
-                            <input type="radio" 
-                                   name="candidates[<?= htmlspecialchars($position['position_id']) ?>]" 
-                                   value="<?= htmlspecialchars($candidate['candidate_id']) ?>" 
-                                   id="candidate_<?= htmlspecialchars($candidate['candidate_id']) ?>"
-                                   required>
+                            <?php if ($position['allow_multiple']): ?>
+                              <input type="checkbox" 
+                                     name="candidates[<?= htmlspecialchars($position['position_id']) ?>][]" 
+                                     value="<?= htmlspecialchars($candidate['candidate_id']) ?>" 
+                                     id="candidate_<?= htmlspecialchars($candidate['candidate_id']) ?>"
+                                     data-position="<?= htmlspecialchars($position['position_id']) ?>"
+                                     data-max-votes="<?= $position['max_votes'] ?>"
+                                     aria-label="Vote for <?= htmlspecialchars($candidate['candidate_name']) ?>">
+                            <?php else: ?>
+                              <input type="radio" 
+                                     name="candidates[<?= htmlspecialchars($position['position_id']) ?>]" 
+                                     value="<?= htmlspecialchars($candidate['candidate_id']) ?>" 
+                                     id="candidate_<?= htmlspecialchars($candidate['candidate_id']) ?>"
+                                     required
+                                     aria-label="Vote for <?= htmlspecialchars($candidate['candidate_name']) ?>">
+                            <?php endif; ?>
                           </div>
                         </div>
                       <?php endforeach; ?>
                     </div>
+                    
+                    <!-- Selection counter for multi-candidate positions -->
+                    <?php if ($position['allow_multiple']): ?>
+                      <div class="selection-counter" id="counter-<?= htmlspecialchars($position['position_id']) ?>">
+                        0 / <?= $position['max_votes'] ?> selected
+                      </div>
+                    <?php endif; ?>
                   <?php endif; ?>
                 </div>
               <?php endforeach; ?>
@@ -591,7 +677,7 @@ include 'voters_sidebar.php';
       sidebar.classList.toggle('open');
     }
     
-    // Handle candidate selection
+    // Handle candidate selection for radio buttons
     document.querySelectorAll('.candidate-card input[type="radio"]').forEach(radio => {
       radio.addEventListener('change', function() {
         // Remove selected class from all cards in the same position
@@ -607,23 +693,123 @@ include 'voters_sidebar.php';
       });
     });
     
+    // Handle candidate selection for checkboxes
+    document.querySelectorAll('.candidate-card input[type="checkbox"]').forEach(checkbox => {
+      checkbox.addEventListener('change', function() {
+        const positionId = this.dataset.position;
+        const maxVotes = parseInt(this.dataset.maxVotes);
+        const checkboxes = document.querySelectorAll(`input[type="checkbox"][data-position="${positionId}"]`);
+        const checkedCount = document.querySelectorAll(`input[type="checkbox"][data-position="${positionId}"]:checked`).length;
+        
+        // Update selection counter
+        const counter = document.getElementById(`counter-${positionId}`);
+        if (counter) {
+          counter.textContent = `${checkedCount} / ${maxVotes} selected`;
+        }
+        
+        // Prevent selecting more than allowed
+        if (checkedCount > maxVotes) {
+          this.checked = false;
+          alert(`You can only select up to ${maxVotes} candidates for this position`);
+          
+          // Update counter again
+          const newCheckedCount = document.querySelectorAll(`input[type="checkbox"][data-position="${positionId}"]:checked`).length;
+          if (counter) {
+            counter.textContent = `${newCheckedCount} / ${maxVotes} selected`;
+          }
+        }
+        
+        // Toggle selected class
+        if (this.checked) {
+          this.closest('.candidate-card').classList.add('selected');
+        } else {
+          this.closest('.candidate-card').classList.remove('selected');
+        }
+      });
+    });
+    
     // Confirmation modal handling
     const votingForm = document.getElementById('votingForm');
     const confirmModal = document.getElementById('confirmModal');
     const cancelVote = document.getElementById('cancelVote');
     const confirmVote = document.getElementById('confirmVote');
-    
+
     votingForm.addEventListener('submit', function(e) {
       e.preventDefault();
       confirmModal.classList.remove('hidden');
     });
-    
+
     cancelVote.addEventListener('click', function() {
       confirmModal.classList.add('hidden');
     });
-    
+
     confirmVote.addEventListener('click', function() {
-      votingForm.submit();
+      // Collect form data
+      const formData = new FormData(votingForm);
+      const votes = {};
+      
+      // Convert FormData to votes object
+      for (let [key, value] of formData.entries()) {
+        if (key.startsWith('candidates[')) {
+          const positionMatch = key.match(/candidates\[(.*?)\]/);
+          if (positionMatch) {
+            const positionId = positionMatch[1];
+            
+            if (!votes[positionId]) {
+              votes[positionId] = [];
+            }
+            
+            votes[positionId].push(value);
+          }
+        }
+      }
+      
+      // Convert single selections to single values
+      Object.keys(votes).forEach(positionId => {
+        if (votes[positionId].length === 1) {
+          votes[positionId] = votes[positionId][0];
+        }
+      });
+      
+      // Show loading state
+      const submitBtn = document.querySelector('.submit-btn');
+      const originalBtnText = submitBtn.innerHTML;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Processing...';
+      
+      // Send vote data to server
+      fetch('process_vote.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          election_id: <?= $election_id ?>,
+          votes: votes
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success') {
+          // Redirect to success page
+          window.location.href = 'vote_success.php?election_id=<?= $election_id ?>';
+        } else {
+          // Show error message
+          alert(data.message || 'Error submitting your vote');
+          // Reset button state
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalBtnText;
+          confirmModal.classList.add('hidden');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while submitting your vote. Please try again.');
+        // Reset button state
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnText;
+        confirmModal.classList.add('hidden');
+      });
     });
   </script>
 </body>

@@ -52,7 +52,7 @@ function sendMigsStatusEmail($userEmail, $userName, $newStatus) {
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
         
-        $mail->setFrom('makimaki.maki123567@gmail.com', 'CVSU eVoting System');
+        $mail->setFrom('makimaki.maki123567@gmail.com', 'Ebalota');
         $mail->addAddress($userEmail, $userName);
         
         $mail->isHTML(true);
