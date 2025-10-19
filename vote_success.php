@@ -2,6 +2,18 @@
 session_start();
 date_default_timezone_set('Asia/Manila');
 
+// PHPMailer namespace declarations
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+use PHPMailer\PHPMailer\SMTP;
+
+// IDAGDAG MO ITO: Require PHPMailer files
+require 'phpmailer/src/PHPMailer.php';
+require 'phpmailer/src/SMTP.php';
+require 'phpmailer/src/Exception.php';
+
+// Rest of your code...
+
 // Redirect if not logged in or not a voter
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'voter') {
     header("Location: login.html");
@@ -46,7 +58,7 @@ if (!$election) {
 }
 
 // Get voter details
- $stmt = $pdo->prepare("SELECT first_name, last_name FROM users WHERE user_id = ?");
+ $stmt = $pdo->prepare("SELECT first_name, last_name, email FROM users WHERE user_id = ?");
  $stmt->execute([$_SESSION['user_id']]);
  $voter = $stmt->fetch();
 
@@ -92,7 +104,7 @@ foreach ($voteDetails as $vote) {
         $positionName = "Position {$vote['position_id']}";
     }
     
-    // Format candidate name with middle initial
+    // Format candidate name with middle initial (if available)
     $candidateName = $vote['first_name'];
     if (!empty($vote['middle_name'])) {
         // Get the first character of middle name and add a period
@@ -104,6 +116,218 @@ foreach ($voteDetails as $vote) {
         $votesByPosition[$positionName] = [];
     }
     $votesByPosition[$positionName][] = $candidateName;
+}
+
+// Function to send vote receipt email
+function sendVoteReceiptEmail($voter, $election, $votesByPosition) {
+    // PHPMailer files are now included at the top of the file with use statements
+    
+    $to = $voter['email'];
+    $subject = "Vote Receipt - " . $election['title'];
+    
+    // Format voter name
+    $voterName = $voter['first_name'] . ' ' . $voter['last_name'];
+    
+    // Create HTML email body
+    $message = "
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Vote Receipt</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                margin: 0;
+                padding: 0;
+                background-color: #f5f5f5;
+            }
+            .container {
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+            .header {
+                background: linear-gradient(135deg, #1E6F46 0%, #154734 100%);
+                color: white;
+                padding: 30px;
+                text-align: center;
+                border-radius: 10px 10px 0 0;
+            }
+            .content {
+                background-color: white;
+                padding: 30px;
+                border-radius: 0 0 10px 10px;
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            }
+            .vote-details {
+                background-color: #f9f9f9;
+                padding: 20px;
+                border-radius: 8px;
+                margin: 20px 0;
+            }
+            .position {
+                font-weight: bold;
+                color: #1E6F46;
+                margin-bottom: 10px;
+                font-size: 18px;
+            }
+            .candidate {
+                margin-bottom: 8px;
+                padding-left: 20px;
+                position: relative;
+            }
+            .candidate:before {
+                content: '✓';
+                position: absolute;
+                left: 0;
+                color: #1E6F46;
+                font-weight: bold;
+            }
+            .election-info {
+                background-color: #f0f9ff;
+                border-left: 4px solid #0ea5e9;
+                padding: 15px;
+                margin: 20px 0;
+                border-radius: 0 8px 8px 0;
+            }
+            .notice {
+                background-color: #fff3cd;
+                border-left: 4px solid #ffc107;
+                padding: 15px;
+                margin: 20px 0;
+                border-radius: 0 8px 8px 0;
+            }
+            .footer {
+                text-align: center;
+                padding-top: 20px;
+                margin-top: 20px;
+                border-top: 1px solid #eee;
+                font-size: 12px;
+                color: #777;
+            }
+            .thank-you {
+                text-align: center;
+                margin: 30px 0;
+            }
+            .thank-you h2 {
+                color: #1E6F46;
+                margin-bottom: 10px;
+            }
+            .voter-info {
+                background-color: #f0f0f0;
+                padding: 15px;
+                border-radius: 8px;
+                margin: 20px 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='header'>
+                <h1>Vote Receipt</h1>
+                <p>Thank you for participating in the election</p>
+            </div>
+            
+            <div class='content'>
+                <div class='thank-you'>
+                    <h2>Thank You for Voting!</h2>
+                    <p>Your vote has been successfully recorded</p>
+                </div>
+                
+                <div class='voter-info'>
+                    <h3>Voter Information</h3>
+                    <p><strong>Name:</strong> $voterName</p>
+                    <p><strong>Voter ID:</strong> {$_SESSION['user_id']}</p>
+                    <p><strong>Email:</strong> {$voter['email']}</p>
+                </div>
+                
+                <div class='election-info'>
+                    <h3>Election Information</h3>
+                    <p><strong>Election Title:</strong> " . htmlspecialchars($election['title']) . "</p>
+                    <p><strong>Election Period:</strong> " . date("M d, Y h:i A", strtotime($election['start_datetime'])) . " - " . date("M d, Y h:i A", strtotime($election['end_datetime'])) . "</p>
+                    <p><strong>Target Participants:</strong> " . htmlspecialchars($election['target_department']) . "</p>
+                </div>
+                
+                <div class='vote-details'>
+                    <h3>Your Vote Summary</h3>";
+    
+    // Add each vote detail
+    foreach ($votesByPosition as $position => $candidates) {
+        $message .= "
+                    <div class='position'>" . htmlspecialchars($position) . "</div>";
+        
+        foreach ($candidates as $candidate) {
+            $message .= "
+                    <div class='candidate'>" . htmlspecialchars($candidate) . "</div>";
+        }
+    }
+    
+    $message .= "
+                </div>
+                
+                <div class='notice'>
+                    <h3>Important Notice</h3>
+                    <ul>
+                        <li>Your vote is final and cannot be changed</li>
+                        <li>You have already voted in this election</li>
+                        <li>Please keep this email as your receipt</li>
+                        <li>Election results will be announced after the voting period ends</li>
+                    </ul>
+                </div>
+                
+                <div class='footer'>
+                    <p>This is an automated message. Please do not reply to this email.</p>
+                    <p>&copy; " . date('Y') . " eBalota Voting System | Cavite State University</p>
+                    <p>Generated on: " . date('F d, Y h:i A') . "</p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>";
+    
+    try {
+        $mail = new PHPMailer(true);
+        $mail->isSMTP();
+        $mail->Host = 'smtp.gmail.com';
+        $mail->SMTPAuth = true;
+        $mail->Username = 'ebalota9@gmail.com';
+        $mail->Password = 'qxdqbjttedtqkujz';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port = 587;
+        
+        // Use the same From address as in your working code
+        $mail->setFrom('ebalota9@gmail.com', 'eBalota');
+        $mail->addAddress($to, $voterName);
+        
+        $mail->isHTML(true);
+        $mail->Subject = $subject;
+        $mail->Body = $message;
+        $mail->AltBody = "Vote Receipt for $voterName\n\nYour vote has been successfully recorded in the election: " . $election['title'];
+        
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        error_log("Email sending failed to $to: " . $mail->ErrorInfo);
+        return false;
+    }
+}
+
+// Handle email receipt request
+if (isset($_POST['send_receipt'])) {
+    $emailSent = sendVoteReceiptEmail($voter, $election, $votesByPosition);
+    
+    if ($emailSent) {
+        $_SESSION['message'] = "Vote receipt has been sent to your email: " . htmlspecialchars($voter['email']);
+        $_SESSION['message_type'] = "success";
+    } else {
+        $_SESSION['message'] = "Failed to send vote receipt. Please check your email configuration.";
+        $_SESSION['message_type'] = "error";
+    }
+    
+    header("Location: vote_success.php?election_id=$election_id");
+    exit();
 }
 
 include 'voters_sidebar.php';
@@ -183,6 +407,34 @@ include 'voters_sidebar.php';
         transform: translateY(100vh) rotate(360deg);
       }
     }
+    
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 15px 20px;
+      border-radius: 8px;
+      color: white;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 1000;
+      opacity: 0;
+      transform: translateY(-20px);
+      transition: all 0.3s ease;
+    }
+    
+    .notification.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    .notification.success {
+      background-color: #10b981;
+    }
+    
+    .notification.error {
+      background-color: #ef4444;
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
@@ -206,6 +458,17 @@ include 'voters_sidebar.php';
           </a>
         </div>
       </header>
+      
+      <!-- Notification Message -->
+      <?php if (isset($_SESSION['message'])): ?>
+        <div id="notification" class="notification <?php echo $_SESSION['message_type'] === 'success' ? 'success' : 'error'; ?> show">
+          <div class="flex items-center">
+            <i class="fas <?php echo $_SESSION['message_type'] === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'; ?> mr-2"></i>
+            <?php echo htmlspecialchars($_SESSION['message']); ?>
+          </div>
+        </div>
+        <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
+      <?php endif; ?>
       
       <!-- Success Card -->
       <div class="max-w-4xl mx-auto">
@@ -268,11 +531,13 @@ include 'voters_sidebar.php';
           
           <!-- Action Buttons -->
           <div class="flex flex-col sm:flex-row gap-4 justify-center">
-            <button onclick="window.print()" class="bg-white text-[var(--cvsu-green-dark)] hover:bg-gray-100 font-bold py-3 px-6 rounded-lg flex items-center justify-center transition">
-              <i class="fas fa-print mr-2"></i> Print Receipt
-            </button>
+            <form method="post" class="w-full sm:w-auto">
+              <button type="submit" name="send_receipt" class="bg-white text-[var(--cvsu-green-dark)] hover:bg-gray-100 font-bold py-3 px-6 rounded-lg flex items-center justify-center transition w-full">
+                <i class="fas fa-envelope mr-2"></i> Email Receipt
+              </button>
+            </form>
             <a href="voters_dashboard.php" class="bg-[var(--cvsu-green-light)] hover:bg-[var(--cvsu-green-dark)] text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center transition">
-              <i class="fas fa-home mr-2"></i> Go to Dashboard
+              <i class="fas fa-home mr-2"></i> Back to Dashboard
             </a>
           </div>
         </div>
@@ -337,6 +602,16 @@ include 'voters_sidebar.php';
     
     // Create more confetti when clicking the success card
     document.querySelector('.success-card').addEventListener('click', createConfetti);
+    
+    // Auto-hide notification after 5 seconds
+    window.addEventListener('load', function() {
+      const notification = document.getElementById('notification');
+      if (notification && notification.classList.contains('show')) {
+        setTimeout(() => {
+          notification.classList.remove('show');
+        }, 5000);
+      }
+    });
   </script>
 </body>
 </html>
