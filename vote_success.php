@@ -435,6 +435,73 @@ include 'voters_sidebar.php';
     .notification.error {
       background-color: #ef4444;
     }
+    
+    /* Custom CSS for equal button sizing and alignment */
+    .btn-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    @media (min-width: 640px) {
+      .btn-container {
+        flex-direction: row;
+      }
+    }
+    
+    .btn-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .equal-btn {
+      width: 220px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0.5rem;
+      font-weight: 700;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    
+    .equal-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .btn-email {
+      background-color: white;
+      color: var(--cvsu-green-dark);
+    }
+    
+    .btn-email:hover {
+      background-color: #f3f4f6;
+    }
+    
+    .btn-dashboard {
+      background-color: var(--cvsu-green-light);
+      color: white;
+    }
+    
+    .btn-dashboard:hover {
+      background-color: var(--cvsu-green-dark);
+    }
+    
+    /* Reset form margins */
+    form {
+      margin: 0;
+      padding: 0;
+      display: inline;
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
@@ -530,15 +597,19 @@ include 'voters_sidebar.php';
           </div>
           
           <!-- Action Buttons -->
-          <div class="flex flex-col sm:flex-row gap-4 justify-center">
-            <form method="post" class="w-full sm:w-auto">
-              <button type="submit" name="send_receipt" class="bg-white text-[var(--cvsu-green-dark)] hover:bg-gray-100 font-bold py-3 px-6 rounded-lg flex items-center justify-center transition w-full">
-                <i class="fas fa-envelope mr-2"></i> Email Receipt
-              </button>
-            </form>
-            <a href="voters_dashboard.php" class="bg-[var(--cvsu-green-light)] hover:bg-[var(--cvsu-green-dark)] text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center transition">
-              <i class="fas fa-home mr-2"></i> Back to Dashboard
-            </a>
+          <div class="btn-container">
+            <div class="btn-wrapper">
+              <form method="post">
+                <button type="submit" name="send_receipt" class="equal-btn btn-email">
+                  <i class="fas fa-envelope mr-2"></i> Email Receipt
+                </button>
+              </form>
+            </div>
+            <div class="btn-wrapper">
+              <a href="voters_dashboard.php" class="equal-btn btn-dashboard">
+                <i class="fas fa-home mr-2"></i> Back to Dashboard
+              </a>
+            </div>
           </div>
         </div>
         
