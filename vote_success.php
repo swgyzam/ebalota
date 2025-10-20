@@ -62,9 +62,41 @@ if (!$election) {
  $stmt->execute([$_SESSION['user_id']]);
  $voter = $stmt->fetch();
 
-// Get the votes this user just cast in this election
+// Get all positions for this election
  $stmt = $pdo->prepare("
-    SELECT v.position_name, v.position_id, c.first_name, c.middle_name, c.last_name, v.vote_datetime
+    SELECT DISTINCT 
+        CASE 
+            WHEN v.position_id IS NOT NULL AND p.position_name IS NOT NULL 
+            THEN p.position_name 
+            ELSE v.position_name 
+        END as position_name,
+        CASE 
+            WHEN v.position_id IS NOT NULL 
+            THEN v.position_id 
+            ELSE v.position_name 
+        END as position_key,
+        CASE 
+            WHEN v.position_id IS NOT NULL 
+            THEN 'position_id' 
+            ELSE 'position_name' 
+        END as position_type
+    FROM votes v
+    LEFT JOIN positions p ON v.position_id = p.id
+    WHERE v.election_id = ? AND v.voter_id = ?
+    ORDER BY position_name
+");
+ $stmt->execute([$election_id, $_SESSION['user_id']]);
+ $allPositions = $stmt->fetchAll();
+
+// Get the votes this user cast in this election
+ $stmt = $pdo->prepare("
+    SELECT 
+        v.position_name,
+        v.position_id,
+        c.first_name,
+        c.middle_name,
+        c.last_name,
+        v.vote_datetime
     FROM votes v
     JOIN candidates c ON v.candidate_id = c.id
     WHERE v.election_id = ? AND v.voter_id = ?
@@ -73,53 +105,49 @@ if (!$election) {
  $stmt->execute([$election_id, $_SESSION['user_id']]);
  $voteDetails = $stmt->fetchAll();
 
-// Get all position names for custom positions
- $customPositionIds = [];
+// Create a map of voted positions
+ $votedPositions = [];
 foreach ($voteDetails as $vote) {
-    if ($vote['position_name'] === null && $vote['position_id'] !== null) {
-        $customPositionIds[] = $vote['position_id'];
-    }
+    $positionKey = !empty($vote['position_id']) ? $vote['position_id'] : $vote['position_name'];
+    $votedPositions[$positionKey] = true;
 }
 
- $positionNames = [];
-if (!empty($customPositionIds)) {
-    $placeholders = implode(',', array_fill(0, count($customPositionIds), '?'));
-    $stmt = $pdo->prepare("SELECT id, position_name FROM positions WHERE id IN ($placeholders)");
-    $stmt->execute($customPositionIds);
-    $positions = $stmt->fetchAll();
-    foreach ($positions as $position) {
-        $positionNames[$position['id']] = $position['position_name'];
-    }
-}
-
-// Group votes by position and format candidate names
+// Combine all positions with vote details
  $votesByPosition = [];
-foreach ($voteDetails as $vote) {
-    // Determine position name
-    if ($vote['position_name'] !== null) {
-        $positionName = $vote['position_name'];
-    } elseif (isset($positionNames[$vote['position_id']])) {
-        $positionName = $positionNames[$vote['position_id']];
-    } else {
-        $positionName = "Position {$vote['position_id']}";
-    }
-    
-    // Format candidate name with middle initial (if available)
-    $candidateName = $vote['first_name'];
-    if (!empty($vote['middle_name'])) {
-        // Get the first character of middle name and add a period
-        $candidateName .= ' ' . strtoupper(substr(trim($vote['middle_name']), 0, 1)) . '.';
-    }
-    $candidateName .= ' ' . $vote['last_name'];
+foreach ($allPositions as $position) {
+    $positionKey = $position['position_key'];
+    $positionName = $position['position_name'];
     
     if (!isset($votesByPosition[$positionName])) {
         $votesByPosition[$positionName] = [];
     }
-    $votesByPosition[$positionName][] = $candidateName;
+    
+    if (isset($votedPositions[$positionKey])) {
+        // This position was voted for
+        foreach ($voteDetails as $vote) {
+            $votePositionKey = !empty($vote['position_id']) ? $vote['position_id'] : $vote['position_name'];
+            if ($votePositionKey == $positionKey) {
+                // Format candidate name with middle initial (if available)
+                $candidateName = $vote['first_name'];
+                if (!empty($vote['middle_name'])) {
+                    // Get the first character of middle name and add a period
+                    $candidateName .= ' ' . strtoupper(substr(trim($vote['middle_name']), 0, 1)) . '.';
+                }
+                $candidateName .= ' ' . $vote['last_name'];
+                
+                $votesByPosition[$positionName][] = $candidateName;
+            }
+        }
+    } else {
+        // This position was skipped
+        $votesByPosition[$positionName][] = 'No Vote';
+    }
 }
 
-// Function to send vote receipt email with modern design
+// Function to send vote receipt email
 function sendVoteReceiptEmail($voter, $election, $votesByPosition) {
+    // PHPMailer files are now included at the top of the file with use statements
+    
     $to = $voter['email'];
     $subject = "Vote Receipt - " . $election['title'];
     
@@ -255,6 +283,16 @@ function sendVoteReceiptEmail($voter, $election, $votesByPosition) {
                 margin-right: 8px;
             }
             
+            .candidate-item.no-vote {
+                color: #dc2626;
+                font-style: italic;
+            }
+            
+            .candidate-item.no-vote:before {
+                content: '✗';
+                color: #dc2626;
+            }
+            
             /* Notice Styles */
             .notice {
                 background-color: #fff3cd;
@@ -369,8 +407,13 @@ function sendVoteReceiptEmail($voter, $election, $votesByPosition) {
                         <ul class=\"candidate-list\">";
         
         foreach ($candidates as $candidate) {
-            $message .= "
+            if ($candidate === 'No Vote') {
+                $message .= "
+                            <li class=\"candidate-item no-vote\">" . htmlspecialchars($candidate) . "</li>";
+            } else {
+                $message .= "
                             <li class=\"candidate-item\">" . htmlspecialchars($candidate) . "</li>";
+            }
         }
         
         $message .= "
@@ -491,6 +534,15 @@ include 'voters_sidebar.php';
     .vote-item:hover {
       background: rgba(255, 255, 255, 0.2);
       transform: translateY(-2px);
+    }
+    
+    .no-vote-item {
+      background: rgba(220, 38, 38, 0.1);
+      border: 1px solid rgba(220, 38, 38, 0.2);
+    }
+    
+    .no-vote-item:hover {
+      background: rgba(220, 38, 38, 0.2);
     }
     
     .pulse {
@@ -699,15 +751,27 @@ include 'voters_sidebar.php';
             <h3 class="text-2xl font-bold mb-6 text-center">Your Vote Summary</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <?php foreach ($votesByPosition as $position => $candidates): ?>
-                <div class="vote-item rounded-xl p-6">
-                  <h4 class="text-lg font-semibold mb-3"><?= htmlspecialchars($position) ?></h4>
-                  <?php foreach ($candidates as $candidate): ?>
-                    <div class="flex items-center mb-2">
-                      <i class="fas fa-check-circle text-green-300 mr-2"></i>
-                      <span><?= htmlspecialchars($candidate) ?></span>
-                    </div>
-                  <?php endforeach; ?>
-                </div>
+                <?php if (in_array('No Vote', $candidates)): ?>
+                  <div class="vote-item no-vote-item rounded-xl p-6">
+                    <h4 class="text-lg font-semibold mb-3"><?= htmlspecialchars($position) ?></h4>
+                    <?php foreach ($candidates as $candidate): ?>
+                      <div class="flex items-center mb-2">
+                        <i class="fas fa-times-circle text-red-300 mr-2"></i>
+                        <span><?= htmlspecialchars($candidate) ?></span>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                <?php else: ?>
+                  <div class="vote-item rounded-xl p-6">
+                    <h4 class="text-lg font-semibold mb-3"><?= htmlspecialchars($position) ?></h4>
+                    <?php foreach ($candidates as $candidate): ?>
+                      <div class="flex items-center mb-2">
+                        <i class="fas fa-check-circle text-green-300 mr-2"></i>
+                        <span><?= htmlspecialchars($candidate) ?></span>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                <?php endif; ?>
               <?php endforeach; ?>
             </div>
           </div>

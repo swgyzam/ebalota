@@ -391,6 +391,38 @@ include 'voters_sidebar.php';
       font-weight: 600;
       color: var(--cvsu-green);
     }
+    
+    /* Modal Styles */
+    .modal {
+      transition: opacity 0.3s ease;
+    }
+    
+    .modal-content {
+      animation: modalSlideIn 0.3s ease;
+    }
+    
+    @keyframes modalSlideIn {
+      from {
+        transform: translateY(-50px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+    
+    .modal-backdrop {
+      backdrop-filter: blur(5px);
+    }
+    
+    .position-item {
+      transition: all 0.2s ease;
+    }
+    
+    .position-item:hover {
+      transform: translateX(5px);
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
@@ -535,7 +567,7 @@ include 'voters_sidebar.php';
               </div>
             <?php else: ?>
               <?php foreach ($positions as $position): ?>
-                <div class="position-section">
+                <div class="position-section" data-position-id="<?= htmlspecialchars($position['position_id']) ?>" data-position-name="<?= htmlspecialchars($position['position_name']) ?>">
                   <div class="position-header">
                     <h3 class="text-lg font-bold"><?= htmlspecialchars($position['position_name']) ?></h3>
                     <p class="text-sm text-green-100">
@@ -644,21 +676,51 @@ include 'voters_sidebar.php';
         </div>
       </form>
       
+      <!-- Skipped Positions Modal -->
+      <div id="skippedPositionsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal">
+        <div class="bg-white rounded-2xl p-8 max-w-lg w-full mx-4 shadow-2xl modal-content">
+          <div class="text-center">
+            <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-exclamation-triangle text-yellow-600 text-2xl"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-gray-800 mb-2">Incomplete Votes</h3>
+            <p class="text-gray-600 mb-6">You haven't voted for the following positions. If this is intentional, please proceed.</p>
+            
+            <ul id="skippedPositionsList" class="mb-6 text-left max-h-60 overflow-y-auto">
+              <!-- Skipped positions will be added here dynamically -->
+            </ul>
+            
+            <div class="flex space-x-3">
+              <button type="button" id="cancelFromSkipped" class="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200">
+                Cancel
+              </button>
+              <button type="button" id="submitFromSkipped" class="flex-1 px-6 py-3 bg-yellow-600 text-white rounded-xl hover:bg-yellow-700 transition-all duration-200">
+                Submit Vote
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <!-- Confirmation Modal -->
-      <div id="confirmModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+      <div id="confirmationModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal">
+        <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 shadow-2xl modal-content max-h-[80vh] overflow-y-auto">
           <div class="text-center">
             <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <i class="fas fa-check text-green-600 text-2xl"></i>
             </div>
             <h3 class="text-2xl font-bold text-gray-800 mb-2">Confirm Your Vote</h3>
-            <p class="text-gray-600 mb-6">Are you sure you want to submit your vote? This action cannot be undone.</p>
+            <p class="text-gray-600 mb-6">Please review your selections before submitting. This action cannot be undone.</p>
+            
+            <ul id="confirmationList" class="mb-6 text-left max-h-60 overflow-y-auto">
+              <!-- All positions will be added here dynamically -->
+            </ul>
             
             <div class="flex space-x-3">
-              <button type="button" id="cancelVote" class="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200">
+              <button type="button" id="cancelFromConfirmation" class="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200">
                 Cancel
               </button>
-              <button type="button" id="confirmVote" class="flex-1 px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200">
+              <button type="button" id="confirmFromConfirmation" class="flex-1 px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200">
                 Confirm Vote
               </button>
             </div>
@@ -728,24 +790,193 @@ include 'voters_sidebar.php';
       });
     });
     
-    // Confirmation modal handling
-    const votingForm = document.getElementById('votingForm');
-    const confirmModal = document.getElementById('confirmModal');
-    const cancelVote = document.getElementById('cancelVote');
-    const confirmVote = document.getElementById('confirmVote');
-
-    votingForm.addEventListener('submit', function(e) {
+    // Function to check for skipped positions
+    function checkSkippedPositions() {
+      const allPositions = [];
+      const votedPositions = [];
+      const skippedPositions = [];
+      
+      // Get all positions from the DOM
+      document.querySelectorAll('.position-section').forEach(section => {
+        const positionHeader = section.querySelector('.position-header h3');
+        const positionName = positionHeader.textContent.trim();
+        const positionId = section.dataset.positionId;
+        
+        allPositions.push({
+          id: positionId,
+          name: positionName
+        });
+        
+        // Check if position has any votes
+        const hasVote = section.querySelector('input[type="radio"]:checked, input[type="checkbox"]:checked');
+        if (hasVote) {
+          votedPositions.push({
+            id: positionId,
+            name: positionName
+          });
+        } else {
+          skippedPositions.push({
+            id: positionId,
+            name: positionName
+          });
+        }
+      });
+      
+      return {
+        all: allPositions,
+        voted: votedPositions,
+        skipped: skippedPositions
+      };
+    }
+    
+    // Function to show the skipped positions modal
+    function showSkippedPositionsModal(skippedPositions) {
+      const modal = document.getElementById('skippedPositionsModal');
+      const skippedList = document.getElementById('skippedPositionsList');
+      
+      // Clear previous list
+      skippedList.innerHTML = '';
+      
+      // Add skipped positions to list
+      skippedPositions.forEach(position => {
+        const li = document.createElement('li');
+        li.className = 'py-2 px-4 bg-gray-50 rounded-lg mb-2 position-item';
+        li.innerHTML = `
+          <div class="flex items-center">
+            <i class="fas fa-exclamation-circle text-yellow-500 mr-3"></i>
+            <span class="font-medium">${position.name}</span>
+          </div>
+        `;
+        skippedList.appendChild(li);
+      });
+      
+      // Show modal
+      modal.classList.remove('hidden');
+    }
+    
+    // Function to show the confirmation modal
+    function showConfirmationModal(allPositions, votedPositions) {
+      const modal = document.getElementById('confirmationModal');
+      const confirmationList = document.getElementById('confirmationList');
+      
+      // Clear previous list
+      confirmationList.innerHTML = '';
+      
+      // Add all positions to list
+      allPositions.forEach(position => {
+        const li = document.createElement('li');
+        li.className = 'py-3 px-4 bg-gray-50 rounded-lg mb-3 position-item';
+        
+        const isVoted = votedPositions.some(vp => vp.id === position.id);
+        if (isVoted) {
+          // Get all selected candidates for this position (handle both radio and checkbox)
+          const selectedCandidates = document.querySelectorAll(`input[name^="candidates[${position.id}]"]:checked`);
+          
+          let candidateNames = [];
+          selectedCandidates.forEach(candidate => {
+            const candidateCard = candidate.closest('.candidate-card');
+            if (candidateCard) {
+              const nameElement = candidateCard.querySelector('.candidate-name');
+              if (nameElement) {
+                candidateNames.push(nameElement.textContent.trim());
+              }
+            }
+          });
+          
+          // If we have candidate names, display them
+          if (candidateNames.length > 0) {
+            // Join the names with commas
+            const namesString = candidateNames.join(', ');
+            li.innerHTML = `
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="font-medium text-gray-800">${position.name}</span>
+                  <div class="text-sm text-gray-600 mt-1">
+                    <i class="fas fa-check-circle text-green-500 mr-1"></i>
+                    ${namesString}
+                  </div>
+                </div>
+                <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                  Voted
+                </span>
+              </div>
+            `;
+          } else {
+            // Fallback if no candidate names found
+            li.innerHTML = `
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="font-medium text-gray-800">${position.name}</span>
+                  <div class="text-sm text-gray-600 mt-1">
+                    <i class="fas fa-check-circle text-green-500 mr-1"></i>
+                    Candidate selected
+                  </div>
+                </div>
+                <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                  Voted
+                </span>
+              </div>
+            `;
+          }
+        } else {
+          li.innerHTML = `
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="font-medium text-gray-800">${position.name}</span>
+                <div class="text-sm text-gray-600 mt-1">
+                  <i class="fas fa-times-circle text-red-500 mr-1"></i>
+                  No vote
+                </div>
+              </div>
+              <span class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">
+                Skipped
+              </span>
+            </div>
+          `;
+        }
+        
+        confirmationList.appendChild(li);
+      });
+      
+      // Show modal
+      modal.classList.remove('hidden');
+    }
+    
+    // Update the form submission handler
+    document.getElementById('votingForm').addEventListener('submit', function(e) {
       e.preventDefault();
-      confirmModal.classList.remove('hidden');
+      
+      // Check for skipped positions
+      const positions = checkSkippedPositions();
+      
+      if (positions.skipped.length > 0) {
+        // Show skipped positions modal
+        showSkippedPositionsModal(positions.skipped);
+      } else {
+        // Show confirmation modal directly
+        showConfirmationModal(positions.all, positions.voted);
+      }
     });
-
-    cancelVote.addEventListener('click', function() {
-      confirmModal.classList.add('hidden');
+    
+    // Add event listeners for modal buttons
+    document.getElementById('cancelFromSkipped').addEventListener('click', function() {
+      document.getElementById('skippedPositionsModal').classList.add('hidden');
     });
-
-    confirmVote.addEventListener('click', function() {
-      // Collect form data
-      const formData = new FormData(votingForm);
+    
+    document.getElementById('submitFromSkipped').addEventListener('click', function() {
+      document.getElementById('skippedPositionsModal').classList.add('hidden');
+      
+      const positions = checkSkippedPositions();
+      showConfirmationModal(positions.all, positions.voted);
+    });
+    
+    document.getElementById('cancelFromConfirmation').addEventListener('click', function() {
+      document.getElementById('confirmationModal').classList.add('hidden');
+    });
+    
+    document.getElementById('confirmFromConfirmation').addEventListener('click', function() {
+      // Submit the form
+      const formData = new FormData(document.getElementById('votingForm'));
       const votes = {};
       
       // Convert FormData to votes object
@@ -799,7 +1030,7 @@ include 'voters_sidebar.php';
           // Reset button state
           submitBtn.disabled = false;
           submitBtn.innerHTML = originalBtnText;
-          confirmModal.classList.add('hidden');
+          document.getElementById('confirmationModal').classList.add('hidden');
         }
       })
       .catch(error => {
@@ -808,7 +1039,7 @@ include 'voters_sidebar.php';
         // Reset button state
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalBtnText;
-        confirmModal.classList.add('hidden');
+        document.getElementById('confirmationModal').classList.add('hidden');
       });
     });
   </script>
