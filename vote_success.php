@@ -408,32 +408,48 @@ include 'voters_sidebar.php';
       }
     }
     
-    .notification {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      padding: 15px 20px;
-      border-radius: 8px;
+    /* Updated notification card styling - positioned in content flow */
+    .notification-card {
+      margin: 0 auto 24px;
+      padding: 16px 24px;
+      border-radius: 12px;
       color: white;
       font-weight: 500;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      z-index: 1000;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      z-index: 100;
       opacity: 0;
-      transform: translateY(-20px);
-      transition: all 0.3s ease;
+      transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      max-width: 500px;
+      width: 90%;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     
-    .notification.show {
+    .notification-card.show {
       opacity: 1;
       transform: translateY(0);
     }
     
-    .notification.success {
-      background-color: #10b981;
+    .notification-card.success {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      border-left: 5px solid #047857;
     }
     
-    .notification.error {
-      background-color: #ef4444;
+    .notification-card.error {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      border-left: 5px solid #b91c1c;
+    }
+    
+    .notification-icon {
+      font-size: 24px;
+      margin-right: 12px;
+    }
+    
+    .notification-text {
+      font-size: 16px;
+      line-height: 1.4;
     }
     
     /* Custom CSS for equal button sizing and alignment */
@@ -526,13 +542,11 @@ include 'voters_sidebar.php';
         </div>
       </header>
       
-      <!-- Notification Message -->
+      <!-- Notification Card - Now positioned in content flow -->
       <?php if (isset($_SESSION['message'])): ?>
-        <div id="notification" class="notification <?php echo $_SESSION['message_type'] === 'success' ? 'success' : 'error'; ?> show">
-          <div class="flex items-center">
-            <i class="fas <?php echo $_SESSION['message_type'] === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'; ?> mr-2"></i>
-            <?php echo htmlspecialchars($_SESSION['message']); ?>
-          </div>
+        <div id="notificationCard" class="notification-card <?php echo $_SESSION['message_type'] === 'success' ? 'success' : 'error'; ?> show">
+          <i class="notification-icon fas <?php echo $_SESSION['message_type'] === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'; ?>"></i>
+          <div class="notification-text"><?php echo htmlspecialchars($_SESSION['message']); ?></div>
         </div>
         <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
       <?php endif; ?>
@@ -676,10 +690,10 @@ include 'voters_sidebar.php';
     
     // Auto-hide notification after 5 seconds
     window.addEventListener('load', function() {
-      const notification = document.getElementById('notification');
-      if (notification && notification.classList.contains('show')) {
+      const notificationCard = document.getElementById('notificationCard');
+      if (notificationCard && notificationCard.classList.contains('show')) {
         setTimeout(() => {
-          notification.classList.remove('show');
+          notificationCard.classList.remove('show');
         }, 5000);
       }
     });
