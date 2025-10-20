@@ -118,170 +118,288 @@ foreach ($voteDetails as $vote) {
     $votesByPosition[$positionName][] = $candidateName;
 }
 
-// Function to send vote receipt email
+// Function to send vote receipt email with modern design
 function sendVoteReceiptEmail($voter, $election, $votesByPosition) {
-    // PHPMailer files are now included at the top of the file with use statements
-    
     $to = $voter['email'];
     $subject = "Vote Receipt - " . $election['title'];
     
     // Format voter name
     $voterName = $voter['first_name'] . ' ' . $voter['last_name'];
     
-    // Create HTML email body
+    // Create modern HTML email body
     $message = "
     <!DOCTYPE html>
     <html>
     <head>
+        <meta charset=\"UTF-8\">
+        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
         <title>Vote Receipt</title>
         <style>
+            /* General Styles */
             body {
-                font-family: Arial, sans-serif;
-                line-height: 1.6;
-                color: #333;
                 margin: 0;
                 padding: 0;
-                background-color: #f5f5f5;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background-color: #f5f7fa;
+                color: #333;
+                line-height: 1.6;
             }
+            
             .container {
                 max-width: 600px;
                 margin: 0 auto;
-                padding: 20px;
+                background-color: #ffffff;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                border-radius: 8px;
+                overflow: hidden;
             }
+            
+            /* Header Styles */
             .header {
                 background: linear-gradient(135deg, #1E6F46 0%, #154734 100%);
                 color: white;
-                padding: 30px;
+                padding: 40px 30px;
                 text-align: center;
-                border-radius: 10px 10px 0 0;
             }
+            
+            .header h1 {
+                margin: 0 0 10px 0;
+                font-size: 28px;
+                font-weight: 700;
+            }
+            
+            .header p {
+                margin: 0;
+                font-size: 16px;
+                opacity: 0.9;
+            }
+            
+            /* Content Styles */
             .content {
-                background-color: white;
                 padding: 30px;
-                border-radius: 0 0 10px 10px;
-                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
             }
-            .vote-details {
-                background-color: #f9f9f9;
-                padding: 20px;
+            
+            .section {
+                margin-bottom: 30px;
+            }
+            
+            .section-title {
+                font-size: 18px;
+                font-weight: 600;
+                color: #1E6F46;
+                margin-bottom: 15px;
+                display: flex;
+                align-items: center;
+            }
+            
+            .section-title i {
+                margin-right: 10px;
+                color: #1E6F46;
+            }
+            
+            /* Card Styles */
+            .card {
+                background-color: #f8f9fa;
                 border-radius: 8px;
-                margin: 20px 0;
+                padding: 20px;
+                margin-bottom: 20px;
+                border-left: 4px solid #1E6F46;
             }
-            .position {
-                font-weight: bold;
+            
+            .card-title {
+                font-size: 16px;
+                font-weight: 600;
                 color: #1E6F46;
                 margin-bottom: 10px;
-                font-size: 18px;
             }
-            .candidate {
-                margin-bottom: 8px;
-                padding-left: 20px;
-                position: relative;
+            
+            .card-content {
+                font-size: 14px;
+                color: #555;
             }
-            .candidate:before {
-                content: '✓';
-                position: absolute;
-                left: 0;
-                color: #1E6F46;
-                font-weight: bold;
-            }
-            .election-info {
-                background-color: #f0f9ff;
-                border-left: 4px solid #0ea5e9;
+            
+            /* Vote Summary Styles */
+            .vote-item {
+                background-color: #f8f9fa;
+                border-radius: 8px;
                 padding: 15px;
-                margin: 20px 0;
-                border-radius: 0 8px 8px 0;
+                margin-bottom: 15px;
+                border-left: 4px solid #37A66B;
             }
+            
+            .position-name {
+                font-size: 16px;
+                font-weight: 600;
+                color: #1E6F46;
+                margin-bottom: 10px;
+            }
+            
+            .candidate-list {
+                margin: 0;
+                padding: 0;
+                list-style: none;
+            }
+            
+            .candidate-item {
+                display: flex;
+                align-items: center;
+                margin-bottom: 8px;
+                font-size: 14px;
+                color: #555;
+            }
+            
+            .candidate-item:before {
+                content: '✓';
+                color: #37A66B;
+                font-weight: bold;
+                margin-right: 8px;
+            }
+            
+            /* Notice Styles */
             .notice {
                 background-color: #fff3cd;
-                border-left: 4px solid #ffc107;
-                padding: 15px;
-                margin: 20px 0;
-                border-radius: 0 8px 8px 0;
-            }
-            .footer {
-                text-align: center;
-                padding-top: 20px;
-                margin-top: 20px;
-                border-top: 1px solid #eee;
-                font-size: 12px;
-                color: #777;
-            }
-            .thank-you {
-                text-align: center;
-                margin: 30px 0;
-            }
-            .thank-you h2 {
-                color: #1E6F46;
-                margin-bottom: 10px;
-            }
-            .voter-info {
-                background-color: #f0f0f0;
-                padding: 15px;
                 border-radius: 8px;
-                margin: 20px 0;
+                padding: 20px;
+                margin-bottom: 20px;
+                border-left: 4px solid #ffc107;
+            }
+            
+            .notice-title {
+                font-size: 16px;
+                font-weight: 600;
+                color: #856404;
+                margin-bottom: 10px;
+                display: flex;
+                align-items: center;
+            }
+            
+            .notice-title i {
+                margin-right: 10px;
+                color: #ffc107;
+            }
+            
+            .notice-list {
+                margin: 0;
+                padding: 0 0 0 20px;
+            }
+            
+            .notice-list li {
+                margin-bottom: 8px;
+                font-size: 14px;
+                color: #856404;
+            }
+            
+            /* Footer Styles */
+            .footer {
+                background-color: #f8f9fa;
+                padding: 20px;
+                text-align: center;
+                border-top: 1px solid #e9ecef;
+                font-size: 12px;
+                color: #6c757d;
+            }
+            
+            .footer p {
+                margin: 0 0 5px 0;
+            }
+            
+            /* Responsive Styles */
+            @media only screen and (max-width: 600px) {
+                .container {
+                    width: 100%;
+                    border-radius: 0;
+                }
+                
+                .header {
+                    padding: 30px 20px;
+                }
+                
+                .content {
+                    padding: 20px;
+                }
             }
         </style>
     </head>
     <body>
-        <div class='container'>
-            <div class='header'>
+        <div class=\"container\">
+            <div class=\"header\">
                 <h1>Vote Receipt</h1>
                 <p>Thank you for participating in the election</p>
             </div>
             
-            <div class='content'>
-                <div class='thank-you'>
-                    <h2>Thank You for Voting!</h2>
-                    <p>Your vote has been successfully recorded</p>
+            <div class=\"content\">
+                <div class=\"section\">
+                    <div class=\"section-title\">
+                        <i class=\"fas fa-user\"></i> Voter Information
+                    </div>
+                    <div class=\"card\">
+                        <div class=\"card-title\">Personal Details</div>
+                        <div class=\"card-content\">
+                            <p><strong>Name:</strong> $voterName</p>
+                            <p><strong>Voter ID:</strong> {$_SESSION['user_id']}</p>
+                            <p><strong>Email:</strong> {$voter['email']}</p>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class='voter-info'>
-                    <h3>Voter Information</h3>
-                    <p><strong>Name:</strong> $voterName</p>
-                    <p><strong>Voter ID:</strong> {$_SESSION['user_id']}</p>
-                    <p><strong>Email:</strong> {$voter['email']}</p>
+                <div class=\"section\">
+                    <div class=\"section-title\">
+                        <i class=\"fas fa-info-circle\"></i> Election Information
+                    </div>
+                    <div class=\"card\">
+                        <div class=\"card-title\">Election Details</div>
+                        <div class=\"card-content\">
+                            <p><strong>Election Title:</strong> " . htmlspecialchars($election['title']) . "</p>
+                            <p><strong>Election Period:</strong> " . date("M d, Y h:i A", strtotime($election['start_datetime'])) . " - " . date("M d, Y h:i A", strtotime($election['end_datetime'])) . "</p>
+                            <p><strong>Target Participants:</strong> " . htmlspecialchars($election['target_department']) . "</p>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class='election-info'>
-                    <h3>Election Information</h3>
-                    <p><strong>Election Title:</strong> " . htmlspecialchars($election['title']) . "</p>
-                    <p><strong>Election Period:</strong> " . date("M d, Y h:i A", strtotime($election['start_datetime'])) . " - " . date("M d, Y h:i A", strtotime($election['end_datetime'])) . "</p>
-                    <p><strong>Target Participants:</strong> " . htmlspecialchars($election['target_department']) . "</p>
-                </div>
-                
-                <div class='vote-details'>
-                    <h3>Your Vote Summary</h3>";
+                <div class=\"section\">
+                    <div class=\"section-title\">
+                        <i class=\"fas fa-vote-yea\"></i> Your Vote Summary
+                    </div>";
     
     // Add each vote detail
     foreach ($votesByPosition as $position => $candidates) {
         $message .= "
-                    <div class='position'>" . htmlspecialchars($position) . "</div>";
+                    <div class=\"vote-item\">
+                        <div class=\"position-name\">" . htmlspecialchars($position) . "</div>
+                        <ul class=\"candidate-list\">";
         
         foreach ($candidates as $candidate) {
             $message .= "
-                    <div class='candidate'>" . htmlspecialchars($candidate) . "</div>";
+                            <li class=\"candidate-item\">" . htmlspecialchars($candidate) . "</li>";
         }
+        
+        $message .= "
+                        </ul>
+                    </div>";
     }
     
     $message .= "
                 </div>
                 
-                <div class='notice'>
-                    <h3>Important Notice</h3>
-                    <ul>
-                        <li>Your vote is final and cannot be changed</li>
-                        <li>You have already voted in this election</li>
-                        <li>Please keep this email as your receipt</li>
-                        <li>Election results will be announced after the voting period ends</li>
-                    </ul>
+                <div class=\"section\">
+                    <div class=\"notice\">
+                        <div class=\"notice-title\">
+                            <i class=\"fas fa-exclamation-triangle\"></i> Important Notice
+                        </div>
+                        <ul class=\"notice-list\">
+                            <li>Your vote is final and cannot be changed</li>
+                            <li>You have already voted in this election</li>
+                            <li>Please keep this email as your receipt</li>
+                            <li>Election results will be announced after the voting period ends</li>
+                        </ul>
+                    </div>
                 </div>
-                
-                <div class='footer'>
-                    <p>This is an automated message. Please do not reply to this email.</p>
-                    <p>&copy; " . date('Y') . " eBalota Voting System | Cavite State University</p>
-                    <p>Generated on: " . date('F d, Y h:i A') . "</p>
-                </div>
+            </div>
+            
+            <div class=\"footer\">
+                <p>This is an automated message. Please do not reply to this email.</p>
+                <p>&copy; " . date('Y') . " eBalota Voting System | Cavite State University</p>
+                <p>Generated on: " . date('F d, Y h:i A') . "</p>
             </div>
         </div>
     </body>
@@ -688,7 +806,7 @@ include 'voters_sidebar.php';
     // Create more confetti when clicking the success card
     document.querySelector('.success-card').addEventListener('click', createConfetti);
     
-    // Auto-hide notification after 5 seconds and refresh page
+    // Auto-hide notification after 2 seconds and refresh page
     window.addEventListener('load', function() {
       const notificationCard = document.getElementById('notificationCard');
       if (notificationCard && notificationCard.classList.contains('show')) {
@@ -700,7 +818,7 @@ include 'voters_sidebar.php';
           setTimeout(() => {
             window.location.reload();
           }, 300);
-        }, 2000);
+        }, 2000); // Changed from 5000ms (5 seconds) to 2000ms (2 seconds)
       }
     });
   </script>
