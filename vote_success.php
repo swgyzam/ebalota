@@ -688,13 +688,19 @@ include 'voters_sidebar.php';
     // Create more confetti when clicking the success card
     document.querySelector('.success-card').addEventListener('click', createConfetti);
     
-    // Auto-hide notification after 5 seconds
+    // Auto-hide notification after 5 seconds and refresh page
     window.addEventListener('load', function() {
       const notificationCard = document.getElementById('notificationCard');
       if (notificationCard && notificationCard.classList.contains('show')) {
         setTimeout(() => {
+          // Hide notification first
           notificationCard.classList.remove('show');
-        }, 5000);
+          
+          // Then refresh page after a short delay
+          setTimeout(() => {
+            window.location.reload();
+          }, 300);
+        }, 2000);
       }
     });
   </script>
