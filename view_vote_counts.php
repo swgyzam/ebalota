@@ -180,10 +180,15 @@ include 'sidebar.php';
       transition: width 1s ease-in-out;
     }
     .candidate-card {
-      transition: transform 0.2s ease-in-out;
+      transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
     }
     .candidate-card:hover {
       transform: translateY(-2px);
+    }
+    .candidate-card-highlight {
+      border: 2px solid #FFD700;
+      box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4);
+      background-color: #FFFBEB;
     }
     .live-indicator {
       animation: pulse 2s infinite;
@@ -205,11 +210,15 @@ include 'sidebar.php';
       color: white;
     }
     .rank-2 {
-      background: linear-gradient(135deg, #C0C0C0, #A9A9A9);
+      background: linear-gradient(135deg, #9e9e9e, #757575);
       color: white;
     }
     .rank-3 {
-      background: linear-gradient(135deg, #CD7F32, #8B4513);
+      background: linear-gradient(135deg, #9e9e9e, #757575);
+      color: white;
+    }
+    .rank-other {
+      background: linear-gradient(135deg, #9e9e9e, #757575);
       color: white;
     }
     .tie-indicator {
@@ -405,15 +414,18 @@ include 'sidebar.php';
                       }
                       
                       $prevVoteCount = $voteCount;
+                      
+                      // Determine if candidate card should be highlighted (rank 1 or tie for rank 1)
+                      $isHighlighted = ($rank === 1);
                       ?>
                       
-                      <div class="candidate-card bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md" data-position="<?= htmlspecialchars($position) ?>">
+                      <div class="candidate-card <?= $isHighlighted ? 'candidate-card-highlight' : 'border border-gray-200' ?> bg-white rounded-lg shadow-sm p-4 hover:shadow-md" data-position="<?= htmlspecialchars($position) ?>">
                         <div class="flex items-center">
                           <!-- Rank Badge -->
                           <div class="flex-shrink-0 mr-4">
                             <div class="rank-badge rounded-full flex items-center justify-center font-bold text-lg 
                                 <?= $rank === 1 ? ($isFirstPlaceTie ? 'tie-indicator' : 'rank-1') : 
-                                   ($rank === 2 ? 'rank-2' : ($rank === 3 ? 'rank-3' : 'bg-gray-200 text-gray-800')) ?>">
+                                   ($rank === 2 ? 'rank-2' : ($rank === 3 ? 'rank-3' : 'rank-other')) ?>">
                               <?= $rank ?>
                             </div>
                             <?php if ($isTie && $voteCount > 0): ?>
@@ -736,14 +748,17 @@ include 'sidebar.php';
                 }
                 
                 $prevVoteCount = $voteCount;
+                
+                // Determine if candidate card should be highlighted (rank 1 or tie for rank 1)
+                $isHighlighted = ($rank === 1);
               ?>
-                <div class="candidate-card bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md" data-position="<?= htmlspecialchars($position) ?>">
+                <div class="candidate-card <?= $isHighlighted ? 'candidate-card-highlight' : 'border border-gray-200' ?> bg-white rounded-lg shadow-sm p-4 hover:shadow-md" data-position="<?= htmlspecialchars($position) ?>">
                   <div class="flex items-center">
                     <!-- Rank Badge -->
                     <div class="flex-shrink-0 mr-4">
                       <div class="rank-badge rounded-full flex items-center justify-center font-bold text-lg 
                           <?= $rank === 1 ? ($isFirstPlaceTie ? 'tie-indicator' : 'rank-1') : 
-                             ($rank === 2 ? 'rank-2' : ($rank === 3 ? 'rank-3' : 'bg-gray-200 text-gray-800')) ?>">
+                             ($rank === 2 ? 'rank-2' : ($rank === 3 ? 'rank-3' : 'rank-other')) ?>">
                         <?= $rank ?>
                       </div>
                       <?php if ($isTie && $voteCount > 0): ?>
