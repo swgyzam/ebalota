@@ -49,10 +49,18 @@ if ($stmt->fetch()) {
     exit();
 }
 
-// Get election status
- $now = date('Y-m-d H:i:s');
- $start = $election['start_datetime'];
- $end = $election['end_datetime'];
+// FIXED: Use DateTime objects for proper comparison
+ $now = new DateTime();
+ $start = new DateTime($election['start_datetime']);
+ $end = new DateTime($election['end_datetime']);
+
+// DEBUG: Output datetime values
+error_log("Current time: " . $now->format('Y-m-d H:i:s'));
+error_log("Start time: " . $start->format('Y-m-d H:i:s'));
+error_log("End time: " . $end->format('Y-m-d H:i:s'));
+error_log("Now < Start: " . ($now < $start ? 'true' : 'false'));
+error_log("Now > End: " . ($now > $end ? 'true' : 'false'));
+
 if ($now < $start) {
     header("Location: error.php?message=election_not_started");
     exit();
@@ -73,10 +81,8 @@ if ($election['target_position'] === 'coop') {
     }
 }
 
-// Calculate time remaining
- $endDateTime = new DateTime($election['end_datetime']);
- $now = new DateTime();
- $interval = $now->diff($endDateTime);
+// FIXED: Use DateTime objects for time remaining calculation
+ $interval = $now->diff($end);
 
 if ($interval->days > 0) {
     $timeLeft = $interval->days . " day" . ($interval->days > 1 ? "s" : "") . " left";

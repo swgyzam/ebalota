@@ -408,8 +408,8 @@ while (($row = fgetcsv($file)) !== FALSE) {
                 $mail->isSMTP();
                 $mail->Host = 'smtp.gmail.com';
                 $mail->SMTPAuth = true;
-                $mail->Username = 'mark.anthony.mark233@gmail.com';
-                $mail->Password = 'flxoykqjycmgplrv';
+                $mail->Username = 'ebalota9@gmail.com';
+                $mail->Password = 'qxdqbjttedtqkujz';
                 $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
                 $mail->Port = 587;
                 

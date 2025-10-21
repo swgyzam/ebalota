@@ -2743,3 +2743,203 @@ Array
 )
 
 Update successful for election 195
+Executing with params:
+Array
+(
+    [:title] => FA Election
+    [:description] => tryyy
+    [:start_datetime] => 2025-10-20 15:19:00
+    [:end_datetime] => 2025-10-22 11:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1757511163_images.jpeg
+    [:election_id] => 196
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 196
+Executing with params:
+Array
+(
+    [:title] => FA Election
+    [:description] => tryyy
+    [:start_datetime] => 2025-10-20 15:19:00
+    [:end_datetime] => 2025-10-22 11:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1757511163_images.jpeg
+    [:election_id] => 196
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 196
+Executing with params:
+Array
+(
+    [:title] => FA Election
+    [:description] => tryyy
+    [:start_datetime] => 2025-10-20 15:19:00
+    [:end_datetime] => 2025-10-22 11:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => Regular
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1757511163_images.jpeg
+    [:election_id] => 196
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 196
+Executing with params:
+Array
+(
+    [:title] => FA Election
+    [:description] => tryyy
+    [:start_datetime] => 2025-10-20 15:19:00
+    [:end_datetime] => 2025-10-22 11:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CAFENR
+    [:allowed_courses] => 
+    [:allowed_status] => Regular
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1757511163_images.jpeg
+    [:election_id] => 196
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 196
+Executing with params:
+Array
+(
+    [:title] => FA Election
+    [:description] => tryyy
+    [:start_datetime] => 2025-10-20 15:19:00
+    [:end_datetime] => 2025-10-22 11:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Regular
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1757511163_images.jpeg
+    [:election_id] => 196
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 196
+Executing with params:
+Array
+(
+    [:title] => FA Election
+    [:description] => tryyy
+    [:start_datetime] => 2025-10-20 18:01:00
+    [:end_datetime] => 2025-10-22 11:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Regular
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1757511163_images.jpeg
+    [:election_id] => 196
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 196
+Executing with params:
+Array
+(
+    [:title] => nice one
+    [:description] => jsjs
+    [:start_datetime] => 2025-10-21 14:30:00
+    [:end_datetime] => 2025-10-23 11:11:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761027436_fre.jpeg
+    [:election_id] => 200
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 200
+Executing with params:
+Array
+(
+    [:title] => COOP Testing
+    [:description] => try COOP
+    [:start_datetime] => 2025-10-21 15:10:00
+    [:end_datetime] => 2025-10-21 16:10:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1757510922_pingwinnn.jpg
+    [:election_id] => 195
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 195
+Executing with params:
+Array
+(
+    [:title] => COOP Testing
+    [:description] => try COOP
+    [:start_datetime] => 2025-10-21 15:10:00
+    [:end_datetime] => 2025-10-21 16:20:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1757510922_pingwinnn.jpg
+    [:election_id] => 195
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 195
+Executing with params:
+Array
+(
+    [:title] => COOP Testing
+    [:description] => try COOP
+    [:start_datetime] => 2025-10-21 15:10:00
+    [:end_datetime] => 2025-10-21 17:00:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1757510922_pingwinnn.jpg
+    [:election_id] => 195
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 195

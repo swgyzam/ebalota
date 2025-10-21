@@ -167,13 +167,17 @@ foreach ($all_elections as $election) {
   $course_allowed  = empty($allowed_courses)  || in_array('all', $allowed_courses)  || in_array($voter_course, $allowed_courses);
   $status_allowed  = empty($allowed_status)   || in_array('all', $allowed_status)   || in_array($voter_status, $allowed_status);
 
-  // FIX: Only MIGS members can vote in COOP elections
+  // NEW: Check if election has been launched to voters
+  $is_launched = ($election['creation_stage'] === 'ready_for_voters');
+  
+  // FIX: Only MIGS members can vote in COOP elections AND election must be launched
   if ($election['target_position'] === 'coop') {
-    if ($is_coop_member) {   // Check MIGS status
+    if ($is_coop_member && $is_launched) {   // Check MIGS status AND if election is launched
         $filtered_elections[] = $election;
     }
   } elseif (($election['target_position'] === 'All' || $election['target_position'] === $mappedPosition)
-            && $college_allowed && $course_allowed && $status_allowed) {
+            && $college_allowed && $course_allowed && $status_allowed && $is_launched) {
+    // Added $is_launched check here as well
     $filtered_elections[] = $election;
   }
 }
@@ -514,6 +518,66 @@ include 'voters_sidebar.php';
                 'completed' => '⚫',
                 'upcoming' => '🟡'
               ];
+              
+              // ===== FIXED VOTER TURNOUT CALCULATION =====
+              // Get total eligible voters for this election
+              $conditions = ["role = 'voter'"];
+              $params = [];
+
+              if ($election['target_position'] === 'coop') {
+                  // For COOP elections - only users with both is_coop_member=1 AND migs_status=1
+                  $conditions[] = "is_coop_member = 1";
+                  $conditions[] = "migs_status = 1";
+              } else {
+                  // For other elections - apply position filter first
+                  if ($election['target_position'] !== 'All') {
+                      if ($election['target_position'] === 'faculty') {
+                          $conditions[] = "position = 'academic'";
+                      } else {
+                          $conditions[] = "position = '" . $election['target_position'] . "'";
+                      }
+                  }
+                  
+                  // Get allowed filters from election
+                  $allowed_colleges = array_filter(array_map('strtolower', array_map('trim', explode(',', $election['allowed_colleges'] ?? ''))));
+                  $allowed_courses = array_filter(array_map('strtolower', array_map('trim', explode(',', $election['allowed_courses'] ?? ''))));
+                  $allowed_status = array_filter(array_map('strtolower', array_map('trim', explode(',', $election['allowed_status'] ?? ''))));
+                  
+                  // Apply college filter if specified
+                  if (!empty($allowed_colleges) && !in_array('all', $allowed_colleges)) {
+                      $placeholders = implode(',', array_fill(0, count($allowed_colleges), '?'));
+                      $conditions[] = "LOWER(department) IN ($placeholders)";
+                      $params = array_merge($params, $allowed_colleges);
+                  }
+                  
+                  // Apply course filter if specified (mainly for students)
+                  if (!empty($allowed_courses) && !in_array('all', $allowed_courses)) {
+                      $placeholders = implode(',', array_fill(0, count($allowed_courses), '?'));
+                      $conditions[] = "LOWER(course) IN ($placeholders)";
+                      $params = array_merge($params, $allowed_courses);
+                  }
+                  
+                  // Apply status filter if specified (mainly for faculty and non-academic)
+                  if (!empty($allowed_status) && !in_array('all', $allowed_status)) {
+                      $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
+                      $conditions[] = "LOWER(status) IN ($placeholders)";
+                      $params = array_merge($params, $allowed_status);
+                  }
+              }
+
+              // Build and execute the query
+              $sql = "SELECT COUNT(*) as total FROM users WHERE " . implode(' AND ', $conditions);
+              $stmt = $pdo->prepare($sql);
+              $stmt->execute($params);
+              $totalVoters = $stmt->fetch()['total'];
+
+              // FIXED: Get total votes cast - Use DISTINCT to count each voter only once
+              $stmt = $pdo->prepare("SELECT COUNT(DISTINCT voter_id) as voted FROM votes WHERE election_id = ?");
+              $stmt->execute([$election['election_id']]);
+              $votesCast = $stmt->fetch()['voted'];
+
+              // Calculate turnout percentage
+              $turnout = $totalVoters > 0 ? round(($votesCast / $totalVoters) * 100, 1) : 0;
             ?>
             <div class="election-card bg-white rounded-lg shadow-md overflow-hidden border-l-4 <?= $statusColors[$status] ?> flex flex-col h-full transition-transform hover:scale-[1.02]" data-status="<?= $status ?>">
   
@@ -560,7 +624,7 @@ include 'voters_sidebar.php';
                 
                 <!-- Info -->
                 <div class="flex-1">
-                  <h2 class="text-lg font-bold text-[var(--cvsu-green-dark)] mb-2 truncate">
+                  <h2 class="election-title text-lg font-bold text-[var(--cvsu-green-dark)] mb-2 truncate">
                     <?= htmlspecialchars($election['title']) ?>
                   </h2>
                   
@@ -591,23 +655,10 @@ include 'voters_sidebar.php';
                   
                   <!-- Voter Turnout Progress -->
                   <?php if ($status === 'ongoing'): ?>
-                    <?php
-                      // Get total eligible voters for this election
-                      $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM users WHERE role = 'voter'");
-                      $stmt->execute();
-                      $totalVoters = $stmt->fetch()['total'];
-                      
-                      // Get total votes cast
-                      $stmt = $pdo->prepare("SELECT COUNT(*) as voted FROM votes WHERE election_id = ?");
-                      $stmt->execute([$election['election_id']]);
-                      $votesCast = $stmt->fetch()['voted'];
-                      
-                      $turnout = $totalVoters > 0 ? round(($votesCast / $totalVoters) * 100, 1) : 0;
-                    ?>
                     <div class="mb-3">
                       <div class="flex justify-between text-sm text-gray-600 mb-1">
                         <span>Voter Turnout</span>
-                        <span><?= $turnout ?>%</span>
+                        <span><?= $votesCast ?>/<?= $totalVoters ?> (<?= $turnout ?>%)</span>
                       </div>
                       <div class="w-full bg-gray-200 rounded-full h-2">
                         <div class="bg-green-600 h-2 rounded-full transition-all duration-500" style="width: <?= $turnout ?>%"></div>
@@ -734,41 +785,60 @@ include 'voters_sidebar.php';
       window.location.href = `election_results.php?election_id=${electionId}`;
     }
     
-    // Search functionality
-    document.getElementById('searchElections').addEventListener('input', function(e) {
-      const searchTerm = e.target.value.toLowerCase();
+    // Combined Search and Tab Filtering Function
+    function filterElections() {
+      const searchTerm = document.getElementById('searchElections').value.toLowerCase().trim();
+      const activeTab = document.querySelector('.tab-btn.active').dataset.category;
       const electionCards = document.querySelectorAll('.election-card');
       
+      console.log('Search Term:', searchTerm);
+      console.log('Active Tab:', activeTab);
+      
       electionCards.forEach(card => {
-        const title = card.querySelector('h2').textContent.toLowerCase();
-        const description = card.querySelector('p').textContent.toLowerCase();
+        // Get title using specific class
+        const titleElement = card.querySelector('h2');
         
-        if (title.includes(searchTerm) || description.includes(searchTerm)) {
+        // Skip if element doesn't exist
+        if (!titleElement) {
+          card.style.display = 'none';
+          return;
+        }
+        
+        const title = titleElement.textContent.toLowerCase().trim();
+        const cardStatus = card.dataset.status;
+        
+        console.log('Card Title:', title);
+        console.log('Card Status:', cardStatus);
+        
+        // Check if card matches search term (title only)
+        const matchesSearch = searchTerm === '' || title.includes(searchTerm);
+        
+        // Check if card matches current tab filter
+        const matchesTab = activeTab === 'all' || cardStatus === activeTab;
+        
+        console.log('Matches Search:', matchesSearch);
+        console.log('Matches Tab:', matchesTab);
+        
+        // Show card only if it matches both search and tab
+        if (matchesSearch && matchesTab) {
           card.style.display = 'block';
         } else {
           card.style.display = 'none';
         }
       });
-    });
-    
-    // Tab filtering
+    }
+
+    // Add event listeners
+    document.getElementById('searchElections').addEventListener('input', filterElections);
+
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         // Update active tab
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         this.classList.add('active');
         
-        // Filter elections
-        const category = this.dataset.category;
-        const electionCards = document.querySelectorAll('.election-card');
-        
-        electionCards.forEach(card => {
-          if (card.dataset.status === category) {
-            card.style.display = 'block';
-          } else {
-            card.style.display = 'none';
-          }
-        });
+        // Apply filters
+        filterElections();
       });
     });
     

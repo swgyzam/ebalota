@@ -2,6 +2,13 @@
 session_start();
 header('Content-Type: application/json');
 
+// Set timezone explicitly
+date_default_timezone_set('Asia/Manila');
+
+// Verify timezone
+error_log("Current timezone: " . date_default_timezone_get());
+error_log("Server timezone: " . ini_get('date.timezone'));
+
 // Check if user is logged in
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'voter') {
     echo json_encode([
@@ -83,21 +90,43 @@ if (!$election) {
     exit();
 }
 
-// Check if election is ongoing
- $now = date('Y-m-d H:i:s');
- $start = $election['start_datetime'];
- $end = $election['end_datetime'];
+// Alternative: Use SQL to check if election is ongoing
+ $stmt = $pdo->prepare("SELECT NOW() as now, start_datetime, end_datetime, 
+                         (NOW() < start_datetime) as not_started, 
+                         (NOW() > end_datetime) as ended 
+                         FROM elections WHERE election_id = ?");
+ $stmt->execute([$election_id]);
+ $electionStatus = $stmt->fetch();
 
-if ($now < $start) {
+// Debug: Log SQL datetime comparison
+error_log("=== SQL DATETIME DEBUG ===");
+error_log("Current time (SQL): " . $electionStatus['now']);
+error_log("Start time (SQL): " . $electionStatus['start_datetime']);
+error_log("End time (SQL): " . $electionStatus['end_datetime']);
+error_log("Not started: " . ($electionStatus['not_started'] ? 'TRUE' : 'FALSE'));
+error_log("Ended: " . ($electionStatus['ended'] ? 'TRUE' : 'FALSE'));
+error_log("=== END SQL DATETIME DEBUG ===");
+
+if ($electionStatus['not_started']) {
     echo json_encode([
         'status' => 'error',
-        'message' => 'This election has not started yet'
+        'message' => 'This election has not started yet',
+        'debug' => [
+            'current_time' => $electionStatus['now'],
+            'start_time' => $electionStatus['start_datetime'],
+            'end_time' => $electionStatus['end_datetime']
+        ]
     ]);
     exit();
-} elseif ($now > $end) {
+} elseif ($electionStatus['ended']) {
     echo json_encode([
         'status' => 'error',
-        'message' => 'This election has already ended'
+        'message' => 'This election has already ended',
+        'debug' => [
+            'current_time' => $electionStatus['now'],
+            'start_time' => $electionStatus['start_datetime'],
+            'end_time' => $electionStatus['end_datetime']
+        ]
     ]);
     exit();
 }

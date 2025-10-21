@@ -33,7 +33,7 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin','super
 if ($currentRole === 'super_admin') {
     $columns = ['Photo', 'Name', 'Position', 'Department', 'Course', 'Actions'];
     $filterOptions['positions'] = $pdo->query("SELECT DISTINCT position FROM users WHERE role = 'voter' ORDER BY position ASC")->fetchAll(PDO::FETCH_COLUMN);
-    $filterOptions['departments'] = $pdo->query("SELECT DISTINCT department FROM users WHERE role = 'voter' AND department IS NOT NULL AND department != '' ORDER BY department ASC")->fetchAll(PDO::FETCH_COLUMN);
+    $filterOptions['departments'] = $pdo->query("SELECT DISTINCT IF(position = 'academic', department1, department) as dept FROM users WHERE role = 'voter' AND (department IS NOT NULL OR department1 IS NOT NULL) ORDER BY dept ASC")->fetchAll(PDO::FETCH_COLUMN);
     $filterOptions['courses'] = $pdo->query("SELECT DISTINCT course FROM users WHERE role = 'voter' AND course IS NOT NULL AND course != '' ORDER BY course ASC")->fetchAll(PDO::FETCH_COLUMN);
 } 
 // College Admin (CEIT, CAS, etc.) - only students from their college
@@ -54,21 +54,25 @@ else if ($assignedScope === 'FACULTY ASSOCIATION') {
     $conditions[] = "position = 'academic'";
     $columns = ['Photo', 'Name', 'Employee Number', 'Status', 'College', 'Department', 'Actions'];
     $filterOptions['statuses'] = $pdo->query("SELECT DISTINCT status FROM users WHERE role = 'voter' AND position = 'academic' ORDER BY status ASC")->fetchAll(PDO::FETCH_COLUMN);
-    $filterOptions['departments'] = $pdo->query("SELECT DISTINCT department FROM users WHERE role = 'voter' AND position = 'academic' ORDER BY department ASC")->fetchAll(PDO::FETCH_COLUMN);
+    $filterOptions['departments'] = $pdo->query("SELECT DISTINCT department1 FROM users WHERE role = 'voter' AND position = 'academic' AND department1 IS NOT NULL AND department1 != '' ORDER BY department1 ASC")->fetchAll(PDO::FETCH_COLUMN);
 }
 // Non-Academic Admin - non-academic staff
 else if ($assignedScope === 'NON-ACADEMIC') {
     $conditions[] = "position = 'non-academic'";
     $columns = ['Photo', 'Name', 'Employee Number', 'Status', 'Department', 'Actions'];
     $filterOptions['statuses'] = $pdo->query("SELECT DISTINCT status FROM users WHERE role = 'voter' AND position = 'non-academic' ORDER BY status ASC")->fetchAll(PDO::FETCH_COLUMN);
-    $filterOptions['departments'] = $pdo->query("SELECT DISTINCT department FROM users WHERE role = 'voter' AND position = 'non-academic' ORDER BY department ASC")->fetchAll(PDO::FETCH_COLUMN);
+    // FIXED: Get departments from 'department' field for non-academic voters
+    $filterOptions['departments'] = $pdo->query("SELECT DISTINCT department FROM users WHERE role = 'voter' AND position = 'non-academic' AND department IS NOT NULL AND department != '' ORDER BY department ASC")->fetchAll(PDO::FETCH_COLUMN);
 }
 // COOP Admin - COOP members
 else if ($assignedScope === 'COOP') {
     $conditions[] = "is_coop_member = 1";
-    $columns = ['Photo', 'Name', 'Employee Number', 'Status', 'College/Department', 'MIGS Status', 'Actions'];
+    // UPDATED: Separate College and Department columns
+    $columns = ['Photo', 'Name', 'Employee Number', 'Status', 'College', 'Department', 'MIGS Status', 'Actions'];
     $filterOptions['statuses'] = $pdo->query("SELECT DISTINCT status FROM users WHERE role = 'voter' AND is_coop_member = 1 ORDER BY status ASC")->fetchAll(PDO::FETCH_COLUMN);
-    $filterOptions['departments'] = $pdo->query("SELECT DISTINCT IFNULL(department, department1) as dept FROM users WHERE role = 'voter' AND is_coop_member = 1 AND (department IS NOT NULL OR department1 IS NOT NULL) ORDER BY dept ASC")->fetchAll(PDO::FETCH_COLUMN);
+    // UPDATED: Get colleges and departments separately
+    $filterOptions['colleges'] = $pdo->query("SELECT DISTINCT department FROM users WHERE role = 'voter' AND is_coop_member = 1 AND department IS NOT NULL AND department != '' ORDER BY department ASC")->fetchAll(PDO::FETCH_COLUMN);
+    $filterOptions['departments'] = $pdo->query("SELECT DISTINCT IF(position = 'academic', department1, department) as dept FROM users WHERE role = 'voter' AND is_coop_member = 1 AND (department IS NOT NULL OR department1 IS NOT NULL) ORDER BY dept ASC")->fetchAll(PDO::FETCH_COLUMN);
 }
 // CSG Admin - all students
 else if ($assignedScope === 'CSG ADMIN') {
@@ -79,6 +83,7 @@ else if ($assignedScope === 'CSG ADMIN') {
 }
 // Get current filters
  $filterStatus = $_GET['status'] ?? '';
+ $filterCollege = $_GET['college'] ?? ''; // ADDED
  $filterDepartment = $_GET['department'] ?? '';
  $filterCourse = $_GET['course'] ?? '';
 // Apply additional filters if set
@@ -86,12 +91,17 @@ if (!empty($filterStatus) && isset($filterOptions['statuses']) && in_array($filt
     $conditions[] = "status = :status";
     $params[':status'] = $filterStatus;
 }
+// UPDATED: Handle college and department filters separately
+if (!empty($filterCollege) && isset($filterOptions['colleges']) && in_array($filterCollege, $filterOptions['colleges'])) {
+    $conditions[] = "department = :college";
+    $params[':college'] = $filterCollege;
+}
 if (!empty($filterDepartment) && isset($filterOptions['departments']) && in_array($filterDepartment, $filterOptions['departments'])) {
-    // For COOP admin, we need to check both department and department1 fields
-    if ($assignedScope === 'COOP') {
-        $conditions[] = "(department = :department OR department1 = :department)";
-    } else {
+    // FIXED: Use different field for department based on position
+    if ($assignedScope === 'NON-ACADEMIC') {
         $conditions[] = "department = :department";
+    } else {
+        $conditions[] = "department1 = :department";
     }
     $params[':department'] = $filterDepartment;
 }
@@ -281,6 +291,21 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
         </div>
         <?php endif; ?>
         
+        <!-- ADDED: College filter for COOP admin -->
+        <?php if (isset($filterOptions['colleges'])): ?>
+        <div>
+          <label for="college" class="font-semibold">Filter by College:</label>
+          <select id="college" name="college" class="border rounded px-3 py-2" onchange="filter()">
+            <option value="">All Colleges</option>
+            <?php foreach ($filterOptions['colleges'] as $college): ?>
+              <option value="<?= htmlspecialchars($college) ?>" <?= ($college == $filterCollege) ? 'selected' : '' ?>>
+                <?= htmlspecialchars($college) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <?php endif; ?>
+        
         <?php if (isset($filterOptions['departments'])): ?>
         <div>
           <label for="department" class="font-semibold">Filter by Department:</label>
@@ -322,7 +347,7 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
           <thead class="bg-[var(--cvsu-green)] text-white">
             <tr>
               <?php foreach ($columns as $column): ?>
-                <th class="py-3 px-6 text-left"><?= htmlspecialchars($column) ?></th>
+                <th class="py-2 px-4 text-left text-sm"><?= htmlspecialchars($column) ?></th>
               <?php endforeach; ?>
             </tr>
           </thead>
@@ -330,29 +355,29 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
             <?php if (count($users) > 0): ?>
               <?php foreach ($users as $user): ?>
                 <tr class="border-b hover:bg-gray-100">
-                  <td class="py-3 px-6">
-                    <div class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
-                      <i class="fas fa-user text-gray-400"></i>
+                  <td class="py-3 px-4">
+                    <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                      <i class="fas fa-user text-gray-400 text-sm"></i>
                     </div>
                   </td>
-                  <td class="py-3 px-6 font-medium">
+                  <td class="py-3 px-4 font-medium text-sm">
                     <?= htmlspecialchars($user['first_name'] . ' ' . ($user['middle_name'] ?? '') . ' ' . $user['last_name']) ?>
                   </td>
                   
                   <?php if (in_array('Student Number', $columns)): ?>
-                  <td class="py-3 px-6">
+                  <td class="py-3 px-4 text-sm">
                     <?= !empty($user['student_number']) ? htmlspecialchars($user['student_number']) : '<span class="text-gray-400">Not set</span>' ?>
                   </td>
                   <?php endif; ?>
                   
                   <?php if (in_array('Employee Number', $columns)): ?>
-                  <td class="py-3 px-6">
+                  <td class="py-3 px-4 text-sm">
                     <?= !empty($user['employee_number']) ? htmlspecialchars($user['employee_number']) : '<span class="text-gray-400">Not set</span>' ?>
                   </td>
                   <?php endif; ?>
                   
                   <?php if (in_array('Status', $columns)): ?>
-                  <td class="py-3 px-6">
+                  <td class="py-3 px-4 text-sm">
                     <?php if (!empty($user['status'])): ?>
                       <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
                         <?= htmlspecialchars($user['status']) ?>
@@ -364,52 +389,49 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
                   <?php endif; ?>
                   
                   <?php if (in_array('Course', $columns)): ?>
-                  <td class="py-3 px-6">
+                  <td class="py-3 px-4 text-sm">
                     <?= !empty($user['course']) ? htmlspecialchars($user['course']) : '<span class="text-gray-400">Not set</span>' ?>
                   </td>
                   <?php endif; ?>
                   
                   <?php if (in_array('College', $columns)): ?>
-                  <td class="py-3 px-6">
-                    <?= !empty($user['department']) ? htmlspecialchars($user['department']) : '<span class="text-gray-400">Not assigned</span>' ?>
+                  <td class="py-3 px-4 text-sm">
+                    <?php 
+                    // FIXED: College is stored in 'department' field for academic voters
+                    if ($user['position'] === 'academic' && !empty($user['department'])) {
+                        echo htmlspecialchars($user['department']);
+                    } else {
+                        echo '<span class="text-gray-400">N/A</span>';
+                    }
+                    ?>
                   </td>
                   <?php endif; ?>
                   
                   <?php if (in_array('Department', $columns)): ?>
-                  <td class="py-3 px-6">
+                  <td class="py-3 px-4 text-sm">
                     <?php 
-                    // For non-academic, department is in the 'department' field
-                    // For students and academic, department is in the 'department1' field
-                    if ($assignedScope === 'NON-ACADEMIC') {
-                        $deptValue = $user['department'];
-                    } else {
-                        $deptValue = $user['department1'];
-                    }
-                    ?>
-                    <?= !empty($deptValue) ? htmlspecialchars($deptValue) : '<span class="text-gray-400">Not assigned</span>' ?>
-                  </td>
-                  <?php endif; ?>
-                  
-                  <?php if (in_array('College/Department', $columns)): ?>
-                  <td class="py-3 px-6">
-                    <?php 
-                    $collegeDept = '';
-                    if (!empty($user['department'])) {
-                        $collegeDept = htmlspecialchars($user['department']);
-                    }
-                    if (!empty($user['department1'])) {
-                        if (!empty($collegeDept)) {
-                            $collegeDept .= ' / ';
+                    // FIXED: Handle department differently for academic vs non-academic voters
+                    if ($user['position'] === 'academic') {
+                        // For academic voters, department is in 'department1' field
+                        if (!empty($user['department1'])) {
+                            echo htmlspecialchars($user['department1']);
+                        } else {
+                            echo '<span class="text-gray-400">Not assigned</span>';
                         }
-                        $collegeDept .= htmlspecialchars($user['department1']);
+                    } else {
+                        // For non-academic voters, department is in 'department' field
+                        if (!empty($user['department'])) {
+                            echo htmlspecialchars($user['department']);
+                        } else {
+                            echo '<span class="text-gray-400">Not assigned</span>';
+                        }
                     }
-                    echo !empty($collegeDept) ? $collegeDept : '<span class="text-gray-400">Not assigned</span>';
                     ?>
                   </td>
                   <?php endif; ?>
                   
                   <?php if (in_array('MIGS Status', $columns)): ?>
-                  <td class="py-3 px-6">
+                  <td class="py-3 px-4 text-sm">
                     <?php if ($user['migs_status'] == 1): ?>
                       <span class="status-badge bg-green-100 text-green-800">
                         <i class="fas fa-check-circle mr-1"></i>MIGS
@@ -423,7 +445,7 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
                   <?php endif; ?>
                   
                   <?php if (in_array('Position', $columns)): ?>
-                  <td class="py-3 px-6">
+                  <td class="py-3 px-4 text-sm">
                     <?php if (!empty($user['position'])): ?>
                       <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">
                         <?= htmlspecialchars($user['position']) ?>
@@ -434,27 +456,32 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
                   </td>
                   <?php endif; ?>
                   
-                  <td class="py-3 px-6 text-center space-x-2">
-                    <button 
-                      onclick='triggerEditUser(<?= $user["user_id"] ?>)'
-                      class="text-blue-500 hover:text-blue-600 font-semibold">
-                      <i class="fas fa-edit mr-1"></i>Edit
-                    </button>
-                    
-                    <!-- MIGS toggle button for COOP admin -->
-                    <?php if ($assignedScope === 'COOP'): ?>
-                      <a href="admin_toggle_migs.php?user_id=<?= $user['user_id'] ?>" 
-                         class="btn-warning text-white px-3 py-1 rounded font-semibold" 
-                         onclick="return confirm('Are you sure you want to toggle MIGS status for this user?');">
-                        <i class="fas fa-sync-alt mr-1"></i>Toggle MIGS
+                  <td class="py-3 px-4 text-center">
+                    <div class="flex flex-col space-y-2">
+                      <!-- Edit button - HIDDEN for COOP admin -->
+                      <?php if ($assignedScope !== 'COOP'): ?>
+                        <button 
+                          onclick='triggerEditUser(<?= $user["user_id"] ?>)'
+                          class="text-blue-500 hover:text-blue-600 font-medium text-sm">
+                          <i class="fas fa-edit mr-1"></i>Edit
+                        </button>
+                      <?php endif; ?>
+                      
+                      <!-- MIGS toggle button - ONLY for COOP admin -->
+                      <?php if ($assignedScope === 'COOP'): ?>
+                        <a href="admin_toggle_migs.php?user_id=<?= $user['user_id'] ?>" 
+                           class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-sm font-medium inline-flex items-center justify-center w-full"
+                           onclick="return confirm('Are you sure you want to toggle MIGS status for this user?');">
+                          <i class="fas fa-sync-alt mr-1"></i>Toggle MIGS
+                        </a>
+                      <?php endif; ?>
+                      
+                      <a href="admin_delete_users.php?user_id=<?= $user['user_id'] ?>" 
+                         class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-medium inline-flex items-center justify-center w-full"
+                         onclick="return confirm('Are you sure you want to delete this user?');">
+                        <i class="fas fa-trash mr-1"></i>Delete
                       </a>
-                    <?php endif; ?>
-                    
-                    <a href="admin_delete_users.php?user_id=<?= $user['user_id'] ?>" 
-                       class="btn-danger text-white px-3 py-1 rounded font-semibold" 
-                       onclick="return confirm('Are you sure you want to delete this user?');">
-                      <i class="fas fa-trash mr-1"></i>Delete
-                    </a>
+                    </div>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -506,6 +533,7 @@ function openUpdateModal(user) {
 function filter() {
   const position = document.getElementById('position') ? document.getElementById('position').value : '';
   const status = document.getElementById('status') ? document.getElementById('status').value : '';
+  const college = document.getElementById('college') ? document.getElementById('college').value : ''; // ADDED
   const department = document.getElementById('department') ? document.getElementById('department').value : '';
   const course = document.getElementById('course') ? document.getElementById('course').value : '';
   
@@ -521,6 +549,12 @@ function filter() {
     url.searchParams.set('status', status);
   } else {
     url.searchParams.delete('status');
+  }
+  
+  if (college) { // ADDED
+    url.searchParams.set('college', college);
+  } else {
+    url.searchParams.delete('college');
   }
   
   if (department) {
