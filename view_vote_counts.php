@@ -351,9 +351,9 @@ include 'sidebar.php';
                 
                 $totalVotesForPosition = array_sum(array_column($candidates, 'vote_count'));
                 
-                // Check if there's a tie for first place
+                // Check if there's a tie for first place with votes > 0
                 $isFirstPlaceTie = false;
-                if (count($candidates) > 1) {
+                if (count($candidates) > 1 && $candidates[0]['vote_count'] > 0) {
                     $firstPlaceVotes = $candidates[0]['vote_count'];
                     for ($i = 1; $i < count($candidates); $i++) {
                         if ($candidates[$i]['vote_count'] == $firstPlaceVotes) {
@@ -394,8 +394,8 @@ include 'sidebar.php';
                       $voteCount = $data['vote_count'];
                       $percentage = $totalVotesForPosition > 0 ? round(($voteCount / $totalVotesForPosition) * 100, 1) : 0;
                       
-                      // Check for tie
-                      if ($prevVoteCount === $voteCount) {
+                      // Check for tie only if vote count > 0
+                      if ($voteCount > 0 && $prevVoteCount === $voteCount) {
                           $isTie = true;
                           $rank = $prevRank;
                       } else {
@@ -416,7 +416,7 @@ include 'sidebar.php';
                                    ($rank === 2 ? 'rank-2' : ($rank === 3 ? 'rank-3' : 'bg-gray-200 text-gray-800')) ?>">
                               <?= $rank ?>
                             </div>
-                            <?php if ($isTie): ?>
+                            <?php if ($isTie && $voteCount > 0): ?>
                               <div class="text-xs text-center text-yellow-600 mt-1 font-bold">TIE</div>
                             <?php endif; ?>
                           </div>
@@ -475,11 +475,11 @@ include 'sidebar.php';
                               <span class="text-gray-500">
                                 <i class="fas fa-chart-line mr-1"></i>
                                 Rank #<?= $rank ?> in <?= htmlspecialchars($position) ?>
-                                <?php if ($isTie): ?>
+                                <?php if ($isTie && $voteCount > 0): ?>
                                   <span class="text-yellow-600 font-medium">(TIE)</span>
                                 <?php endif; ?>
                               </span>
-                              <?php if ($status === 'completed' && $rank === 1): ?>
+                              <?php if ($status === 'completed' && $rank === 1 && $voteCount > 0): ?>
                                 <?php if ($isFirstPlaceTie): ?>
                                   <span class="text-yellow-600 font-medium">
                                     <i class="fas fa-trophy mr-1"></i> TIE for <?= htmlspecialchars($position) ?>
@@ -686,9 +686,9 @@ include 'sidebar.php';
           
           $totalVotesForPosition = array_sum(array_column($candidates, 'vote_count'));
           
-          // Check if there's a tie for first place
+          // Check if there's a tie for first place with votes > 0
           $isFirstPlaceTie = false;
-          if (count($candidates) > 1) {
+          if (count($candidates) > 1 && $candidates[0]['vote_count'] > 0) {
               $firstPlaceVotes = $candidates[0]['vote_count'];
               for ($i = 1; $i < count($candidates); $i++) {
                   if ($candidates[$i]['vote_count'] == $firstPlaceVotes) {
@@ -725,8 +725,8 @@ include 'sidebar.php';
                 $voteCount = $data['vote_count'];
                 $percentage = $totalVotesForPosition > 0 ? round(($voteCount / $totalVotesForPosition) * 100, 1) : 0;
                 
-                // Check for tie
-                if ($prevVoteCount === $voteCount) {
+                // Check for tie only if vote count > 0
+                if ($voteCount > 0 && $prevVoteCount === $voteCount) {
                     $isTie = true;
                     $rank = $prevRank;
                 } else {
@@ -746,7 +746,7 @@ include 'sidebar.php';
                              ($rank === 2 ? 'rank-2' : ($rank === 3 ? 'rank-3' : 'bg-gray-200 text-gray-800')) ?>">
                         <?= $rank ?>
                       </div>
-                      <?php if ($isTie): ?>
+                      <?php if ($isTie && $voteCount > 0): ?>
                         <div class="text-xs text-center text-yellow-600 mt-1 font-bold">TIE</div>
                       <?php endif; ?>
                     </div>
@@ -805,11 +805,11 @@ include 'sidebar.php';
                         <span class="text-gray-500">
                           <i class="fas fa-chart-line mr-1"></i>
                           Rank #<?= $rank ?> in <?= htmlspecialchars($position) ?>
-                          <?php if ($isTie): ?>
+                          <?php if ($isTie && $voteCount > 0): ?>
                             <span class="text-yellow-600 font-medium">(TIE)</span>
                           <?php endif; ?>
                         </span>
-                        <?php if ($status === 'completed' && $rank === 1): ?>
+                        <?php if ($status === 'completed' && $rank === 1 && $voteCount > 0): ?>
                           <?php if ($isFirstPlaceTie): ?>
                             <span class="text-yellow-600 font-medium">
                               <i class="fas fa-trophy mr-1"></i> TIE for <?= htmlspecialchars($position) ?>
