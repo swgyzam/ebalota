@@ -233,57 +233,98 @@ include 'sidebar.php';
   <main class="flex-1 p-6 md:p-8 md:ml-64">
     <div class="max-w-6xl mx-auto">
       <!-- Election Information Header -->
-      <div class="bg-white rounded-xl shadow-md p-6 mb-6">
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between">
-          <div class="flex-1">
-            <div class="flex items-center mb-2">
-              <h1 class="text-2xl font-bold text-[var(--cvsu-green-dark)] mr-3">
-                <?= htmlspecialchars($pageTitle) ?>
-              </h1>
-              <?php if ($status === 'ongoing' && $election['realtime_results']): ?>
-                <span class="live-indicator inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                  <i class="fas fa-circle mr-1"></i> LIVE
+      <div class="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl overflow-hidden mb-8 border border-gray-100">
+        <!-- Card Header -->
+        <div class="bg-gradient-to-r from-[var(--cvsu-green-dark)] to-[var(--cvsu-green)] p-6 relative">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -mr-16 -mt-16"></div>
+            <div class="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-5 rounded-full -ml-12 -mb-12"></div>
+            
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between relative z-10">
+            <div class="flex-1">
+                <div class="flex items-center mb-3">
+                <div class="bg-white bg-opacity-20 p-3 rounded-xl mr-4 shadow-md">
+                    <i class="fas fa-vote-yea text-white text-3xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-3xl font-bold text-white leading-tight">
+                    <?= htmlspecialchars($pageTitle) ?>
+                    </h1>
+                    <p class="text-green-100 text-lg font-medium">
+                    <?= htmlspecialchars($election['title']) ?>
+                    </p>
+                </div>
+                </div>
+            </div>
+            
+            <div class="mt-4 md:mt-0 flex items-center space-x-3">
+                <?php if ($status === 'ongoing' && $election['realtime_results']): ?>
+                <span class="live-indicator inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-red-500 text-white shadow-lg animate-pulse">
+                    <i class="fas fa-circle mr-2 text-xs"></i> LIVE
                 </span>
-              <?php endif; ?>
+                <?php endif; ?>
+                
+                <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold shadow-md
+                    <?= $status === 'completed' ? 'bg-green-500 text-white' : 
+                        ($status === 'ongoing' ? 'bg-blue-500 text-white' : 'bg-yellow-600 text-white') ?>">
+                <?php if ($status === 'completed'): ?>
+                    <i class="fas fa-check-circle mr-2"></i> Completed
+                <?php elseif ($status === 'ongoing'): ?>
+                    <i class="fas fa-clock mr-2"></i> Ongoing
+                <?php else: ?>
+                    <i class="fas fa-hourglass-start mr-2"></i> Upcoming
+                <?php endif; ?>
+                </span>
             </div>
-            <p class="text-gray-600 text-lg">
-              <?= htmlspecialchars($election['title']) ?>
-            </p>
-            <div class="mt-2 text-sm text-gray-500">
-              <?= date("F j, Y, g:i A", strtotime($election['start_datetime'])) ?> - 
-              <?= date("F j, Y, g:i A", strtotime($election['end_datetime'])) ?>
             </div>
-          </div>
-          
-          <div class="mt-4 md:mt-0 md:ml-6">
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
-                  <?= $status === 'completed' ? 'bg-green-100 text-green-800' : 
-                     ($status === 'ongoing' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800') ?>">
-              <?php if ($status === 'completed'): ?>
-                <i class="fas fa-check-circle mr-1"></i> Completed
-              <?php elseif ($status === 'ongoing'): ?>
-                <i class="fas fa-clock mr-1"></i> Ongoing
-              <?php else: ?>
-                <i class="fas fa-hourglass-start mr-1"></i> Upcoming
-              <?php endif; ?>
-            </span>
-          </div>
         </div>
         
-        <!-- Position Filter -->
-        <div class="mt-4">
-          <label for="positionFilter" class="block text-sm font-medium text-gray-700 mb-2">
-            Filter by Position:
-          </label>
-          <select id="positionFilter" class="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)]">
-            <?php foreach ($positionOptions as $position): ?>
-              <option value="<?= htmlspecialchars($position) ?>" <?= $position === 'All' ? 'selected' : '' ?>>
-                <?= htmlspecialchars($position) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
+        <!-- Card Body -->
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <div class="flex items-center">
+                <div class="bg-green-50 p-4 rounded-xl mr-4 shadow-sm border border-green-100">
+                    <i class="far fa-calendar-alt text-green-600 text-2xl"></i>
+                </div>
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-500 mb-1">Election Period</p>
+                    <p class="text-lg font-semibold text-gray-800">
+                    <?= date("F j, Y, g:i A", strtotime($election['start_datetime'])) ?>
+                    </p>
+                    <div class="flex items-center my-2">
+                    <div class="h-px bg-green-200 flex-grow"></div>
+                    <span class="px-3 text-xs font-medium text-green-600 bg-green-50 rounded-full">to</span>
+                    <div class="h-px bg-green-200 flex-grow"></div>
+                    </div>
+                    <p class="text-lg font-semibold text-gray-800">
+                    <?= date("F j, Y, g:i A", strtotime($election['end_datetime'])) ?>
+                    </p>
+                </div>
+                </div>
+            </div>
+            
+            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <div class="flex items-center">
+                <div class="bg-green-50 p-4 rounded-xl mr-4 shadow-sm border border-green-100">
+                    <i class="fas fa-filter text-green-600 text-2xl"></i>
+                </div>
+                <div class="w-full">
+                    <label for="positionFilter" class="block text-sm font-medium text-gray-700 mb-2">
+                    Filter by Position
+                    </label>
+                    <select id="positionFilter" class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)] transition-all">
+                    <?php foreach ($positionOptions as $position): ?>
+                        <option value="<?= htmlspecialchars($position) ?>" <?= $position === 'All' ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($position) ?>
+                        </option>
+                    <?php endforeach; ?>
+                    </select>
+                </div>
+                </div>
+            </div>
+            </div>
         </div>
-      </div>
+        </div>
       
       <!-- Vote Turnout Statistics and Candidates Section -->
       <div id="electionResults">
