@@ -415,8 +415,8 @@ include 'sidebar.php';
                       
                       $prevVoteCount = $voteCount;
                       
-                      // Determine if candidate card should be highlighted (rank 1 or tie for rank 1)
-                      $isHighlighted = ($rank === 1);
+                      // Determine if candidate card should be highlighted (rank 1 AND has votes > 0)
+                      $isHighlighted = ($rank === 1 && $voteCount > 0);
                       ?>
                       
                       <div class="candidate-card <?= $isHighlighted ? 'candidate-card-highlight' : 'border border-gray-200' ?> bg-white rounded-lg shadow-sm p-4 hover:shadow-md" data-position="<?= htmlspecialchars($position) ?>">
@@ -749,8 +749,8 @@ include 'sidebar.php';
                 
                 $prevVoteCount = $voteCount;
                 
-                // Determine if candidate card should be highlighted (rank 1 or tie for rank 1)
-                $isHighlighted = ($rank === 1);
+                // Determine if candidate card should be highlighted (rank 1 AND has votes > 0)
+                $isHighlighted = ($rank === 1 && $voteCount > 0);
               ?>
                 <div class="candidate-card <?= $isHighlighted ? 'candidate-card-highlight' : 'border border-gray-200' ?> bg-white rounded-lg shadow-sm p-4 hover:shadow-md" data-position="<?= htmlspecialchars($position) ?>">
                   <div class="flex items-center">
