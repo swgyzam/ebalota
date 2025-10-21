@@ -212,6 +212,10 @@ include 'sidebar.php';
       background: linear-gradient(135deg, #CD7F32, #8B4513);
       color: white;
     }
+    .tie-indicator {
+      background: linear-gradient(135deg, #FFD166, #FFA500);
+      color: white;
+    }
   </style>
 </head>
 <body class="bg-gray-50">
@@ -346,6 +350,25 @@ include 'sidebar.php';
                 });
                 
                 $totalVotesForPosition = array_sum(array_column($candidates, 'vote_count'));
+                
+                // Check if there's a tie for first place
+                $isFirstPlaceTie = false;
+                if (count($candidates) > 1) {
+                    $firstPlaceVotes = $candidates[0]['vote_count'];
+                    for ($i = 1; $i < count($candidates); $i++) {
+                        if ($candidates[$i]['vote_count'] == $firstPlaceVotes) {
+                            $isFirstPlaceTie = true;
+                            break;
+                        } else {
+                            break; // Since candidates are sorted by vote count
+                        }
+                    }
+                }
+                
+                // Initialize tie detection variables
+                $prevVoteCount = null;
+                $prevRank = null;
+                $isTie = false;
                 ?>
                 
                 <!-- Position Header -->
@@ -370,7 +393,18 @@ include 'sidebar.php';
                       $electionPosition = $data['election_position'];
                       $voteCount = $data['vote_count'];
                       $percentage = $totalVotesForPosition > 0 ? round(($voteCount / $totalVotesForPosition) * 100, 1) : 0;
-                      $rank = $index + 1;
+                      
+                      // Check for tie
+                      if ($prevVoteCount === $voteCount) {
+                          $isTie = true;
+                          $rank = $prevRank;
+                      } else {
+                          $isTie = false;
+                          $rank = $index + 1;
+                          $prevRank = $rank;
+                      }
+                      
+                      $prevVoteCount = $voteCount;
                       ?>
                       
                       <div class="candidate-card bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md" data-position="<?= htmlspecialchars($position) ?>">
@@ -378,9 +412,13 @@ include 'sidebar.php';
                           <!-- Rank Badge -->
                           <div class="flex-shrink-0 mr-4">
                             <div class="rank-badge rounded-full flex items-center justify-center font-bold text-lg 
-                                <?= $rank === 1 ? 'rank-1' : ($rank === 2 ? 'rank-2' : ($rank === 3 ? 'rank-3' : 'bg-gray-200 text-gray-800')) ?>">
+                                <?= $rank === 1 ? ($isFirstPlaceTie ? 'tie-indicator' : 'rank-1') : 
+                                   ($rank === 2 ? 'rank-2' : ($rank === 3 ? 'rank-3' : 'bg-gray-200 text-gray-800')) ?>">
                               <?= $rank ?>
                             </div>
+                            <?php if ($isTie): ?>
+                              <div class="text-xs text-center text-yellow-600 mt-1 font-bold">TIE</div>
+                            <?php endif; ?>
                           </div>
                           
                           <!-- Candidate Photo -->
@@ -437,11 +475,20 @@ include 'sidebar.php';
                               <span class="text-gray-500">
                                 <i class="fas fa-chart-line mr-1"></i>
                                 Rank #<?= $rank ?> in <?= htmlspecialchars($position) ?>
+                                <?php if ($isTie): ?>
+                                  <span class="text-yellow-600 font-medium">(TIE)</span>
+                                <?php endif; ?>
                               </span>
                               <?php if ($status === 'completed' && $rank === 1): ?>
-                                <span class="text-green-600 font-medium">
-                                  <i class="fas fa-trophy mr-1"></i> Winner for <?= htmlspecialchars($position) ?>
-                                </span>
+                                <?php if ($isFirstPlaceTie): ?>
+                                  <span class="text-yellow-600 font-medium">
+                                    <i class="fas fa-trophy mr-1"></i> TIE for <?= htmlspecialchars($position) ?>
+                                  </span>
+                                <?php else: ?>
+                                  <span class="text-green-600 font-medium">
+                                    <i class="fas fa-trophy mr-1"></i> Winner for <?= htmlspecialchars($position) ?>
+                                  </span>
+                                <?php endif; ?>
                               <?php endif; ?>
                             </div>
                           </div>
@@ -638,6 +685,25 @@ include 'sidebar.php';
           });
           
           $totalVotesForPosition = array_sum(array_column($candidates, 'vote_count'));
+          
+          // Check if there's a tie for first place
+          $isFirstPlaceTie = false;
+          if (count($candidates) > 1) {
+              $firstPlaceVotes = $candidates[0]['vote_count'];
+              for ($i = 1; $i < count($candidates); $i++) {
+                  if ($candidates[$i]['vote_count'] == $firstPlaceVotes) {
+                      $isFirstPlaceTie = true;
+                      break;
+                  } else {
+                      break; // Since candidates are sorted by vote count
+                  }
+              }
+          }
+          
+          // Initialize tie detection variables
+          $prevVoteCount = null;
+          $prevRank = null;
+          $isTie = false;
         ?>
           <div class="position-section mb-8 last:mb-0">
             <div class="flex items-center mb-4 pb-2 border-b border-gray-200">
@@ -658,16 +724,31 @@ include 'sidebar.php';
                 $electionPosition = $data['election_position'];
                 $voteCount = $data['vote_count'];
                 $percentage = $totalVotesForPosition > 0 ? round(($voteCount / $totalVotesForPosition) * 100, 1) : 0;
-                $rank = $index + 1;
+                
+                // Check for tie
+                if ($prevVoteCount === $voteCount) {
+                    $isTie = true;
+                    $rank = $prevRank;
+                } else {
+                    $isTie = false;
+                    $rank = $index + 1;
+                    $prevRank = $rank;
+                }
+                
+                $prevVoteCount = $voteCount;
               ?>
                 <div class="candidate-card bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md" data-position="<?= htmlspecialchars($position) ?>">
                   <div class="flex items-center">
                     <!-- Rank Badge -->
                     <div class="flex-shrink-0 mr-4">
                       <div class="rank-badge rounded-full flex items-center justify-center font-bold text-lg 
-                          <?= $rank === 1 ? 'rank-1' : ($rank === 2 ? 'rank-2' : ($rank === 3 ? 'rank-3' : 'bg-gray-200 text-gray-800')) ?>">
+                          <?= $rank === 1 ? ($isFirstPlaceTie ? 'tie-indicator' : 'rank-1') : 
+                             ($rank === 2 ? 'rank-2' : ($rank === 3 ? 'rank-3' : 'bg-gray-200 text-gray-800')) ?>">
                         <?= $rank ?>
                       </div>
+                      <?php if ($isTie): ?>
+                        <div class="text-xs text-center text-yellow-600 mt-1 font-bold">TIE</div>
+                      <?php endif; ?>
                     </div>
                     
                     <!-- Candidate Photo -->
@@ -724,7 +805,21 @@ include 'sidebar.php';
                         <span class="text-gray-500">
                           <i class="fas fa-chart-line mr-1"></i>
                           Rank #<?= $rank ?> in <?= htmlspecialchars($position) ?>
+                          <?php if ($isTie): ?>
+                            <span class="text-yellow-600 font-medium">(TIE)</span>
+                          <?php endif; ?>
                         </span>
+                        <?php if ($status === 'completed' && $rank === 1): ?>
+                          <?php if ($isFirstPlaceTie): ?>
+                            <span class="text-yellow-600 font-medium">
+                              <i class="fas fa-trophy mr-1"></i> TIE for <?= htmlspecialchars($position) ?>
+                            </span>
+                          <?php else: ?>
+                            <span class="text-green-600 font-medium">
+                              <i class="fas fa-trophy mr-1"></i> Winner for <?= htmlspecialchars($position) ?>
+                            </span>
+                          <?php endif; ?>
+                        <?php endif; ?>
                       </div>
                     </div>
                   </div>
