@@ -2,14 +2,14 @@
 session_start();
 date_default_timezone_set('Asia/Manila');
 
-$host = 'localhost';
-$db   = 'evoting_system';
-$user = 'root';
-$pass = '';
-$charset = 'utf8mb4';
+ $host = 'localhost';
+ $db   = 'evoting_system';
+ $user = 'root';
+ $pass = '';
+ $charset = 'utf8mb4';
 
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
-$options = [
+ $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+ $options = [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
@@ -26,12 +26,12 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
-$userId = $_SESSION['user_id'];
+ $userId = $_SESSION['user_id'];
 
 // --- Fetch user info ---
-$stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = :userId");
-$stmt->execute([':userId' => $userId]);
-$user = $stmt->fetch();
+ $stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = :userId");
+ $stmt->execute([':userId' => $userId]);
+ $user = $stmt->fetch();
 
 if (!$user) {
     session_destroy();
@@ -39,38 +39,43 @@ if (!$user) {
     exit();
 }
 
-$role = $user['role'];
-$assignedScope = $user['assigned_scope'];
+ $role = $user['role'];
+ $assignedScope = $user['assigned_scope'];
 
 // --- Fetch elections for dropdown (ONLY elections assigned to this admin) ---
-$electionStmt = $pdo->prepare("SELECT election_id, title FROM elections 
+ $electionStmt = $pdo->prepare("SELECT election_id, title FROM elections 
                                WHERE assigned_admin_id = :adminId
                                ORDER BY title ASC");
-$electionStmt->execute([':adminId' => $userId]);
-$elections = $electionStmt->fetchAll();
+ $electionStmt->execute([':adminId' => $userId]);
+ $elections = $electionStmt->fetchAll();
 
 // Fetch distinct positions for dropdown from election_candidates, but only for candidates created by the current admin
-$positionsStmt = $pdo->prepare("SELECT DISTINCT ec.position 
+ $positionsStmt = $pdo->prepare("SELECT DISTINCT ec.position 
                               FROM election_candidates ec
                               JOIN candidates c ON ec.candidate_id = c.id
                               WHERE c.created_by = ?
                               ORDER BY ec.position ASC");
-$positionsStmt->execute([$userId]);
-$positions = $positionsStmt->fetchAll(PDO::FETCH_COLUMN);
+ $positionsStmt->execute([$userId]);
+ $positions = $positionsStmt->fetchAll(PDO::FETCH_COLUMN);
 
 // Get filters
-$filterPosition = $_GET['position'] ?? '';
-$filterElection = $_GET['election'] ?? '';
+ $filterPosition = $_GET['position'] ?? '';
+ $filterElection = $_GET['election'] ?? '';
+
+// Pagination settings
+ $limit = 10; // 10 candidates per page
+ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+ $offset = ($page - 1) * $limit;
 
 // Build query - IMPORTANT: WHERE c.created_by = ? ensures only this admin's candidates
-$query = "SELECT c.id, c.first_name, c.middle_name, c.last_name, c.photo, 
+ $query = "SELECT c.id, c.first_name, c.middle_name, c.last_name, c.photo, 
                  c.credentials, ec.position, e.title as election_name, e.election_id, c.created_at 
           FROM candidates c
           LEFT JOIN election_candidates ec ON c.id = ec.candidate_id
           LEFT JOIN elections e ON ec.election_id = e.election_id
           WHERE c.created_by = ?"; // DITO NAKA-FILTER PER ADMIN
-$conditions = [];
-$params = [$userId]; // DITO NAKALAGAY YUNG USER ID NG CURRENT ADMIN
+ $conditions = [];
+ $params = [$userId]; // DITO NAKALAGAY YUNG USER ID NG CURRENT ADMIN
 
 // Add additional filters if specified
 if (!empty($filterElection)) {
@@ -87,12 +92,37 @@ if (!empty($conditions)) {
     $query .= " AND " . implode(" AND ", $conditions);
 }
 
-$query .= " ORDER BY c.created_at DESC";
+ $query .= " ORDER BY c.created_at DESC";
 
-// Execute the query
-$stmt = $pdo->prepare($query);
-$stmt->execute($params);
-$candidates = $stmt->fetchAll();
+// Add pagination directly to the query (not as parameters)
+ $query .= " LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
+
+// Execute the query with pagination
+ $stmt = $pdo->prepare($query);
+ $stmt->execute($params);
+ $candidates = $stmt->fetchAll();
+
+// Get total number of candidates for pagination
+ $countQuery = "SELECT COUNT(*) as total 
+               FROM candidates c
+               LEFT JOIN election_candidates ec ON c.id = ec.candidate_id
+               WHERE c.created_by = ?";
+ $countParams = [$userId];
+
+if (!empty($filterElection)) {
+    $countQuery .= " AND ec.election_id = ?";
+    $countParams[] = $filterElection;
+}
+
+if (!empty($filterPosition) && in_array($filterPosition, $positions)) {
+    $countQuery .= " AND ec.position = ?";
+    $countParams[] = $filterPosition;
+}
+
+ $countStmt = $pdo->prepare($countQuery);
+ $countStmt->execute($countParams);
+ $totalCandidates = $countStmt->fetch()['total'];
+ $totalPages = ceil($totalCandidates / $limit);
 ?>
 
 <!DOCTYPE html>
@@ -109,6 +139,24 @@ $candidates = $stmt->fetchAll();
       --cvsu-green: #1E6F46;
       --cvsu-green-light: #37A66B;
       --cvsu-yellow: #FFD166;
+    }
+    
+    .pagination-btn {
+      transition: all 0.2s ease;
+    }
+    
+    .pagination-btn:hover:not(.active):not(:disabled) {
+      background-color: #e5e7eb;
+    }
+    
+    .pagination-btn.active {
+      background-color: var(--cvsu-green);
+      color: white;
+    }
+    
+    .pagination-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
   </style>
 </head>
@@ -156,6 +204,15 @@ $candidates = $stmt->fetchAll();
         <a href="admin_manage_candidates.php" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded font-medium">
           <i class="fas fa-sync-alt mr-2"></i>Reset Filters
         </a>
+      </div>
+    </div>
+
+    <!-- Pagination Info -->
+    <div class="mb-4 flex justify-between items-center bg-white p-3 rounded shadow">
+      <div class="text-sm text-gray-700">
+        Showing <span class="font-semibold"><?= ($offset + 1) ?></span> to 
+        <span class="font-semibold"><?= min($offset + $limit, $totalCandidates) ?></span> of 
+        <span class="font-semibold"><?= $totalCandidates ?></span> candidates
       </div>
     </div>
 
@@ -229,6 +286,62 @@ $candidates = $stmt->fetchAll();
         </tbody>
       </table>
     </div>
+
+    <!-- Pagination Controls -->
+    <?php if ($totalPages > 1): ?>
+    <div class="mt-6 flex justify-center">
+      <nav class="flex items-center space-x-1">
+        <!-- Previous Button -->
+        <?php if ($page > 1): ?>
+          <a href="?page=<?= $page - 1 ?><?= !empty($filterElection) ? '&election=' . $filterElection : '' ?><?= !empty($filterPosition) ? '&position=' . $filterPosition : '' ?>" 
+             class="pagination-btn px-3 py-1 rounded border">
+            <i class="fas fa-chevron-left"></i>
+          </a>
+        <?php else: ?>
+          <button class="pagination-btn px-3 py-1 rounded border" disabled>
+            <i class="fas fa-chevron-left"></i>
+          </button>
+        <?php endif; ?>
+
+        <!-- Page Numbers -->
+        <?php 
+          $startPage = max(1, $page - 2);
+          $endPage = min($totalPages, $page + 2);
+          
+          if ($startPage > 1) {
+            echo '<a href="?page=1' . (!empty($filterElection) ? '&election=' . $filterElection : '') . (!empty($filterPosition) ? '&position=' . $filterPosition : '') . '" class="pagination-btn px-3 py-1 rounded border">1</a>';
+            if ($startPage > 2) {
+              echo '<span class="px-2">...</span>';
+            }
+          }
+          
+          for ($i = $startPage; $i <= $endPage; $i++) {
+            $activeClass = $i == $page ? 'active' : '';
+            echo '<a href="?page=' . $i . (!empty($filterElection) ? '&election=' . $filterElection : '') . (!empty($filterPosition) ? '&position=' . $filterPosition : '') . '" class="pagination-btn px-3 py-1 rounded border ' . $activeClass . '">' . $i . '</a>';
+          }
+          
+          if ($endPage < $totalPages) {
+            if ($endPage < $totalPages - 1) {
+              echo '<span class="px-2">...</span>';
+            }
+            echo '<a href="?page=' . $totalPages . (!empty($filterElection) ? '&election=' . $filterElection : '') . (!empty($filterPosition) ? '&position=' . $filterPosition : '') . '" class="pagination-btn px-3 py-1 rounded border">' . $totalPages . '</a>';
+          }
+        ?>
+
+        <!-- Next Button -->
+        <?php if ($page < $totalPages): ?>
+          <a href="?page=<?= $page + 1 ?><?= !empty($filterElection) ? '&election=' . $filterElection : '' ?><?= !empty($filterPosition) ? '&position=' . $filterPosition : '' ?>" 
+             class="pagination-btn px-3 py-1 rounded border">
+            <i class="fas fa-chevron-right"></i>
+          </a>
+        <?php else: ?>
+          <button class="pagination-btn px-3 py-1 rounded border" disabled>
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        <?php endif; ?>
+      </nav>
+    </div>
+    <?php endif; ?>
   </main>
 </div>
 
@@ -238,6 +351,9 @@ $candidates = $stmt->fetchAll();
     const position = document.getElementById('position').value;
     
     const url = new URL(window.location.href);
+    
+    // Reset to page 1 when applying new filters
+    url.searchParams.delete('page');
     
     if (election) {
       url.searchParams.set('election', election);

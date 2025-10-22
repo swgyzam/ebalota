@@ -9,26 +9,32 @@ date_default_timezone_set('Asia/Manila');
  $charset = 'utf8mb4';
  $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
  $options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES   => false,
 ];
+
 try {
-    $pdo = new PDO($dsn, $user, $pass, $options);
+     $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (\PDOException $e) {
-    die("DB Error: " . $e->getMessage());
+     throw new \PDOException($e->getMessage(), (int)$e->getCode());
 }
+
 // --- Auth Check ---
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin','super_admin'])) {
     header('Location: login.php');
     exit();
 }
+
  $currentRole  = $_SESSION['role'];
  $assignedScope = strtoupper(trim($_SESSION['assigned_scope'] ?? ''));
+
 // --- Build query conditions and columns based on admin's scope ---
  $conditions = ["role = 'voter'"];
  $params = [];
  $columns = [];
  $filterOptions = [];
+
 // Super Admin sees all voters
 if ($currentRole === 'super_admin') {
     $columns = ['Photo', 'Name', 'Position', 'College', 'Department', 'Course', 'Actions'];
@@ -85,11 +91,13 @@ else if ($assignedScope === 'CSG ADMIN') {
     $filterOptions['departments'] = $pdo->query("SELECT DISTINCT department1 FROM users WHERE role = 'voter' AND position = 'student' AND department1 IS NOT NULL AND department1 != '' ORDER BY department1 ASC")->fetchAll(PDO::FETCH_COLUMN);
     $filterOptions['courses'] = $pdo->query("SELECT DISTINCT course FROM users WHERE role = 'voter' AND position = 'student' AND course IS NOT NULL AND course != '' ORDER BY course ASC")->fetchAll(PDO::FETCH_COLUMN);
 }
+
 // Get current filters
  $filterStatus = $_GET['status'] ?? '';
  $filterCollege = $_GET['college'] ?? '';
  $filterDepartment = $_GET['department'] ?? '';
  $filterCourse = $_GET['course'] ?? '';
+
 // Apply additional filters if set
 if (!empty($filterStatus) && isset($filterOptions['statuses']) && in_array($filterStatus, $filterOptions['statuses'])) {
     $conditions[] = "status = :status";
@@ -113,8 +121,10 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
     $conditions[] = "course = :course";
     $params[':course'] = $filterCourse;
 }
+
 // Build the final query
  $sql = "SELECT * FROM users WHERE " . implode(' AND ', $conditions) . " ORDER BY user_id DESC";
+
 // Execute the query
  $stmt = $pdo->prepare($sql);
  $stmt->execute($params);
@@ -180,6 +190,17 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
     
     .btn-info:hover {
       background-color: #2563eb;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn-edit {
+      background-color: var(--cvsu-yellow); /* Changed to yellow */
+      transition: all 0.3s ease;
+    }
+
+    .btn-edit:hover {
+      background-color: #e6c200; /* Darker yellow for hover */
       transform: translateY(-2px);
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
@@ -610,7 +631,7 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
                       <?php if ($assignedScope !== 'COOP'): ?>
                         <button 
                           onclick='triggerEditUser(<?= $user["user_id"] ?>)'
-                          class="text-blue-500 hover:text-blue-600 font-medium text-sm"
+                          class="btn-edit text-white px-3 py-1 rounded text-sm font-medium inline-flex items-center justify-center w-full"
                           aria-label="Edit user">
                           <i class="fas fa-edit mr-1"></i>Edit
                         </button>
