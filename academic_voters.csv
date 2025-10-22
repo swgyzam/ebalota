@@ -1,0 +1,4 @@
+first_name,last_name,email,position,employee_number,college,department,status,is_coop_member
+John,Smith,john.smith@cvsu.edu.ph,academic,1001,CEIT,Department of Computer and Electronics Engineering,regular,0
+Jane,Doe,jane.doe@cvsu.edu.ph,academic,1002,CAS,Department of Biological Sciences,regular,1
+Michael,Johnson,michael.johnson@cvsu.edu.ph,academic,1003,CAFENR,Department of Animal Science,part-time,0
