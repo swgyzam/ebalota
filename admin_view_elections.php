@@ -244,7 +244,7 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
                   <!-- For upcoming elections - only show Launch to Voters if not yet launched -->
                   <?php if ($election['creation_stage'] !== 'ready_for_voters'): ?>
                     <button onclick="confirmLaunch(<?= $election['election_id'] ?>, '<?= htmlspecialchars($election['title']) ?>', '<?= $election['creation_stage'] ?>')" 
-                      class="flex-1 bg-[var(--cvsu-yellow)] hover:bg-yellow-600 text-white py-2 px-4 rounded-lg font-semibold transition text-center flex items-center justify-center">
+                      class="flex-1 bg-[var(--cvsu-green)] hover:bg-green-600 text-white py-2 px-4 rounded-lg font-semibold transition text-center flex items-center justify-center">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>

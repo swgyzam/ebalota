@@ -1,6 +1,4 @@
 first_name,last_name,email,position,student_number,college,department,course
-Juan,Delos Santos,juan.delossantos@cvsu.edu.ph,student,20231001,CEIT,Department of Computer and Electronics Engineering,BS Computer Science
-Maria,Garcia,maria.garcia@gmail.com,student,20231002,CAS,Department of Biological Sciences,BS Psychology
-Andrea,Santos,andrea.santos@cvsu.edu.ph,student,20231003,CEIT,Department of Information Technology,BS Information Technology
-Antonio,David,antonio.david@cvsu.edu.ph,student,20231004,COED,Department of Teacher Education,BS Elementary Education
-Mark,Anthony,mark.anthony@gmail.com,student,202200146,CAFENR,Department of Fisheriwes, BS Agriculture  
+Alejan,Zam,main.alejandro.zamora@cvsu.edu.ph,student,202200145,CEIT,Department of Computer and Electronics Engineering,BS Computer Science
+Jam,Benito,main.jhenidellannemary.benito@cvsu.edu.ph,student,202200146,CEIT,Department of Information Technology,BS Information Technology
+Kyle Raven,Mabingnay,main.kyleraven.mabingnay@cvsu.edu.ph,student,202200147,CAFENR,Department of Fisheriwes, BS Agriculture  

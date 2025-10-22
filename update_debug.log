@@ -2963,3 +2963,203 @@ Array
 )
 
 Update successful for election 195
+Executing with params:
+Array
+(
+    [:title] => CEIT
+    [:description] => TRY
+    [:start_datetime] => 2025-10-22 14:20:00
+    [:end_datetime] => 2025-10-24 11:11:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSCS,BSIT,BSCpE,BSECE,BSCE,BSME,BSEE,BSIE,BSArch
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1757573380_pingwinnn.jpg
+    [:election_id] => 198
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 198
+Executing with params:
+Array
+(
+    [:title] => CEIT TRY
+    [:description] => WALAA
+    [:start_datetime] => 2025-10-22 14:26:00
+    [:end_datetime] => 2025-10-24 14:26:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSCS,BSIT
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761114286_kokak.jpg
+    [:election_id] => 201
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 201
+Executing with params:
+Array
+(
+    [:title] => CEIT TRY
+    [:description] => WALAA
+    [:start_datetime] => 2025-10-22 14:26:00
+    [:end_datetime] => 2025-10-24 14:26:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CAFENR
+    [:allowed_courses] => BSAgri
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761114286_kokak.jpg
+    [:election_id] => 201
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 201
+Executing with params:
+Array
+(
+    [:title] => CEIT TRY
+    [:description] => WALAA
+    [:start_datetime] => 2025-10-22 14:26:00
+    [:end_datetime] => 2025-10-24 14:26:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSCS,BSIT
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761114286_kokak.jpg
+    [:election_id] => 201
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 201
+Executing with params:
+Array
+(
+    [:title] => CEIT TRY
+    [:description] => WALAA
+    [:start_datetime] => 2025-10-22 14:26:00
+    [:end_datetime] => 2025-10-24 14:26:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSIT,BSCpE
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761114286_kokak.jpg
+    [:election_id] => 201
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 201
+Executing with params:
+Array
+(
+    [:title] => CEIT TRY
+    [:description] => WALAA
+    [:start_datetime] => 2025-10-22 14:26:00
+    [:end_datetime] => 2025-10-24 14:26:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSCS
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761114286_kokak.jpg
+    [:election_id] => 201
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 201
+Executing with params:
+Array
+(
+    [:title] => CEIT TRY
+    [:description] => WALAA
+    [:start_datetime] => 2025-10-22 14:26:00
+    [:end_datetime] => 2025-10-24 14:26:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CAFENR
+    [:allowed_courses] => BSAgri
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761114286_kokak.jpg
+    [:election_id] => 201
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 201
+Executing with params:
+Array
+(
+    [:title] => CEIT TRY
+    [:description] => WALAA
+    [:start_datetime] => 2025-10-22 14:26:00
+    [:end_datetime] => 2025-10-24 14:26:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSCS,BSIT,BSCpE,BSECE,BSCE,BSME,BSEE,BSIE,BSArch
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761114286_kokak.jpg
+    [:election_id] => 201
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 201
+Executing with params:
+Array
+(
+    [:title] => CEIT TRY
+    [:description] => WALAA
+    [:start_datetime] => 2025-10-22 14:26:00
+    [:end_datetime] => 2025-10-24 14:26:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => all
+    [:allowed_courses] => BSCS,BSIT,BSCpE,BSECE,BSCE,BSME,BSEE,BSIE,BSArch
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761114286_kokak.jpg
+    [:election_id] => 201
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 201
+Executing with params:
+Array
+(
+    [:title] => CEIT TRY
+    [:description] => WALAA
+    [:start_datetime] => 2025-10-22 14:26:00
+    [:end_datetime] => 2025-10-24 14:26:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761114286_kokak.jpg
+    [:election_id] => 201
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 201

@@ -31,8 +31,9 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin','super
  $filterOptions = [];
 // Super Admin sees all voters
 if ($currentRole === 'super_admin') {
-    $columns = ['Photo', 'Name', 'Position', 'Department', 'Course', 'Actions'];
+    $columns = ['Photo', 'Name', 'Position', 'College', 'Department', 'Course', 'Actions'];
     $filterOptions['positions'] = $pdo->query("SELECT DISTINCT position FROM users WHERE role = 'voter' ORDER BY position ASC")->fetchAll(PDO::FETCH_COLUMN);
+    $filterOptions['colleges'] = $pdo->query("SELECT DISTINCT IF(position = 'academic', department, 'ALL STUDENTS') as college FROM users WHERE role = 'voter' ORDER BY college ASC")->fetchAll(PDO::FETCH_COLUMN);
     $filterOptions['departments'] = $pdo->query("SELECT DISTINCT IF(position = 'academic', department1, department) as dept FROM users WHERE role = 'voter' AND (department IS NOT NULL OR department1 IS NOT NULL) ORDER BY dept ASC")->fetchAll(PDO::FETCH_COLUMN);
     $filterOptions['courses'] = $pdo->query("SELECT DISTINCT course FROM users WHERE role = 'voter' AND course IS NOT NULL AND course != '' ORDER BY course ASC")->fetchAll(PDO::FETCH_COLUMN);
 } 
@@ -41,7 +42,8 @@ else if (in_array($assignedScope, ['CEIT', 'CAS', 'CEMDS', 'CCJ', 'CAFENR', 'CON
     $conditions[] = "position = 'student'";
     $conditions[] = "UPPER(TRIM(department)) = :scope";
     $params[':scope'] = $assignedScope;
-    $columns = ['Photo', 'Name', 'Student Number', 'Course', 'Department', 'Actions'];
+    // FIXED: Updated columns to show College and Department correctly
+    $columns = ['Photo', 'Name', 'Student Number', 'College', 'Department', 'Course', 'Actions'];
     $filterOptions['courses'] = $pdo->prepare("SELECT DISTINCT course FROM users WHERE role = 'voter' AND position = 'student' AND UPPER(TRIM(department)) = :scope AND course IS NOT NULL AND course != '' ORDER BY course ASC");
     $filterOptions['courses']->execute([':scope' => $assignedScope]);
     $filterOptions['courses'] = $filterOptions['courses']->fetchAll(PDO::FETCH_COLUMN);
@@ -77,13 +79,15 @@ else if ($assignedScope === 'COOP') {
 // CSG Admin - all students
 else if ($assignedScope === 'CSG ADMIN') {
     $conditions[] = "position = 'student'";
-    $columns = ['Photo', 'Name', 'Student Number', 'Course', 'College', 'Department', 'Actions'];
+    // FIXED: Updated columns to show College and Department correctly
+    $columns = ['Photo', 'Name', 'Student Number', 'College', 'Department', 'Course', 'Actions'];
+    $filterOptions['colleges'] = $pdo->query("SELECT DISTINCT department FROM users WHERE role = 'voter' AND position = 'student' AND department IS NOT NULL AND department != '' ORDER BY department ASC")->fetchAll(PDO::FETCH_COLUMN);
+    $filterOptions['departments'] = $pdo->query("SELECT DISTINCT department1 FROM users WHERE role = 'voter' AND position = 'student' AND department1 IS NOT NULL AND department1 != '' ORDER BY department1 ASC")->fetchAll(PDO::FETCH_COLUMN);
     $filterOptions['courses'] = $pdo->query("SELECT DISTINCT course FROM users WHERE role = 'voter' AND position = 'student' AND course IS NOT NULL AND course != '' ORDER BY course ASC")->fetchAll(PDO::FETCH_COLUMN);
-    $filterOptions['departments'] = $pdo->query("SELECT DISTINCT department FROM users WHERE role = 'voter' AND position = 'student' ORDER BY department ASC")->fetchAll(PDO::FETCH_COLUMN);
 }
 // Get current filters
  $filterStatus = $_GET['status'] ?? '';
- $filterCollege = $_GET['college'] ?? ''; // ADDED
+ $filterCollege = $_GET['college'] ?? '';
  $filterDepartment = $_GET['department'] ?? '';
  $filterCourse = $_GET['course'] ?? '';
 // Apply additional filters if set
@@ -192,6 +196,119 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
     .table-hover tbody tr:hover {
       background-color: #f3f4f6;
     }
+    
+    /* Toast notification styles */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 16px 24px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      color: white;
+      font-weight: 500;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s ease;
+    }
+    
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    
+    .toast.success {
+      background-color: #10b981;
+    }
+    
+    .toast.error {
+      background-color: #ef4444;
+    }
+    
+    .toast i {
+      margin-right: 8px;
+    }
+    
+    /* Filter container styling */
+    .filter-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+    }
+    
+    .filter-group {
+      flex: 1;
+      min-width: 180px;
+    }
+    
+    .filter-group label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 0.25rem;
+    }
+    
+    .filter-group select {
+      width: 100%;
+      border: 1px solid #d1d5db;
+      border-radius: 0.375rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+      color: #1f2937;
+      background-color: #fff;
+      transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+    
+    .filter-group select:focus {
+      outline: none;
+      border-color: var(--cvsu-green);
+      box-shadow: 0 0 0 3px rgba(30, 111, 70, 0.1);
+    }
+    
+    .reset-button-container {
+      display: flex;
+      align-items: flex-end;
+    }
+    
+    .reset-button {
+      white-space: nowrap;
+      background-color: #e5e7eb;
+      color: #374151;
+      font-weight: 500;
+      padding: 0.5rem 1rem;
+      border-radius: 0.375rem;
+      transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+      display: flex;
+      align-items: center;
+    }
+    
+    .reset-button:hover {
+      background-color: #d1d5db;
+      color: #1f2937;
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .filter-container {
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      
+      .filter-group {
+        min-width: 100%;
+      }
+      
+      .reset-button-container {
+        width: 100%;
+        justify-content: flex-end;
+      }
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
@@ -261,97 +378,116 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
       endif; 
       ?>
       
-      <!-- Filters -->
-      <div class="mb-4 flex flex-wrap gap-4 items-center bg-white p-4 rounded shadow">
-        <?php if (isset($filterOptions['positions'])): ?>
-        <div>
-          <label for="position" class="font-semibold">Filter by Position:</label>
-          <select id="position" name="position" class="border rounded px-3 py-2" onchange="filter()">
-            <option value="">All Positions</option>
-            <?php foreach ($filterOptions['positions'] as $position): ?>
-              <option value="<?= htmlspecialchars($position) ?>" <?= ($position == $filterPosition) ? 'selected' : '' ?>>
-                <?= htmlspecialchars($position) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
+      <!-- Filters Section -->
+      <div class="mb-6 bg-white p-4 rounded shadow">
+        <div class="filter-container">
+          <?php if (isset($filterOptions['positions'])): ?>
+          <div class="filter-group">
+            <label for="position">Filter by Position:</label>
+            <select id="position" name="position" onchange="filter()">
+              <option value="">All Positions</option>
+              <?php foreach ($filterOptions['positions'] as $position): ?>
+                <option value="<?= htmlspecialchars($position) ?>" <?= ($position == $filterPosition) ? 'selected' : '' ?>>
+                  <?= htmlspecialchars($position) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php endif; ?>
+          
+          <?php if (isset($filterOptions['statuses'])): ?>
+          <div class="filter-group">
+            <label for="status">Filter by Status:</label>
+            <select id="status" name="status" onchange="filter()">
+              <option value="">All Statuses</option>
+              <?php foreach ($filterOptions['statuses'] as $status): ?>
+                <option value="<?= htmlspecialchars($status) ?>" <?= ($status == $filterStatus) ? 'selected' : '' ?>>
+                  <?= htmlspecialchars($status) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php endif; ?>
+          
+          <?php if (isset($filterOptions['colleges'])): ?>
+          <div class="filter-group">
+            <label for="college">Filter by College:</label>
+            <select id="college" name="college" onchange="filter()">
+              <option value="">All Colleges</option>
+              <?php foreach ($filterOptions['colleges'] as $college): ?>
+                <option value="<?= htmlspecialchars($college) ?>" <?= ($college == $filterCollege) ? 'selected' : '' ?>>
+                  <?= htmlspecialchars($college) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php endif; ?>
+          
+          <?php if (isset($filterOptions['departments'])): ?>
+          <div class="filter-group">
+            <label for="department">Filter by Department:</label>
+            <select id="department" name="department" onchange="filter()">
+              <option value="">All Departments</option>
+              <?php foreach ($filterOptions['departments'] as $dept): ?>
+                <option value="<?= htmlspecialchars($dept) ?>" <?= ($dept == $filterDepartment) ? 'selected' : '' ?>>
+                  <?= htmlspecialchars($dept) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php endif; ?>
+          
+          <?php if (isset($filterOptions['courses'])): ?>
+          <div class="filter-group">
+            <label for="course">Filter by Course:</label>
+            <select id="course" name="course" onchange="filter()">
+              <option value="">All Courses</option>
+              <?php foreach ($filterOptions['courses'] as $course): ?>
+                <option value="<?= htmlspecialchars($course) ?>" <?= ($course == $filterCourse) ? 'selected' : '' ?>>
+                  <?= htmlspecialchars($course) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php endif; ?>
+          
+          <div class="reset-button-container">
+            <a href="admin_manage_users.php" class="reset-button">
+              <i class="fas fa-sync-alt mr-2"></i>Reset Filters
+            </a>
+          </div>
         </div>
-        <?php endif; ?>
-        
-        <?php if (isset($filterOptions['statuses'])): ?>
-        <div>
-          <label for="status" class="font-semibold">Filter by Status:</label>
-          <select id="status" name="status" class="border rounded px-3 py-2" onchange="filter()">
-            <option value="">All Statuses</option>
-            <?php foreach ($filterOptions['statuses'] as $status): ?>
-              <option value="<?= htmlspecialchars($status) ?>" <?= ($status == $filterStatus) ? 'selected' : '' ?>>
-                <?= htmlspecialchars($status) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
+      </div>
+      
+      <!-- Pagination -->
+      <div class="mb-4 flex justify-between items-center">
+        <div class="text-sm text-gray-700">
+          Showing <span id="showing-start">1</span> to <span id="showing-end">20</span> of <span id="total-records"><?= count($users) ?></span> users
         </div>
-        <?php endif; ?>
-        
-        <!-- ADDED: College filter for COOP admin -->
-        <?php if (isset($filterOptions['colleges'])): ?>
-        <div>
-          <label for="college" class="font-semibold">Filter by College:</label>
-          <select id="college" name="college" class="border rounded px-3 py-2" onchange="filter()">
-            <option value="">All Colleges</option>
-            <?php foreach ($filterOptions['colleges'] as $college): ?>
-              <option value="<?= htmlspecialchars($college) ?>" <?= ($college == $filterCollege) ? 'selected' : '' ?>>
-                <?= htmlspecialchars($college) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <?php endif; ?>
-        
-        <?php if (isset($filterOptions['departments'])): ?>
-        <div>
-          <label for="department" class="font-semibold">Filter by Department:</label>
-          <select id="department" name="department" class="border rounded px-3 py-2" onchange="filter()">
-            <option value="">All Departments</option>
-            <?php foreach ($filterOptions['departments'] as $dept): ?>
-              <option value="<?= htmlspecialchars($dept) ?>" <?= ($dept == $filterDepartment) ? 'selected' : '' ?>>
-                <?= htmlspecialchars($dept) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <?php endif; ?>
-        
-        <?php if (isset($filterOptions['courses'])): ?>
-        <div>
-          <label for="course" class="font-semibold">Filter by Course:</label>
-          <select id="course" name="course" class="border rounded px-3 py-2" onchange="filter()">
-            <option value="">All Courses</option>
-            <?php foreach ($filterOptions['courses'] as $course): ?>
-              <option value="<?= htmlspecialchars($course) ?>" <?= ($course == $filterCourse) ? 'selected' : '' ?>>
-                <?= htmlspecialchars($course) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <?php endif; ?>
-        
-        <div class="ml-auto">
-          <a href="admin_manage_users.php" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded font-medium">
-            <i class="fas fa-sync-alt mr-2"></i>Reset Filters
-          </a>
+        <div class="flex space-x-2">
+          <button id="prev-page" class="px-3 py-1 border rounded text-gray-600 hover:bg-gray-100 disabled:opacity-50" disabled>
+            <i class="fas fa-chevron-left"></i> Previous
+          </button>
+          <div id="page-numbers" class="flex space-x-1">
+            <!-- Page numbers will be inserted here by JavaScript -->
+          </div>
+          <button id="next-page" class="px-3 py-1 border rounded text-gray-600 hover:bg-gray-100">
+            Next <i class="fas fa-chevron-right"></i>
+          </button>
         </div>
       </div>
       
       <!-- Users Table -->
       <div class="overflow-x-auto bg-white rounded shadow-lg">
-        <table class="min-w-full table-auto table-hover">
+        <table class="min-w-full table-auto table-hover" role="table" aria-label="Users list">
           <thead class="bg-[var(--cvsu-green)] text-white">
             <tr>
               <?php foreach ($columns as $column): ?>
-                <th class="py-2 px-4 text-left text-sm"><?= htmlspecialchars($column) ?></th>
+                <th class="py-2 px-4 text-left text-sm" scope="col"><?= htmlspecialchars($column) ?></th>
               <?php endforeach; ?>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="users-table-body">
             <?php if (count($users) > 0): ?>
               <?php foreach ($users as $user): ?>
                 <tr class="border-b hover:bg-gray-100">
@@ -388,19 +524,22 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
                   </td>
                   <?php endif; ?>
                   
-                  <?php if (in_array('Course', $columns)): ?>
-                  <td class="py-3 px-4 text-sm">
-                    <?= !empty($user['course']) ? htmlspecialchars($user['course']) : '<span class="text-gray-400">Not set</span>' ?>
-                  </td>
-                  <?php endif; ?>
-                  
                   <?php if (in_array('College', $columns)): ?>
                   <td class="py-3 px-4 text-sm">
                     <?php 
-                    // FIXED: College is stored in 'department' field for academic voters
-                    if ($user['position'] === 'academic' && !empty($user['department'])) {
+                    // For students, college is in 'department' field
+                    if ($user['position'] === 'student' && !empty($user['department'])) {
                         echo htmlspecialchars($user['department']);
-                    } else {
+                    } 
+                    // For academic staff, college is also in 'department' field
+                    else if ($user['position'] === 'academic' && !empty($user['department'])) {
+                        echo htmlspecialchars($user['department']);
+                    }
+                    // For COOP members, college is in 'department' field
+                    else if ($user['is_coop_member'] == 1 && !empty($user['department'])) {
+                        echo htmlspecialchars($user['department']);
+                    }
+                    else {
                         echo '<span class="text-gray-400">N/A</span>';
                     }
                     ?>
@@ -410,23 +549,32 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
                   <?php if (in_array('Department', $columns)): ?>
                   <td class="py-3 px-4 text-sm">
                     <?php 
-                    // FIXED: Handle department differently for academic vs non-academic voters
-                    if ($user['position'] === 'academic') {
-                        // For academic voters, department is in 'department1' field
-                        if (!empty($user['department1'])) {
-                            echo htmlspecialchars($user['department1']);
-                        } else {
-                            echo '<span class="text-gray-400">Not assigned</span>';
-                        }
-                    } else {
-                        // For non-academic voters, department is in 'department' field
-                        if (!empty($user['department'])) {
-                            echo htmlspecialchars($user['department']);
-                        } else {
-                            echo '<span class="text-gray-400">Not assigned</span>';
-                        }
+                    // For students, department is in 'department1' field
+                    if ($user['position'] === 'student' && !empty($user['department1'])) {
+                        echo htmlspecialchars($user['department1']);
+                    } 
+                    // For academic staff, department is in 'department1' field
+                    else if ($user['position'] === 'academic' && !empty($user['department1'])) {
+                        echo htmlspecialchars($user['department1']);
+                    }
+                    // For COOP members who are academic, department is in 'department1' field
+                    else if ($user['is_coop_member'] == 1 && $user['position'] === 'academic' && !empty($user['department1'])) {
+                        echo htmlspecialchars($user['department1']);
+                    }
+                    // For COOP members who are non-academic, department is in 'department' field
+                    else if ($user['is_coop_member'] == 1 && $user['position'] === 'non-academic' && !empty($user['department'])) {
+                        echo htmlspecialchars($user['department']);
+                    }
+                    else {
+                        echo '<span class="text-gray-400">N/A</span>';
                     }
                     ?>
+                  </td>
+                  <?php endif; ?>
+                  
+                  <?php if (in_array('Course', $columns)): ?>
+                  <td class="py-3 px-4 text-sm">
+                    <?= !empty($user['course']) ? htmlspecialchars($user['course']) : '<span class="text-gray-400">Not set</span>' ?>
                   </td>
                   <?php endif; ?>
                   
@@ -462,7 +610,8 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
                       <?php if ($assignedScope !== 'COOP'): ?>
                         <button 
                           onclick='triggerEditUser(<?= $user["user_id"] ?>)'
-                          class="text-blue-500 hover:text-blue-600 font-medium text-sm">
+                          class="text-blue-500 hover:text-blue-600 font-medium text-sm"
+                          aria-label="Edit user">
                           <i class="fas fa-edit mr-1"></i>Edit
                         </button>
                       <?php endif; ?>
@@ -478,7 +627,8 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
                       
                       <a href="admin_delete_users.php?user_id=<?= $user['user_id'] ?>" 
                          class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-medium inline-flex items-center justify-center w-full"
-                         onclick="return confirm('Are you sure you want to delete this user?');">
+                         onclick="return confirm('Are you sure you want to delete this user?');"
+                         aria-label="Delete user">
                         <i class="fas fa-trash mr-1"></i>Delete
                       </a>
                     </div>
@@ -504,8 +654,37 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
     </main>
   </div>
   
+  <!-- Toast notification container -->
+  <div id="toast-container"></div>
+  
 <script>
 let selectedUser = null;
+
+// Toast notification function
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+    
+    toast.innerHTML = `<i class="fas ${icon}"></i> ${message}`;
+    
+    document.getElementById('toast-container').appendChild(toast);
+    
+    // Trigger animation
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+            toast.remove();
+        }, 300);
+    }, 3000);
+}
+
 function triggerEditUser(userId) {
   fetch('get_user.php?user_id=' + userId)
     .then(res => res.json())
@@ -513,11 +692,12 @@ function triggerEditUser(userId) {
       if (data.status === 'success') {
         openUpdateModal(data.data);
       } else {
-        alert("User not found.");
+        showToast("User not found.", "error");
       }
     })
-    .catch(() => alert("Fetch failed"));
+    .catch(() => showToast("Fetch failed", "error"));
 }
+
 function openUpdateModal(user) {
   selectedUser = user;
   document.getElementById('update_user_id').value = user.user_id;
@@ -530,10 +710,11 @@ function openUpdateModal(user) {
   document.getElementById('updateModal').classList.remove('hidden');
   setTimeout(() => document.getElementById('update_first_name').focus(), 100);
 }
+
 function filter() {
   const position = document.getElementById('position') ? document.getElementById('position').value : '';
   const status = document.getElementById('status') ? document.getElementById('status').value : '';
-  const college = document.getElementById('college') ? document.getElementById('college').value : ''; // ADDED
+  const college = document.getElementById('college') ? document.getElementById('college').value : '';
   const department = document.getElementById('department') ? document.getElementById('department').value : '';
   const course = document.getElementById('course') ? document.getElementById('course').value : '';
   
@@ -551,7 +732,7 @@ function filter() {
     url.searchParams.delete('status');
   }
   
-  if (college) { // ADDED
+  if (college) {
     url.searchParams.set('college', college);
   } else {
     url.searchParams.delete('college');
@@ -570,6 +751,85 @@ function filter() {
   }
   
   window.location.href = url.toString();
+}
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    // Show any existing messages as toast
+    <?php if (isset($_SESSION['message'])): ?>
+        showToast("<?= htmlspecialchars($_SESSION['message']) ?>", "<?= $_SESSION['message_type'] ?? 'success' ?>");
+    <?php endif; ?>
+    
+    // Initialize pagination
+    updatePagination();
+});
+
+// Pagination functions
+function updatePagination() {
+    const rowsPerPage = 20;
+    const tableBody = document.getElementById('users-table-body');
+    const rows = tableBody.querySelectorAll('tr');
+    const totalRows = rows.length;
+    const totalPages = Math.ceil(totalRows / rowsPerPage);
+    
+    // Update total records
+    document.getElementById('total-records').textContent = totalRows;
+    
+    // Hide all rows initially
+    rows.forEach(row => {
+        row.style.display = 'none';
+    });
+    
+    // Show current page rows
+    const currentPage = parseInt(localStorage.getItem('currentPage') || '1');
+    const start = (currentPage - 1) * rowsPerPage;
+    const end = Math.min(start + rowsPerPage, totalRows);
+    
+    for (let i = start; i < end; i++) {
+        if (rows[i]) {
+            rows[i].style.display = '';
+        }
+    }
+    
+    // Update showing info
+    document.getElementById('showing-start').textContent = start + 1;
+    document.getElementById('showing-end').textContent = end;
+    
+    // Generate page numbers
+    const pageNumbers = document.getElementById('page-numbers');
+    pageNumbers.innerHTML = '';
+    
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    // Previous button
+    const prevButton = document.getElementById('prev-page');
+    prevButton.disabled = currentPage === 1;
+    prevButton.onclick = () => goToPage(currentPage - 1);
+    
+    // Page numbers
+    for (let i = startPage; i <= endPage; i++) {
+        const pageButton = document.createElement('button');
+        pageButton.className = `px-3 py-1 border rounded ${i === currentPage ? 'bg-[var(--cvsu-green)] text-white' : 'text-gray-600 hover:bg-gray-100'}`;
+        pageButton.textContent = i;
+        pageButton.onclick = () => goToPage(i);
+        pageNumbers.appendChild(pageButton);
+    }
+    
+    // Next button
+    const nextButton = document.getElementById('next-page');
+    nextButton.disabled = currentPage === totalPages;
+    nextButton.onclick = () => goToPage(currentPage + 1);
+}
+
+function goToPage(page) {
+    localStorage.setItem('currentPage', page);
+    updatePagination();
 }
 </script>
 </body>

@@ -21,54 +21,54 @@ date_default_timezone_set('Asia/Manila');
     'College of Tourism and Hospitality Management (CTHM)' => 'CTHM',
 ];
  $course_map = [
-  // CEIT
-  'bs computer science' => 'bscs',
-  'bs information technology' => 'bsit',
-  'bs computer engineering' => 'bscpe',
-  'bs electronics engineering' => 'bsece',
-  'bs civil engineering' => 'bsce',
-  'bs mechanical engineering' => 'bsme',
-  'bs electrical engineering' => 'bsee',
-  'bs industrial engineering' => 'bsie',
-  // CAFENR
-  'bs agriculture' => 'bsag',
-  'bs agribusiness' => 'bsab',
-  'bs environmental science' => 'bses',
-  'bs food technology' => 'bsft',
-  'bs forestry' => 'bsfor',
-  'bs agricultural and biosystems engineering' => 'bsabe',
-  'bachelor of agricultural entrepreneurship' => 'bae',
-  'bs land use design and management' => 'bsldm',
-  // CAS
-  'bs biology' => 'bsbio',
-  'bs chemistry' => 'bschem',
-  'bs mathematics' => 'bsmath',
-  'bs physics' => 'bsphy',
-  'bs psychology' => 'bspsy',
-  'ba english language studies' => 'baels',
-  'ba communication' => 'bacomm',
-  'bs statistics' => 'bsstat',
-  // CVMBS
-  'doctor of veterinary medicine' => 'dvm',
-  'bs biology (pre-veterinary)' => 'bspv',
-  // CED
-  'bachelor of elementary education' => 'bee',
-  'bachelor of secondary education' => 'bse',
-  'bachelor of physical education' => 'bpe',
-  'bachelor of technology and livelihood education' => 'btle',
-  // CEMDS
-  'bs business administration' => 'bsba',
-  'bs accountancy' => 'bsacc',
-  'bs economics' => 'bseco',
-  'bs entrepreneurship' => 'bsent',
-  'bs office administration' => 'bsoa',
-  // CSPEAR
-  'bachelor of physical education' => 'bpe',  // same as CED bpe
-  'bs exercise and sports sciences' => 'bsess',
-  // CCJ
-  'bs criminology' => 'bscrim',
-  // CON
-  'bs nursing' => 'bsn',
+    // CEIT
+    'bs computer science' => 'bscs',
+    'bs information technology' => 'bsit',
+    'bs computer engineering' => 'bscpe',
+    'bs electronics engineering' => 'bsece',
+    'bs civil engineering' => 'bsce',
+    'bs mechanical engineering' => 'bsme',
+    'bs electrical engineering' => 'bsee',
+    'bs industrial engineering' => 'bsie',
+    // CAFENR
+    'bs agriculture' => 'bsagri',
+    'bs agribusiness' => 'bsab',
+    'bs environmental science' => 'bses',
+    'bs food technology' => 'bsft',
+    'bs forestry' => 'bsfor',
+    'bs agricultural and biosystems engineering' => 'bsabe',
+    'bachelor of agricultural entrepreneurship' => 'bae',
+    'bs land use design and management' => 'bsldm',
+    // CAS
+    'bs biology' => 'bsbio',
+    'bs chemistry' => 'bschem',
+    'bs mathematics' => 'bsmath',
+    'bs physics' => 'bsphy',
+    'bs psychology' => 'bspsy',
+    'ba english language studies' => 'baels',
+    'ba communication' => 'bacomm',
+    'bs statistics' => 'bsstat',
+    // CVMBS
+    'doctor of veterinary medicine' => 'dvm',
+    'bs biology (pre-veterinary)' => 'bspv',
+    // CED
+    'bachelor of elementary education' => 'bee',
+    'bachelor of secondary education' => 'bse',
+    'bachelor of physical education' => 'bpe',
+    'bachelor of technology and livelihood education' => 'btle',
+    // CEMDS
+    'bs business administration' => 'bsba',
+    'bs accountancy' => 'bsacc',
+    'bs economics' => 'bseco',
+    'bs entrepreneurship' => 'bsent',
+    'bs office administration' => 'bsoa',
+    // CSPEAR
+    'bachelor of physical education' => 'bpe',  // same as CED bpe
+    'bs exercise and sports sciences' => 'bsess',
+    // CCJ
+    'bs criminology' => 'bscrim',
+    // CON
+    'bs nursing' => 'bsn',
 ];
  $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
  $options = [
@@ -103,11 +103,13 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'voter') {
  $is_student = in_array('student', $role_parts);
  $is_faculty = in_array('faculty', $role_parts);
  $is_non_academic = in_array('non-academic', $role_parts);
+
+// Normalize voter data for comparison
  $voter_college = strtolower(trim($_SESSION['department'] ?? ''));
  $voter_course_full = strtolower(trim($_SESSION['course'] ?? ''));
  $voter_status = strtolower(trim($_SESSION['status'] ?? ''));
 
-// Normalize course name to code
+// Normalize course name to code using the course_map
  $voter_course = $course_map[$voter_course_full] ?? $voter_course_full;
 
 // Fetch all elections
@@ -148,24 +150,27 @@ if (!$voter) {
  $filtered_elections = [];
  $positions = array_map('trim', explode(',', strtolower($voter['position'] ?? '')));
  $mappedPosition = in_array('COOP', $positions) ? 'coop' : (
-                    in_array('academic', $positions) ? 'faculty' : (
-                    in_array('student', $positions) ? 'student' : (
-                    in_array('non-academic', $positions) ? 'non-academic' : 'All'
-                    )));
+                   in_array('academic', $positions) ? 'faculty' : (
+                   in_array('student', $positions) ? 'student' : (
+                   in_array('non-academic', $positions) ? 'non-academic' : 'All'
+                   )));
 
 foreach ($all_elections as $election) {
-  $allowed_colleges = array_filter(array_map('strtolower', array_map('trim', explode(',', $election['allowed_colleges'] ?? ''))));
-  $allowed_courses  = array_filter(array_map('strtolower', array_map('trim', explode(',', $election['allowed_courses'] ?? ''))));
-  $allowed_status   = array_filter(array_map('strtolower', array_map('trim', explode(',', $election['allowed_status'] ?? ''))));
-  $voter_college = strtolower(trim($voter['department'] ?? ''));
-  $voter_course  = strtolower(trim($voter['course'] ?? ''));
-  $voter_status  = strtolower(trim($voter['status'] ?? ''));
+  $allowed_colleges = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_colleges'] ?? ''))));
+  $allowed_courses  = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_courses'] ?? ''))));
+  $allowed_status   = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status'] ?? ''))));
+  
+  // Use the normalized voter data (already processed above)
+  $voter_college_normalized = $voter_college; // already normalized
+  $voter_course_normalized = $voter_course;   // already normalized to short code
+  $voter_status_normalized = $voter_status;   // already normalized
+  
   $is_coop_election = ($election['target_position'] === 'coop');
   
   // ✅ Allowed checks
-  $college_allowed = empty($allowed_colleges) || in_array('all', $allowed_colleges) || in_array($voter_college, $allowed_colleges);
-  $course_allowed  = empty($allowed_courses)  || in_array('all', $allowed_courses)  || in_array($voter_course, $allowed_courses);
-  $status_allowed  = empty($allowed_status)   || in_array('all', $allowed_status)   || in_array($voter_status, $allowed_status);
+  $college_allowed = empty($allowed_colleges) || in_array('ALL', $allowed_colleges) || in_array(strtoupper($voter_college_normalized), $allowed_colleges);
+  $course_allowed  = empty($allowed_courses) || in_array('ALL', $allowed_courses) || in_array(strtoupper($voter_course_normalized), $allowed_courses);
+  $status_allowed  = empty($allowed_status) || in_array('ALL', $allowed_status) || in_array(strtoupper($voter_status_normalized), $allowed_status);
 
   // NEW: Check if election has been launched to voters
   $is_launched = ($election['creation_stage'] === 'ready_for_voters');
@@ -539,28 +544,47 @@ include 'voters_sidebar.php';
                   }
                   
                   // Get allowed filters from election
-                  $allowed_colleges = array_filter(array_map('strtolower', array_map('trim', explode(',', $election['allowed_colleges'] ?? ''))));
-                  $allowed_courses = array_filter(array_map('strtolower', array_map('trim', explode(',', $election['allowed_courses'] ?? ''))));
-                  $allowed_status = array_filter(array_map('strtolower', array_map('trim', explode(',', $election['allowed_status'] ?? ''))));
+                  $allowed_colleges = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_colleges'] ?? ''))));
+                  $allowed_courses = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_courses'] ?? ''))));
+                  $allowed_status = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status'] ?? ''))));
                   
                   // Apply college filter if specified
-                  if (!empty($allowed_colleges) && !in_array('all', $allowed_colleges)) {
+                  if (!empty($allowed_colleges) && !in_array('ALL', $allowed_colleges)) {
                       $placeholders = implode(',', array_fill(0, count($allowed_colleges), '?'));
-                      $conditions[] = "LOWER(department) IN ($placeholders)";
+                      $conditions[] = "UPPER(department) IN ($placeholders)";
                       $params = array_merge($params, $allowed_colleges);
                   }
                   
                   // Apply course filter if specified (mainly for students)
-                  if (!empty($allowed_courses) && !in_array('all', $allowed_courses)) {
-                      $placeholders = implode(',', array_fill(0, count($allowed_courses), '?'));
-                      $conditions[] = "LOWER(course) IN ($placeholders)";
-                      $params = array_merge($params, $allowed_courses);
+                  if (!empty($allowed_courses) && !in_array('ALL', $allowed_courses)) {
+                      // Create reverse course map: short_code => array of full names (in lowercase)
+                      $reverse_course_map = [];
+                      foreach ($course_map as $full_name => $short_code) {
+                          $reverse_course_map[strtoupper($short_code)][] = strtolower($full_name);
+                      }
+
+                      $course_list = [];
+                      foreach ($allowed_courses as $course) {
+                          if (isset($reverse_course_map[$course])) {
+                              $course_list = array_merge($course_list, $reverse_course_map[$course]);
+                          }
+                          // If the course is not in the map, add it as is (in case it's already a full name)
+                          else {
+                              $course_list[] = strtolower($course);
+                          }
+                      }
+
+                      if (!empty($course_list)) {
+                          $placeholders = implode(',', array_fill(0, count($course_list), '?'));
+                          $conditions[] = "LOWER(course) IN ($placeholders)";
+                          $params = array_merge($params, $course_list);
+                      }
                   }
                   
                   // Apply status filter if specified (mainly for faculty and non-academic)
-                  if (!empty($allowed_status) && !in_array('all', $allowed_status)) {
+                  if (!empty($allowed_status) && !in_array('ALL', $allowed_status)) {
                       $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
-                      $conditions[] = "LOWER(status) IN ($placeholders)";
+                      $conditions[] = "UPPER(status) IN ($placeholders)";
                       $params = array_merge($params, $allowed_status);
                   }
               }

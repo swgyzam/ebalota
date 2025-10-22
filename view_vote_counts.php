@@ -46,6 +46,58 @@ if (!$election) {
     exit();
 }
 
+// Course mapping for student elections
+ $course_map = [
+    // CEIT
+    'bs computer science' => 'bscs',
+    'bs information technology' => 'bsit',
+    'bs computer engineering' => 'bscpe',
+    'bs electronics engineering' => 'bsece',
+    'bs civil engineering' => 'bsce',
+    'bs mechanical engineering' => 'bsme',
+    'bs electrical engineering' => 'bsee',
+    'bs industrial engineering' => 'bsie',
+    // CAFENR
+    'bs agriculture' => 'bsagri',
+    'bs agribusiness' => 'bsab',
+    'bs environmental science' => 'bses',
+    'bs food technology' => 'bsft',
+    'bs forestry' => 'bsfor',
+    'bs agricultural and biosystems engineering' => 'bsabe',
+    'bachelor of agricultural entrepreneurship' => 'bae',
+    'bs land use design and management' => 'bsldm',
+    // CAS
+    'bs biology' => 'bsbio',
+    'bs chemistry' => 'bschem',
+    'bs mathematics' => 'bsmath',
+    'bs physics' => 'bsphy',
+    'bs psychology' => 'bspsy',
+    'ba english language studies' => 'baels',
+    'ba communication' => 'bacomm',
+    'bs statistics' => 'bsstat',
+    // CVMBS
+    'doctor of veterinary medicine' => 'dvm',
+    'bs biology (pre-veterinary)' => 'bspv',
+    // CED
+    'bachelor of elementary education' => 'bee',
+    'bachelor of secondary education' => 'bse',
+    'bachelor of physical education' => 'bpe',
+    'bachelor of technology and livelihood education' => 'btle',
+    // CEMDS
+    'bs business administration' => 'bsba',
+    'bs accountancy' => 'bsacc',
+    'bs economics' => 'bseco',
+    'bs entrepreneurship' => 'bsent',
+    'bs office administration' => 'bsoa',
+    // CSPEAR
+    'bachelor of physical education' => 'bpe',  // same as CED bpe
+    'bs exercise and sports sciences' => 'bsess',
+    // CCJ
+    'bs criminology' => 'bscrim',
+    // CON
+    'bs nursing' => 'bsn',
+];
+
 // Determine if election is completed
  $now = new DateTime();
  $start = new DateTime($election['start_datetime']);
@@ -79,28 +131,47 @@ if ($election['target_position'] === 'coop') {
     }
     
     // Get allowed filters from election
-    $allowed_colleges = array_filter(array_map('strtolower', array_map('trim', explode(',', $election['allowed_colleges'] ?? ''))));
-    $allowed_courses = array_filter(array_map('strtolower', array_map('trim', explode(',', $election['allowed_courses'] ?? ''))));
-    $allowed_status = array_filter(array_map('strtolower', array_map('trim', explode(',', $election['allowed_status'] ?? ''))));
+    $allowed_colleges = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_colleges'] ?? ''))));
+    $allowed_courses = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_courses'] ?? ''))));
+    $allowed_status = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status'] ?? ''))));
     
     // Apply college filter if specified
-    if (!empty($allowed_colleges) && !in_array('all', $allowed_colleges)) {
+    if (!empty($allowed_colleges) && !in_array('ALL', $allowed_colleges)) {
         $placeholders = implode(',', array_fill(0, count($allowed_colleges), '?'));
-        $conditions[] = "LOWER(department) IN ($placeholders)";
+        $conditions[] = "UPPER(department) IN ($placeholders)";
         $params = array_merge($params, $allowed_colleges);
     }
     
     // Apply course filter if specified (mainly for students)
-    if (!empty($allowed_courses) && !in_array('all', $allowed_courses)) {
-        $placeholders = implode(',', array_fill(0, count($allowed_courses), '?'));
-        $conditions[] = "LOWER(course) IN ($placeholders)";
-        $params = array_merge($params, $allowed_courses);
+    if (!empty($allowed_courses) && !in_array('ALL', $allowed_courses)) {
+        // Create reverse course map: short_code => array of full names (in lowercase)
+        $reverse_course_map = [];
+        foreach ($course_map as $full_name => $short_code) {
+            $reverse_course_map[strtoupper($short_code)][] = strtolower($full_name);
+        }
+
+        $course_list = [];
+        foreach ($allowed_courses as $course) {
+            if (isset($reverse_course_map[$course])) {
+                $course_list = array_merge($course_list, $reverse_course_map[$course]);
+            }
+            // If the course is not in the map, add it as is (in case it's already a full name)
+            else {
+                $course_list[] = strtolower($course);
+            }
+        }
+
+        if (!empty($course_list)) {
+            $placeholders = implode(',', array_fill(0, count($course_list), '?'));
+            $conditions[] = "LOWER(course) IN ($placeholders)";
+            $params = array_merge($params, $course_list);
+        }
     }
     
     // Apply status filter if specified (mainly for faculty and non-academic)
-    if (!empty($allowed_status) && !in_array('all', $allowed_status)) {
+    if (!empty($allowed_status) && !in_array('ALL', $allowed_status)) {
         $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
-        $conditions[] = "LOWER(status) IN ($placeholders)";
+        $conditions[] = "UPPER(status) IN ($placeholders)";
         $params = array_merge($params, $allowed_status);
     }
 }

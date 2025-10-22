@@ -11,6 +11,7 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'supe
 // Get the current admin's role and assigned scope
  $adminRole = $_SESSION['role'];
  $assignedScope = $_SESSION['assigned_scope'] ?? '';
+ $normalizedAssignedScope = strtoupper(trim($assignedScope)); // Normalize the scope
 
 // Check if we have the CSV file path in session
 if (!isset($_SESSION['csv_file_path'])) {
@@ -27,15 +28,15 @@ if (!$adminType) {
     // Determine admin type based on assigned scope
     if ($adminRole === 'super_admin') {
         $adminType = 'super_admin';
-    } else if (in_array(strtoupper(trim($assignedScope)), ['CEIT', 'CAS', 'CEMDS', 'CCJ', 'CAFENR', 'CON', 'COED', 'CVM', 'GRADUATE SCHOOL'])) {
+    } else if (in_array($normalizedAssignedScope, ['CEIT', 'CAS', 'CEMDS', 'CCJ', 'CAFENR', 'CON', 'COED', 'CVM', 'GRADUATE SCHOOL'])) {
         $adminType = 'admin_students';
-    } else if (strtoupper(trim($assignedScope)) === 'FACULTY ASSOCIATION') {
+    } else if ($normalizedAssignedScope === 'FACULTY ASSOCIATION') {
         $adminType = 'admin_academic';
-    } else if (strtoupper(trim($assignedScope)) === 'NON-ACADEMIC') {
+    } else if ($normalizedAssignedScope === 'NON-ACADEMIC') {
         $adminType = 'admin_non_academic';
-    } else if (strtoupper(trim($assignedScope)) === 'COOP') {
+    } else if ($normalizedAssignedScope === 'COOP') {
         $adminType = 'admin_coop';
-    } else if (strtoupper(trim($assignedScope)) === 'CSG ADMIN') {
+    } else if ($normalizedAssignedScope === 'CSG ADMIN') {
         $adminType = 'admin_students';
     } else {
         $adminType = 'general_admin';
@@ -207,7 +208,7 @@ while (($row = fgetcsv($file)) !== FALSE) {
             }
             
             // VALIDATION: Check if college matches assigned scope (except for CSG ADMIN)
-            if ($assignedScope !== 'CSG ADMIN' && strtoupper($college) !== $assignedScope) {
+            if ($normalizedAssignedScope !== 'CSG ADMIN' && strtoupper($college) !== $normalizedAssignedScope) {
                 $restrictedRows++;
                 $errorMessages[] = "Row $totalRows: College '$college' not in your assigned scope '$assignedScope'.";
                 continue 2; // Skip to next iteration of while loop
@@ -681,7 +682,7 @@ unlink($csvFilePath);
             <?php
             switch ($adminType) {
                 case 'admin_students':
-                    if ($assignedScope === 'CSG ADMIN') {
+                    if ($normalizedAssignedScope === 'CSG ADMIN') {
                         echo "As a CSG Admin, you can upload students from all colleges.";
                     } else {
                         echo "As a College Admin, you can only upload students from your assigned college: <strong>$assignedScope</strong>.";
