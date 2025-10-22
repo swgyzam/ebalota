@@ -586,6 +586,10 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
                     else if ($user['is_coop_member'] == 1 && $user['position'] === 'non-academic' && !empty($user['department'])) {
                         echo htmlspecialchars($user['department']);
                     }
+                    // For non-academic staff who are not COOP members, department is in 'department' field
+                    else if ($user['position'] === 'non-academic' && !empty($user['department'])) {
+                        echo htmlspecialchars($user['department']);
+                    }
                     else {
                         echo '<span class="text-gray-400">N/A</span>';
                     }
