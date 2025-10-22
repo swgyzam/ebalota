@@ -3163,3 +3163,43 @@ Array
 )
 
 Update successful for election 201
+Executing with params:
+Array
+(
+    [:title] => CEIT TRY
+    [:description] => WALAA
+    [:start_datetime] => 2025-10-22 14:26:00
+    [:end_datetime] => 2025-10-24 14:26:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761114286_kokak.jpg
+    [:election_id] => 201
+    [:assigned_admin_id] => 202
+)
+
+Update successful for election 201
+Executing with params:
+Array
+(
+    [:title] => CEIT TRY
+    [:description] => WALAA
+    [:start_datetime] => 2025-10-22 14:26:00
+    [:end_datetime] => 2025-10-24 14:26:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761114286_kokak.jpg
+    [:election_id] => 201
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 201
