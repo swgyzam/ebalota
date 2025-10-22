@@ -1,0 +1,4 @@
+first_name,last_name,email,position,employee_number,college,department,status,is_coop_member
+John,Doe,john.doe@cvsu.edu.ph,academic,1001,CEIT,Department of Computer and Electronics Engineering,regular,1
+Jane,Smith,main.jhenidellannemary.benito@cvsu.edu.ph,non-academic,1002,,Administration,part-time,1
+Robert,Johnson,main.kyleraven.mabingnay@cvsu.edu.ph,non-academic,1003,,Library,regular,1

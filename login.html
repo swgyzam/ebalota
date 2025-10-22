@@ -6,6 +6,9 @@
   <link rel="icon" href="assets/img/weblogo.png" type="image/png">
   <title>eBalota - login</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link href="assets/styles/index.css" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script>
     tailwind.config = {
       theme: {
@@ -22,57 +25,61 @@
     }
   </script>
   <style>
-    .sticky {
-            background-color: #f8fafc;
-        }
-        .nav-link {
-            position: relative;
-        }
-        .ebalotalogo.img {
-            display: flex;
-            max-width: 100%;
-            height: auto;
-        }
-        .nav-link:after {
-            content: '';
-            position: absolute;
-            width: 0;
-            height: 2px;
-            bottom: -2px;
-            left: 0;
-            background-color: rgb(6, 81, 16);
-            transition: width 0.3s ease;
-        }
-        .nav-link:hover:after {
-            width: 100%;
-        }
+    .nav-link {
+      position: relative;
+    }
+    .nav-link:after {
+      content: '';
+      position: absolute;
+      width: 0;
+      height: 2px;
+      bottom: -2px;
+      left: 0;
+      background-color: rgb(6, 81, 16);
+      transition: width 0.3s ease;
+    }
+    .nav-link:hover:after {
+      width: 100%;
+    }
   </style>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="bg-cvsu-light font-sans flex flex-col min-h-screen">
 
   <!-- NAVIGATION -->
-  <nav class="sticky top-0 z-50 text-black shadow-lg">
-        <div class="container mx-auto px-6 py-3 flex justify-between items-center">
-            <div class="ebalotalogo">
-                <a href="index.html" style="max-width: 100%; height: auto;">
-                    <img src="assets/img/ebalota_logo.png" alt="logo" width="200">
-                </a>
-            </div>
-            <div class="hidden md:flex space-x-8">
-                <a href="register.html" class="nav-link font-medium">REGISTER</a>
-                <a href="login.html" class="nav-link font-medium">LOGIN</a>
-            </div>
-            <button class="md:hidden text-2xl">☰</button>
+  <nav class="sticky top-0 z-50 text-black shadow-lg bg-white">
+    <div class="container mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
+      <div class="ebalotalogo flex-shrink-0">
+        <a href="index.html" class="block">
+          <img 
+            src="assets/img/ebalota_logo.png" 
+            alt="logo" 
+            class="w-32 sm:w-40 md:w-52 lg:w-56 xl:w-60 h-auto"
+            style="max-width:100%; height:auto;">
+        </a>
+      </div>
+      <div class="hidden md:flex space-x-8 items-center">
+        <a href="register.html" class="nav-link font-medium">REGISTER</a>
+        <a href="login.html" class="nav-link font-medium">LOGIN</a>
+      </div>
+      <!-- Hamburger Dropdown -->
+      <div class="md:hidden relative">
+        <button id="menuBtn" class="text-2xl focus:outline-none">
+          ☰
+        </button>
+        <div id="mobileMenu" class="absolute right-0 mt-2 w-40 bg-white rounded shadow-lg py-2 border hidden z-50">
+          <a href="register.html" class="block px-4 py-2 text-gray-800 hover:bg-green-100">REGISTER</a>
+          <a href="login.html" class="block px-4 py-2 text-gray-800 hover:bg-green-100">LOGIN</a>
         </div>
-    </nav>
+      </div>
+    </div>
+  </nav>
 
   <!-- LOGIN FORM -->
   <main class="flex-grow">
     <div class="max-w-md mx-auto my-10 bg-white p-8 rounded-xl shadow-md">
       <div class="text-center mb-6">
         <img src="assets/img/weblogo.png" alt="CvSU Logo" class="h-16 mx-auto mb-4">
-        <h2 class="text-2xl font-bold text-gray-800">Welcome to <span style="color: #195905;">e</span>Balota</h2>
+        <h2 class="text-2xl md:text-3xl font-bold text-gray-800">Welcome to <span style="color: #195905;">e</span>Balota</h2>
         <p class="text-gray-600">Sign in to your account</p>
       </div>
 
@@ -115,11 +122,34 @@
 
   <!-- FOOTER -->
   <footer class="bg-cvsu-primary text-white text-center p-4">
-    <p>© 2023 Cavite State University - eVOTE System. All rights reserved.</p>
+    <p>© eBalota . All rights reserved.</p>
   </footer>
 
   <!-- SCRIPTS -->
   <script>
+    // Hamburger Dropdown Menu Script
+    const menuBtn = document.getElementById('menuBtn');
+    const mobileMenu = document.getElementById('mobileMenu');
+
+    menuBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      mobileMenu.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!mobileMenu.classList.contains('hidden')) {
+        if (!mobileMenu.contains(e.target) && e.target !== menuBtn) {
+          mobileMenu.classList.add('hidden');
+        }
+      }
+    });
+
+    window.addEventListener('resize', function() {
+      if (window.innerWidth >= 768) {
+        mobileMenu.classList.add('hidden');
+      }
+    });
+
     // Toggle password visibility
     document.querySelectorAll('.toggle-password').forEach(icon => {
       icon.addEventListener('click', function () {

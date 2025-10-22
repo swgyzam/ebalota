@@ -25,10 +25,10 @@ try {
 }
 
 // Redirect if not logged in or not super admin
-//if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
-  //header('Location: login.php');
-  //exit();
-//}
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
+  header('Location: login.php');
+  exit();
+}
 
 // Fetch dashboard stats
 $stmt = $pdo->query("SELECT COUNT(*) AS total_voters FROM users WHERE is_verified = 1 AND role = 'voter'");

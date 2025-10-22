@@ -1,67 +1,46 @@
 <?php
 session_start();
-
-$host = 'localhost';
-$db   = 'evoting_system';
-$user = 'root';
-$pass = '';
-$charset = 'utf8mb4';
-
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
-$options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+ $host = 'localhost';
+ $db   = 'evoting_system';
+ $user = 'root';
+ $pass = '';
+ $charset = 'utf8mb4';
+ $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+ $options = [
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
-
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (PDOException $e) {
     die("Database connection failed.");
 }
-
-$token = $_GET['token'] ?? '';
-
+ $token = $_GET['token'] ?? '';
 if (!$token) {
     die("No token provided.");
 }
-
 // Find pending user with valid token and not expired
-$stmt = $pdo->prepare("SELECT * FROM pending_users WHERE token = ? AND expires_at > NOW()");
-$stmt->execute([$token]);
-$user = $stmt->fetch();
-
+ $stmt = $pdo->prepare("SELECT * FROM pending_users WHERE token = ? AND expires_at > NOW()");
+ $stmt->execute([$token]);
+ $user = $stmt->fetch();
 if (!$user) {
     header("Location: login.html?error=" . urlencode("Token is invalid or has expired."));
     exit;
 }
-
-$message = '';
-$success = false;
-
+ $message = '';
+ $success = false;
 try {
     $pdo->beginTransaction();
-
-    // Parse position and COOP membership safely
-    $original_position = $user['position'];  // e.g., "non-academic,coop"
-    $position_parts = explode(',', $original_position);
-
-    $position = '';
-    $is_coop_member = 0;
-
-    foreach ($position_parts as $part) {
-        $part = trim(strtolower($part));
-        if (in_array($part, ['student', 'academic', 'non-academic',])) {
-            $position = $part;
-        } elseif ($part === 'coop') {
-            $is_coop_member = 1;
-        }
-    }
-
-    // Insert into users table (confirmed users)
+    
+    // Directly use the position and is_coop_member from the database
+    // No need to parse since we're storing them separately now
+    $position = $user['position'];
+    $is_coop_member = $user['is_coop_member'];
+    
+    // Insert into users table with all fields including department1 for students
     $insertStmt = $pdo->prepare("INSERT INTO users 
-        (first_name, last_name, email, position, is_coop_member, department, course, status, password, is_verified) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-
+        (first_name, last_name, email, position, is_coop_member, department, department1, course, status, password, is_verified, student_number, employee_number) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     $insertStmt->execute([
         $user['first_name'],
         $user['last_name'],
@@ -69,18 +48,19 @@ try {
         $position,
         $is_coop_member,
         $user['department'],
+        $user['department1'], // This will now include the department for students
         $user['course'],
         $user['status'],
         $user['password'],
-        true
+        true,
+        $user['student_number'],
+        $user['employee_number']
     ]);
-
+    
     // Delete from pending_users table
     $deleteStmt = $pdo->prepare("DELETE FROM pending_users WHERE pending_id = ?");
     $deleteStmt->execute([$user['pending_id']]);
-
     $pdo->commit();
-
     $message = "Email verified successfully! You can now log in to your account.";
     $success = true;
 } catch (Exception $e) {
@@ -88,7 +68,6 @@ try {
     $message = "Failed to verify email: " . htmlspecialchars($e->getMessage());
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>

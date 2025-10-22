@@ -1,18 +1,13 @@
 <?php
 // config.php
-$host = 'localhost';
-$dbname = 'evoting_system';  // pangalan ng database mo
-$username = 'root';       // user ng MySQL mo
-$password = '';           // password ng MySQL mo
+define('BASE_PATH', __DIR__); // Gets current directory automatically
 
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
-    // Set error mode
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch(PDOException $e) {
-    die("Connection failed: " . $e->getMessage());
-}
+// Upload directories (relative paths)
+define('PROFILE_PIC_DIR', BASE_PATH . '/uploads/profile_pictures/');
+define('CREDENTIALS_DIR', BASE_PATH . '/uploads/credentials/');
+
+// URL paths (for displaying files)
+define('BASE_URL', 'http' . (isset($_SERVER['HTTPS']) ? 's' : '') . '://' . $_SERVER['HTTP_HOST'] . '/ebalota/');
+define('PROFILE_PIC_URL', BASE_URL . 'uploads/profile_pictures/');
+define('CREDENTIALS_URL', BASE_URL . 'uploads/credentials/');
 ?>
-
-
-

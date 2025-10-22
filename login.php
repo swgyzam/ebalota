@@ -37,8 +37,8 @@ function sendSuperAdminVerificationEmail($email, $first_name, $last_name, $token
         $mail->isSMTP();
         $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
-        $mail->Username = 'makimaki.maki123567@gmail.com';
-        $mail->Password = 'neqlotimpppfzmwj';
+        $mail->Username = 'ebalota9@gmail.com';
+        $mail->Password = 'qxdqbjttedtqkujz';
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
 
@@ -86,8 +86,8 @@ function sendAdminVerificationEmail($email, $first_name, $last_name, $token) {
         $mail->isSMTP();
         $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
-        $mail->Username = 'makimaki.maki123567@gmail.com';
-        $mail->Password = 'neqlotimpppfzmwj';
+        $mail->Username = 'ebalota9@gmail.com';
+        $mail->Password = 'qxdqbjttedtqkujz';
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
 
@@ -193,6 +193,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['department'] = $user['department'] ?? '';
         $_SESSION['course'] = $user['course'] ?? '';
         $_SESSION['status'] = $user['status'] ?? '';
+
+        if ($user['role'] === 'admin') {
+            $_SESSION['assigned_scope'] = $user['assigned_scope'] ?? '';
+        }        
 
         // Remember me
         if ($remember) {
