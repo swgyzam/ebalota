@@ -653,9 +653,40 @@ include 'sidebar.php';
       background: #555;
     }
     
-    /* Dropdown visibility */
-    .dropdown-container {
-      transition: all 0.3s ease;
+    /* Loading indicator */
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+    
+    .loading-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+    
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid var(--cvsu-green);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
 </head>
@@ -819,57 +850,26 @@ include 'sidebar.php';
               <p class="text-gray-600 text-lg">No voter turnout data available.</p>
             </div>
           <?php else: ?>
-            <!-- College Selector -->
-            <div class="mb-6 flex items-center justify-center dropdown-container" id="collegeSelectorContainer" style="display: none;">
-              <label for="collegeSelect" class="mr-3 text-sm font-medium text-gray-700">Select College:</label>
-              <select id="collegeSelect" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                <option value="all">All Colleges</option>
-                <?php foreach ($collegesList as $college): ?>
-                  <option value="<?= htmlspecialchars($college) ?>" <?= $college === 'CEIT' ? 'selected' : '' ?>><?= htmlspecialchars($college) ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            
-            <!-- Department Selector -->
-            <div class="mb-6 flex items-center justify-center dropdown-container" id="departmentSelectorContainer" style="display: none;">
-              <label for="departmentSelect" class="mr-3 text-sm font-medium text-gray-700">Select Department:</label>
-              <select id="departmentSelect" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" disabled>
-                <option value="all">All Departments</option>
-              </select>
-            </div>
-            
-            <!-- Breakdown Selector -->
-            <div class="mb-8 flex items-center justify-center">
-              <label for="breakdownSelect" class="mr-3 text-sm font-medium text-gray-700">View breakdown by:</label>
-              <select id="breakdownSelect" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                <?php if ($breakdownType === 'student'): ?>
-                  <?php if ($role === 'admin' && $scope === 'CSG'): ?>
-                    <option value="collegeDepartment" selected>College and Department</option>
-                    <option value="college">College Only</option>
-                    <option value="department">Department Only</option>
-                  <?php elseif (strpos($scope, 'COLLEGE') !== false): ?>
-                    <option value="department" selected>Department Only</option>
-                  <?php else: ?>
-                    <option value="collegeDepartment" selected>College and Department</option>
-                    <option value="college">College Only</option>
-                    <option value="department">Department Only</option>
-                  <?php endif; ?>
-                <?php elseif ($breakdownType === 'faculty' || $breakdownType === 'non-academic'): ?>
-                  <?php if ($role === 'admin' && $scope === 'CSG'): ?>
-                    <option value="departmentStatus" selected>Department and Status</option>
-                    <option value="department">Department Only</option>
-                    <option value="status">Status Only</option>
-                  <?php elseif (strpos($scope, 'COLLEGE') !== false): ?>
-                    <option value="department" selected>Department Only</option>
-                  <?php else: ?>
-                    <option value="departmentStatus" selected>Department and Status</option>
-                    <option value="department">Department Only</option>
-                    <option value="status">Status Only</option>
-                  <?php endif; ?>
-                <?php else: ?>
-                  <option value="department" selected>Department</option>
-                <?php endif; ?>
-              </select>
+            <!-- Filter Section -->
+            <div class="mb-6">
+              <!-- College Selector -->
+              <div class="mb-4 flex items-center justify-center">
+                <label for="collegeSelect" class="mr-3 text-sm font-medium text-gray-700">Select College:</label>
+                <select id="collegeSelect" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                  <option value="all">All Colleges</option>
+                  <?php foreach ($collegesList as $college): ?>
+                    <option value="<?= htmlspecialchars($college) ?>"><?= htmlspecialchars($college) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              
+              <!-- Department Selector -->
+              <div class="mb-4 flex items-center justify-center">
+                <label for="departmentSelect" class="mr-3 text-sm font-medium text-gray-700">Select Department:</label>
+                <select id="departmentSelect" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" disabled>
+                  <option value="all">All Departments</option>
+                </select>
+              </div>
             </div>
             
             <!-- Chart Section -->
@@ -909,15 +909,18 @@ include 'sidebar.php';
   </main>
 </div>
 
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay">
+  <div class="loading-spinner"></div>
+</div>
+
 <script>
 // Store all breakdown data
 const breakdownData = {
   <?php if ($breakdownType === 'student'): ?>
-    'collegeDepartment': <?= json_encode($voterTurnoutData) ?>,
     'college': <?= json_encode($collegeData) ?>,
     'department': <?= json_encode($departmentData) ?>
   <?php elseif ($breakdownType === 'faculty' || $breakdownType === 'non-academic'): ?>
-    'departmentStatus': <?= json_encode($voterTurnoutData) ?>,
     'department': <?= json_encode($departmentData) ?>,
     'status': <?= json_encode($statusData) ?>
   <?php else: ?>
@@ -925,18 +928,36 @@ const breakdownData = {
   <?php endif; ?>
 };
 
-// Store user role and scope
-const userRole = '<?= $role ?>';
-const userScope = '<?= $scope ?>';
-
 // College departments structure
 const collegeDepartments = <?= json_encode($collegeDepartments) ?>;
 
 // Chart instance
 let turnoutChartInstance = null;
 
+// Current state
+let currentState = {
+  college: 'all',
+  department: 'all'
+};
+
 document.addEventListener('DOMContentLoaded', function() {
   console.log('DOM loaded');
+  
+  // Initialize URL parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  currentState.college = urlParams.get('college') || 'all';
+  currentState.department = urlParams.get('department') || 'all';
+  
+  // Set initial dropdown values
+  document.getElementById('collegeSelect').value = currentState.college;
+  
+  // Update department dropdown based on selected college
+  updateDepartmentDropdown(currentState.college);
+  
+  // Set department dropdown value
+  if (currentState.department !== 'all') {
+    document.getElementById('departmentSelect').value = currentState.department;
+  }
   
   // Check if Chart.js is loaded
   if (typeof Chart === 'undefined') {
@@ -945,7 +966,7 @@ document.addEventListener('DOMContentLoaded', function() {
     script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
     script.onload = function() {
       console.log('Chart.js loaded dynamically');
-      initializeView();
+      updateView();
     };
     script.onerror = function() {
       console.error('Failed to load Chart.js');
@@ -954,53 +975,43 @@ document.addEventListener('DOMContentLoaded', function() {
     document.head.appendChild(script);
   } else {
     console.log('Chart.js is already loaded');
-    initializeView();
+    updateView();
   }
   
-  // Add event listener to dropdown
-  document.getElementById('breakdownSelect')?.addEventListener('change', function() {
-    const selectedCollege = document.getElementById('collegeSelect')?.value || 'all';
-    const selectedDepartment = document.getElementById('departmentSelect')?.value || 'all';
-    
-    // Show/hide college and department selectors based on breakdown type
-    updateSelectorVisibility(this.value);
-    
-    updateView(this.value, selectedCollege, selectedDepartment);
-  });
-  
-  // Add event listener to college selector if it exists
+  // Add event listener to college selector
   document.getElementById('collegeSelect')?.addEventListener('change', function() {
     const selectedCollege = this.value;
-    const breakdownType = document.getElementById('breakdownSelect').value;
     
     // Update department dropdown based on selected college
     updateDepartmentDropdown(selectedCollege);
     
-    updateView(breakdownType, selectedCollege, 'all');
+    // Update state and URL
+    updateState({ college: selectedCollege, department: 'all' });
   });
   
-  // Add event listener to department selector if it exists
+  // Add event listener to department selector
   document.getElementById('departmentSelect')?.addEventListener('change', function() {
-    const selectedCollege = document.getElementById('collegeSelect')?.value || 'all';
     const selectedDepartment = this.value;
-    const breakdownType = document.getElementById('breakdownSelect').value;
-    updateView(breakdownType, selectedCollege, selectedDepartment);
+    
+    // Update state and URL
+    updateState({ department: selectedDepartment });
+  });
+  
+  // Handle back/forward buttons
+  window.addEventListener('popstate', function(event) {
+    if (event.state) {
+      currentState = event.state;
+      
+      // Update dropdowns
+      document.getElementById('collegeSelect').value = currentState.college;
+      updateDepartmentDropdown(currentState.college);
+      document.getElementById('departmentSelect').value = currentState.department;
+      
+      // Update view without showing loading
+      updateView(false);
+    }
   });
 });
-
-function updateSelectorVisibility(breakdownType) {
-  const collegeSelectorContainer = document.getElementById('collegeSelectorContainer');
-  const departmentSelectorContainer = document.getElementById('departmentSelectorContainer');
-  
-  // Show selectors based on breakdown type
-  if (breakdownType === 'department' || breakdownType === 'collegeDepartment') {
-    if (collegeSelectorContainer) collegeSelectorContainer.style.display = 'flex';
-    if (departmentSelectorContainer) departmentSelectorContainer.style.display = 'flex';
-  } else {
-    if (collegeSelectorContainer) collegeSelectorContainer.style.display = 'none';
-    if (departmentSelectorContainer) departmentSelectorContainer.style.display = 'none';
-  }
-}
 
 function updateDepartmentDropdown(selectedCollege) {
   const departmentSelect = document.getElementById('departmentSelect');
@@ -1026,48 +1037,81 @@ function updateDepartmentDropdown(selectedCollege) {
   }
 }
 
-function initializeView() {
-  const initialBreakdown = document.getElementById('breakdownSelect')?.value || 'department';
-  const selectedCollege = document.getElementById('collegeSelect')?.value || 'all';
-  const selectedDepartment = document.getElementById('departmentSelect')?.value || 'all';
+function updateState(newState) {
+  // Show loading
+  showLoading();
   
-  // Set initial visibility of selectors
-  updateSelectorVisibility(initialBreakdown);
+  // Update current state
+  currentState = { ...currentState, ...newState };
   
-  // Update department dropdown based on the selected college
-  updateDepartmentDropdown(selectedCollege);
+  // Update URL without reloading the page
+  const url = new URL(window.location);
+  url.searchParams.set('college', currentState.college);
+  url.searchParams.set('department', currentState.department);
   
-  updateView(initialBreakdown, selectedCollege, selectedDepartment);
+  // Push new state to history
+  window.history.pushState(currentState, '', url);
+  
+  // Update view
+  updateView();
 }
 
-function updateView(breakdownType, selectedCollege = 'all', selectedDepartment = 'all') {
-  let data = breakdownData[breakdownType];
+function updateView(showLoading = true) {
+  if (showLoading) {
+    // Small delay to show loading indicator
+    setTimeout(() => {
+      const data = getFilteredData();
+      updateChart(data, getBreakdownType());
+      generateTable(data, getBreakdownType());
+      hideLoading();
+    }, 300);
+  } else {
+    const data = getFilteredData();
+    updateChart(data, getBreakdownType());
+    generateTable(data, getBreakdownType());
+  }
+}
+
+function getFilteredData() {
+  let data;
+  let breakdownType;
   
-  // Filter data based on selected college and department if applicable
-  if (selectedCollege !== 'all' && (breakdownType === 'collegeDepartment' || breakdownType === 'department')) {
+  // Determine which data to show based on selections
+  if (currentState.college === 'all') {
+    // Show all colleges
+    data = breakdownData['college'];
+    breakdownType = 'college';
+  } else if (currentState.department === 'all') {
+    // Show all departments for the selected college
+    data = breakdownData['department'];
+    breakdownType = 'department';
+    
+    // Filter data to only include departments from the selected college
     data = data.filter(item => {
-      if (breakdownType === 'collegeDepartment') {
-        return item.department === selectedCollege;
-      } else {
-        return item.department === selectedCollege;
+      // Check if this department belongs to the selected college
+      if (collegeDepartments[currentState.college]) {
+        return collegeDepartments[currentState.college].includes(item.department1);
       }
+      return false;
     });
+  } else {
+    // Show specific department
+    data = breakdownData['department'];
+    breakdownType = 'department';
+    
+    // Filter data to only include the specific department
+    data = data.filter(item => item.department1 === currentState.department);
   }
   
-  if (selectedDepartment !== 'all' && breakdownType === 'department') {
-    data = data.filter(item => {
-      return item.department1 === selectedDepartment;
-    });
+  return data;
+}
+
+function getBreakdownType() {
+  if (currentState.college === 'all') {
+    return 'college';
+  } else {
+    return 'department';
   }
-  
-  if (!data || data.length === 0) {
-    console.log('No data available for breakdown:', breakdownType, selectedCollege, selectedDepartment);
-    showNoDataMessage(selectedDepartment !== 'all' ? 'No voter in this department' : 'No data available for chart');
-    return;
-  }
-  
-  updateChart(data, breakdownType);
-  updateTable(data, breakdownType);
 }
 
 function updateChart(data, breakdownType) {
@@ -1081,25 +1125,13 @@ function updateChart(data, breakdownType) {
   
   // Prepare labels
   const labels = data.map(item => {
-    <?php if ($breakdownType === 'student'): ?>
-      if (breakdownType === 'college') {
-        return item.department;
-      } else if (breakdownType === 'department') {
-        return item.department1;
-      } else {
-        return item.department + ' - ' + (item.department1 || '');
-      }
-    <?php elseif ($breakdownType === 'faculty' || $breakdownType === 'non-academic'): ?>
-      if (breakdownType === 'department') {
-        return item.department1;
-      } else if (breakdownType === 'status') {
-        return item.status;
-      } else {
-        return item.department1 + ' - ' + item.status;
-      }
-    <?php else: ?>
+    if (breakdownType === 'college') {
       return item.department;
-    <?php endif; ?>
+    } else if (breakdownType === 'status') {
+      return item.status;
+    } else {
+      return item.department1;
+    }
   });
   
   // Prepare data
@@ -1291,7 +1323,7 @@ function updateChart(data, breakdownType) {
   }
 }
 
-function updateTable(data, breakdownType) {
+function generateTable(data, breakdownType) {
   const tableContainer = document.getElementById('tableContainer');
   
   // Clear existing content
@@ -1305,62 +1337,28 @@ function updateTable(data, breakdownType) {
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
   
-  <?php if ($breakdownType === 'student'): ?>
-    if (breakdownType === 'college') {
-      headerRow.innerHTML = `
-        <th style="width: 40%">College</th>
-        <th style="width: 20%" class="text-center">Eligible</th>
-        <th style="width: 20%" class="text-center">Voted</th>
-        <th style="width: 20%" class="text-center">Turnout %</th>
-      `;
-    } else if (breakdownType === 'department') {
-      headerRow.innerHTML = `
-        <th style="width: 40%">Department</th>
-        <th style="width: 20%" class="text-center">Eligible</th>
-        <th style="width: 20%" class="text-center">Voted</th>
-        <th style="width: 20%" class="text-center">Turnout %</th>
-      `;
-    } else {
-      headerRow.innerHTML = `
-        <th style="width: 30%">College</th>
-        <th style="width: 30%">Department</th>
-        <th style="width: 13.33%" class="text-center">Eligible</th>
-        <th style="width: 13.33%" class="text-center">Voted</th>
-        <th style="width: 13.34%" class="text-center">Turnout %</th>
-      `;
-    }
-  <?php elseif ($breakdownType === 'faculty' || $breakdownType === 'non-academic'): ?>
-    if (breakdownType === 'department') {
-      headerRow.innerHTML = `
-        <th style="width: 40%">Department</th>
-        <th style="width: 20%" class="text-center">Eligible</th>
-        <th style="width: 20%" class="text-center">Voted</th>
-        <th style="width: 20%" class="text-center">Turnout %</th>
-      `;
-    } else if (breakdownType === 'status') {
-      headerRow.innerHTML = `
-        <th style="width: 40%">Status</th>
-        <th style="width: 20%" class="text-center">Eligible</th>
-        <th style="width: 20%" class="text-center">Voted</th>
-        <th style="width: 20%" class="text-center">Turnout %</th>
-      `;
-    } else {
-      headerRow.innerHTML = `
-        <th style="width: 30%">Department</th>
-        <th style="width: 30%">Status</th>
-        <th style="width: 13.33%" class="text-center">Eligible</th>
-        <th style="width: 13.33%" class="text-center">Voted</th>
-        <th style="width: 13.34%" class="text-center">Turnout %</th>
-      `;
-    }
-  <?php else: ?>
+  if (breakdownType === 'college') {
+    headerRow.innerHTML = `
+      <th style="width: 40%">College</th>
+      <th style="width: 20%" class="text-center">Eligible</th>
+      <th style="width: 20%" class="text-center">Voted</th>
+      <th style="width: 20%" class="text-center">Turnout %</th>
+    `;
+  } else if (breakdownType === 'status') {
+    headerRow.innerHTML = `
+      <th style="width: 40%">Status</th>
+      <th style="width: 20%" class="text-center">Eligible</th>
+      <th style="width: 20%" class="text-center">Voted</th>
+      <th style="width: 20%" class="text-center">Turnout %</th>
+    `;
+  } else {
     headerRow.innerHTML = `
       <th style="width: 40%">Department</th>
       <th style="width: 20%" class="text-center">Eligible</th>
       <th style="width: 20%" class="text-center">Voted</th>
       <th style="width: 20%" class="text-center">Turnout %</th>
     `;
-  <?php endif; ?>
+  }
   
   thead.appendChild(headerRow);
   table.appendChild(thead);
@@ -1371,62 +1369,28 @@ function updateTable(data, breakdownType) {
   data.forEach(item => {
     const row = document.createElement('tr');
     
-    <?php if ($breakdownType === 'student'): ?>
-      if (breakdownType === 'college') {
-        row.innerHTML = `
-          <td style="width: 40%">${item.department}</td>
-          <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
-          <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
-          <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
-        `;
-      } else if (breakdownType === 'department') {
-        row.innerHTML = `
-          <td style="width: 40%">${item.department1}</td>
-          <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
-          <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
-          <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
-        `;
-      } else {
-        row.innerHTML = `
-          <td style="width: 30%">${item.department}</td>
-          <td style="width: 30%">${item.department1 || ''}</td>
-          <td style="width: 13.33%" class="text-center">${numberFormat(item.eligible_count)}</td>
-          <td style="width: 13.33%" class="text-center">${numberFormat(item.voted_count)}</td>
-          <td style="width: 13.34%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
-        `;
-      }
-    <?php elseif ($breakdownType === 'faculty' || $breakdownType === 'non-academic'): ?>
-      if (breakdownType === 'department') {
-        row.innerHTML = `
-          <td style="width: 40%">${item.department1}</td>
-          <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
-          <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
-          <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
-        `;
-      } else if (breakdownType === 'status') {
-        row.innerHTML = `
-          <td style="width: 40%">${item.status}</td>
-          <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
-          <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
-          <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
-        `;
-      } else {
-        row.innerHTML = `
-          <td style="width: 30%">${item.department1}</td>
-          <td style="width: 30%">${item.status}</td>
-          <td style="width: 13.33%" class="text-center">${numberFormat(item.eligible_count)}</td>
-          <td style="width: 13.33%" class="text-center">${numberFormat(item.voted_count)}</td>
-          <td style="width: 13.34%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
-        `;
-      }
-    <?php else: ?>
+    if (breakdownType === 'college') {
       row.innerHTML = `
         <td style="width: 40%">${item.department}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
         <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
       `;
-    <?php endif; ?>
+    } else if (breakdownType === 'status') {
+      row.innerHTML = `
+        <td style="width: 40%">${item.status}</td>
+        <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
+        <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
+        <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
+      `;
+    } else {
+      row.innerHTML = `
+        <td style="width: 40%">${item.department1}</td>
+        <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
+        <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
+        <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
+      `;
+    }
     
     tbody.appendChild(row);
   });
@@ -1436,25 +1400,13 @@ function updateTable(data, breakdownType) {
 }
 
 function getChartTitle(breakdownType) {
-  <?php if ($breakdownType === 'student'): ?>
-    if (breakdownType === 'college') {
-      return 'College';
-    } else if (breakdownType === 'department') {
-      return 'Department';
-    } else {
-      return 'College - Department';
-    }
-  <?php elseif ($breakdownType === 'faculty' || $breakdownType === 'non-academic'): ?>
-    if (breakdownType === 'department') {
-      return 'Department';
-    } else if (breakdownType === 'status') {
-      return 'Status';
-    } else {
-      return 'Department - Status';
-    }
-  <?php else: ?>
+  if (breakdownType === 'college') {
+    return 'College';
+  } else if (breakdownType === 'status') {
+    return 'Status';
+  } else {
     return 'Department';
-  <?php endif; ?>
+  }
 }
 
 function createTurnoutBar(percentage) {
@@ -1478,6 +1430,14 @@ function createTurnoutBar(percentage) {
 
 function numberFormat(num) {
   return new Intl.NumberFormat('en-US').format(num);
+}
+
+function showLoading() {
+  document.getElementById('loadingOverlay').classList.add('active');
+}
+
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('active');
 }
 
 function showNoDataMessage(message = 'No data available for chart') {

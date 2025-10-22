@@ -3203,3 +3203,43 @@ Array
 )
 
 Update successful for election 201
+Executing with params:
+Array
+(
+    [:title] => CEIT SC
+    [:description] => STUDENTS ONLEH
+    [:start_datetime] => 2025-10-22 23:17:00
+    [:end_datetime] => 2025-10-24 11:11:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSCS
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761146081_87d166c686ccca056ebcafba8ceae13f.jpg
+    [:election_id] => 202
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 202
+Executing with params:
+Array
+(
+    [:title] => CEIT SC
+    [:description] => STUDENTS ONLEH
+    [:start_datetime] => 2025-10-22 23:17:00
+    [:end_datetime] => 2025-10-24 11:11:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSCS,BSIT
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761146081_87d166c686ccca056ebcafba8ceae13f.jpg
+    [:election_id] => 202
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 202
