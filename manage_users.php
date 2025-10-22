@@ -1,16 +1,21 @@
 <?php
 session_start();
 date_default_timezone_set('Asia/Manila');
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 // --- DB Connection ---
-$host = 'localhost';
-$db   = 'evoting_system';
-$user = 'root';
-$pass = '';
-$charset = 'utf8mb4';
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
-$options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+ $host = 'localhost';
+ $db   = 'evoting_system';
+ $user = 'root';
+ $pass = '';
+ $charset = 'utf8mb4';
+ $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+ $options = [
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES   => false,
 ];
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
@@ -18,58 +23,115 @@ try {
     die("Database connection failed: " . $e->getMessage());
 }
 // --- Session timeout 1 hour ---
-$timeout_duration = 3600;
+ $timeout_duration = 3600;
 if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY']) > $timeout_duration) {
     session_unset();
     session_destroy();
     header('Location: login.php?error=Session expired. Please login again.');
     exit();
 }
-$_SESSION['LAST_ACTIVITY'] = time();
+ $_SESSION['LAST_ACTIVITY'] = time();
 // --- Check if logged in and super admin ---
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
   header('Location: login.php');
   exit();
 }
-$currentUserId = $_SESSION['user_id'];
+ $currentUserId = $_SESSION['user_id'];
 // --- Handle Activate/Deactivate/Delete ---
 if (isset($_GET['action'], $_GET['id'])) {
     $userId = (int)$_GET['id'];
     $action = $_GET['action'];
-    $stmt = $pdo->prepare("SELECT is_admin FROM users WHERE user_id = ?");
+    
+    // Verify user exists and is not admin/current user
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE user_id = ?");
     $stmt->execute([$userId]);
     $user = $stmt->fetch();
-if ($user && $userId !== $currentUserId && !$user['is_admin']) {
-  if ($action === 'toggle') {
-    if (isset($_GET['position']) && $_GET['position'] === 'coop') {
-        $stmt = $pdo->prepare("UPDATE users SET migs_status = NOT migs_status WHERE user_id = ?");
+    
+    if ($user && $userId !== $currentUserId && !$user['is_admin']) {
+        if ($action === 'toggle') {
+            if (isset($_GET['position']) && $_GET['position'] === 'coop') {
+                $stmt = $pdo->prepare("UPDATE users SET migs_status = NOT migs_status WHERE user_id = ?");
+            } else {
+                $stmt = $pdo->prepare("UPDATE users SET is_verified = NOT is_verified WHERE user_id = ?");
+            }
+            $stmt->execute([$userId]);
+            $_SESSION['message'] = "User status updated successfully";
+            header('Location: manage_users.php');
+            exit();
+        } elseif ($action === 'delete') {
+            try {
+                $pdo->beginTransaction();
+                
+                // Debug: Log the user ID being deleted
+                error_log("Attempting to delete user ID: " . $userId);
+                
+                // Delete votes
+                $stmt = $pdo->prepare("DELETE FROM votes WHERE voter_id = ?");
+                $stmt->execute([$userId]);
+                $votesDeleted = $stmt->rowCount();
+                error_log("Deleted $votesDeleted vote records");
+                
+                // Check for other related tables that might reference users
+                // Add these based on your database schema
+                
+                // Example: Delete from user_sessions table if it exists
+                try {
+                    $stmt = $pdo->prepare("DELETE FROM user_sessions WHERE user_id = ?");
+                    $stmt->execute([$userId]);
+                    $sessionsDeleted = $stmt->rowCount();
+                    error_log("Deleted $sessionsDeleted session records");
+                } catch (Exception $e) {
+                    // Table might not exist, continue
+                    error_log("No user_sessions table or error: " . $e->getMessage());
+                }
+                
+                // Example: Delete from user_logs table if it exists
+                try {
+                    $stmt = $pdo->prepare("DELETE FROM user_logs WHERE user_id = ?");
+                    $stmt->execute([$userId]);
+                    $logsDeleted = $stmt->rowCount();
+                    error_log("Deleted $logsDeleted log records");
+                } catch (Exception $e) {
+                    // Table might not exist, continue
+                    error_log("No user_logs table or error: " . $e->getMessage());
+                }
+                
+                // Delete the user
+                $stmt = $pdo->prepare("DELETE FROM users WHERE user_id = ?");
+                $stmt->execute([$userId]);
+                $userDeleted = $stmt->rowCount();
+                error_log("Deleted $userDeleted user record");
+                
+                if ($userDeleted === 0) {
+                    throw new Exception("User not found or already deleted");
+                }
+                
+                $pdo->commit();
+                
+                $_SESSION['message'] = "User and all related records deleted permanently";
+                header('Location: manage_users.php');
+                exit;
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                
+                // Log the error
+                error_log('Delete user error: ' . $e->getMessage());
+                
+                $_SESSION['error'] = "Delete failed: " . $e->getMessage();
+                header('Location: manage_users.php');
+                exit;
+            }
+        }
     } else {
-        $stmt = $pdo->prepare("UPDATE users SET is_verified = NOT is_verified WHERE user_id = ?");
+        $_SESSION['error'] = "Cannot delete this user";
+        header('Location: manage_users.php');
+        exit();
     }
-    $stmt->execute([$userId]);
-} elseif ($action === 'delete') {
-    // Check if user has voting records
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM votes WHERE voter_id = ?");
-    $stmt->execute([$userId]);
-    $hasVotes = $stmt->fetchColumn();
-    if ($hasVotes > 0) {
-        // Soft delete: just deactivate
-        $stmt = $pdo->prepare("UPDATE users SET is_active = 0 WHERE user_id = ?");
-        $stmt->execute([$userId]);
-    } else {
-        // Safe to delete
-        $stmt = $pdo->prepare("DELETE FROM users WHERE user_id = ?");
-        $stmt->execute([$userId]);
-    }
-}
-}
-    header('Location: manage_users.php');
-    exit();
 }
 // --- Filtering ---
-$filterPosition = isset($_GET['position']) ? $_GET['position'] : '';
-$filterQuery = '';
-$params = [];
+ $filterPosition = isset($_GET['position']) ? $_GET['position'] : '';
+ $filterQuery = '';
+ $params = [];
 if (!empty($filterPosition)) {
     if ($filterPosition === 'coop') {
         $filterQuery = " AND is_coop_member = 1";
@@ -78,25 +140,25 @@ if (!empty($filterPosition)) {
         $params[':position'] = $filterPosition;
     }
 }
-$isCoopFilter = ($filterPosition === 'coop');
+ $isCoopFilter = ($filterPosition === 'coop');
 // --- Pagination Setup ---
-$perPage = 15;
-$page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
-$offset = ($page - 1) * $perPage;
+ $perPage = 15;
+ $page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
+ $offset = ($page - 1) * $perPage;
 // --- Count total users (non-admins) ---
-$totalStmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'voter' $filterQuery");
-$totalStmt->execute($params);
-$totalUsers = $totalStmt->fetchColumn();
-$totalPages = ceil($totalUsers / $perPage);
+ $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'voter' $filterQuery");
+ $totalStmt->execute($params);
+ $totalUsers = $totalStmt->fetchColumn();
+ $totalPages = ceil($totalUsers / $perPage);
 // --- Fetch users page ---
-$stmt = $pdo->prepare("SELECT * FROM users WHERE role = 'voter' $filterQuery ORDER BY user_id DESC LIMIT :limit OFFSET :offset");
+ $stmt = $pdo->prepare("SELECT * FROM users WHERE role = 'voter' $filterQuery ORDER BY user_id DESC LIMIT :limit OFFSET :offset");
 foreach ($params as $key => $val) {
     $stmt->bindValue($key, $val);
 }
-$stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
-$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-$stmt->execute();
-$users = $stmt->fetchAll();
+ $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+ $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+ $stmt->execute();
+ $users = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
@@ -292,6 +354,21 @@ $users = $stmt->fetchAll();
         </div>
       </div>
       
+      <!-- Alert Messages -->
+      <?php if (isset($_SESSION['message'])): ?>
+        <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <span class="block sm:inline"><?= $_SESSION['message'] ?></span>
+        </div>
+        <?php unset($_SESSION['message']); ?>
+      <?php endif; ?>
+      
+      <?php if (isset($_SESSION['error'])): ?>
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <span class="block sm:inline"><?= $_SESSION['error'] ?></span>
+        </div>
+        <?php unset($_SESSION['error']); ?>
+      <?php endif; ?>
+      
       <!-- Users Table -->
       <div class="bg-white rounded-xl shadow-md overflow-hidden card border border-gray-100">
         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
@@ -390,7 +467,8 @@ $users = $stmt->fetchAll();
                                   : ($user['is_verified'] ? 'Deactivate' : 'Activate')) ?>
                       </a>
                       <a href="?action=delete&id=<?= $user['user_id'] ?>"
-                        class="btn-danger text-white px-3 py-1 rounded-lg inline-flex items-center">
+                        class="btn-danger text-white px-3 py-1 rounded-lg inline-flex items-center delete-btn"
+                        data-user-name="<?= htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) ?>">
                         <i class="fas fa-trash-alt mr-1"></i>Delete
                       </a>
                     </td>
@@ -456,30 +534,70 @@ $users = $stmt->fetchAll();
     </div>
   </div>
   
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+      <div class="flex items-center mb-4">
+        <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mr-4">
+          <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+        </div>
+        <h3 class="text-lg font-bold text-gray-900">Confirm Permanent Delete</h3>
+      </div>
+      <p class="text-gray-700 mb-6">
+        Are you sure you want to permanently delete <strong id="deleteUserName"></strong>? 
+        This will delete the user and ALL their related records including votes. 
+        This action cannot be undone.
+      </p>
+      <div class="flex justify-end space-x-3">
+        <button id="cancelDelete" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition">
+          Cancel
+        </button>
+        <button id="confirmDelete" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">
+          Delete Permanently
+        </button>
+      </div>
+    </div>
+  </div>
+  
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    const actionLinks = document.querySelectorAll('a[href*="action="]');
-    actionLinks.forEach(link => {
-      link.addEventListener('click', function(e) {
-        // Get the action type from the href
-        const action = this.href.includes('delete') ? 'delete' : 'toggle';
-        
-        // Set the appropriate message based on action
-        let message;
-        if (action === 'delete') {
-          message = 'Are you sure you want to delete this user? This action cannot be undone.';
-        } else {
-          const isCoop = this.href.includes('position=coop');
-          message = `Are you sure you want to toggle ${isCoop ? 'MIGS status' : 'verification status'} for this user?`;
-        }
-        
-        // Show confirmation and loading overlay
-        if (confirm(message)) {
-          document.getElementById('loadingOverlay').classList.remove('hidden');
-        } else {
-          e.preventDefault();
-        }
+    const deleteModal = document.getElementById('deleteModal');
+    const deleteUserName = document.getElementById('deleteUserName');
+    const cancelDelete = document.getElementById('cancelDelete');
+    const confirmDelete = document.getElementById('confirmDelete');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    let deleteUrl = '';
+    
+    // Handle delete button clicks
+    document.querySelectorAll('.delete-btn').forEach(button => {
+      button.addEventListener('click', function(e) {
+        e.preventDefault();
+        const userName = this.getAttribute('data-user-name');
+        deleteUrl = this.getAttribute('href');
+        deleteUserName.textContent = userName;
+        deleteModal.classList.remove('hidden');
       });
+    });
+    
+    // Cancel delete
+    cancelDelete.addEventListener('click', function() {
+      deleteModal.classList.add('hidden');
+    });
+    
+    // Confirm delete - use traditional form submission instead of AJAX
+    confirmDelete.addEventListener('click', function() {
+      deleteModal.classList.add('hidden');
+      loadingOverlay.classList.remove('hidden');
+      
+      // Use traditional form submission instead of AJAX
+      window.location.href = deleteUrl;
+    });
+    
+    // Close modal when clicking outside
+    deleteModal.addEventListener('click', function(e) {
+      if (e.target === deleteModal) {
+        deleteModal.classList.add('hidden');
+      }
     });
   });
 </script>

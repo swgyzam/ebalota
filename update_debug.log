@@ -3243,3 +3243,23 @@ Array
 )
 
 Update successful for election 202
+Executing with params:
+Array
+(
+    [:title] => NON ACAD ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
