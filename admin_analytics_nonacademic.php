@@ -77,6 +77,14 @@ if (!$election) {
 
 // Get allowed filters from election
  $allowed_status = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status'] ?? ''))));
+ $allowed_departments = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_departments'] ?? ''))));
+
+// Apply department filter if specified (for non-academic elections)
+if ($election['target_position'] === 'non-academic' && !empty($allowed_departments) && !in_array('ALL', $allowed_departments)) {
+    $placeholders = implode(',', array_fill(0, count($allowed_departments), '?'));
+    $conditions[] = "UPPER(department) IN ($placeholders)";
+    $params = array_merge($params, $allowed_departments);
+}
 
 // Apply status filter if specified
 if (!empty($allowed_status) && !in_array('ALL', $allowed_status)) {
@@ -96,18 +104,18 @@ if (!empty($allowed_status) && !in_array('ALL', $allowed_status)) {
 
 // ===== GET WINNERS BY POSITION =====
  $sql = "
-    SELECT 
-        ec.position,
-        c.id as candidate_id,
-        CONCAT(c.first_name, ' ', c.last_name) as candidate_name,
-        COUNT(v.vote_id) as vote_count
-    FROM election_candidates ec
-    JOIN candidates c ON ec.candidate_id = c.id
-    LEFT JOIN votes v ON ec.election_id = v.election_id 
-                   AND ec.candidate_id = v.candidate_id
-    WHERE ec.election_id = ?
-    GROUP BY ec.position, c.id, c.first_name, c.last_name
-    ORDER BY ec.position, vote_count DESC
+   SELECT 
+       ec.position,
+       c.id as candidate_id,
+       CONCAT(c.first_name, ' ', c.last_name) as candidate_name,
+       COUNT(v.vote_id) as vote_count
+   FROM election_candidates ec
+   JOIN candidates c ON ec.candidate_id = c.id
+   LEFT JOIN votes v ON ec.election_id = v.election_id 
+                  AND ec.candidate_id = v.candidate_id
+   WHERE ec.election_id = ?
+   GROUP BY ec.position, c.id, c.first_name, c.last_name
+   ORDER BY ec.position, vote_count DESC
 ";
 
  $stmt = $pdo->prepare($sql);
@@ -144,17 +152,24 @@ foreach ($winnersByPosition as $position => &$candidates) {
 
 // ===== GET VOTER TURNOUT BREAKDOWN =====
  $sql = "
-    SELECT 
-        u.department,
-        u.status,
-        COUNT(DISTINCT u.user_id) as eligible_count,
-        COUNT(DISTINCT v.voter_id) as voted_count
-    FROM users u
-    LEFT JOIN votes v ON u.user_id = v.voter_id AND v.election_id = ?
-    WHERE u.role = 'voter' AND u.position = ?
+   SELECT 
+       u.department,
+       u.status,
+       COUNT(DISTINCT u.user_id) as eligible_count,
+       COUNT(DISTINCT v.voter_id) as voted_count
+   FROM users u
+   LEFT JOIN votes v ON u.user_id = v.voter_id AND v.election_id = ?
+   WHERE u.role = 'voter' AND u.position = ?
 ";
 
  $params = [$electionId, $election['target_position']];
+
+// Apply department filter if specified (for non-academic elections)
+if ($election['target_position'] === 'non-academic' && !empty($allowed_departments) && !in_array('ALL', $allowed_departments)) {
+    $placeholders = implode(',', array_fill(0, count($allowed_departments), '?'));
+    $sql .= " AND UPPER(u.department) IN ($placeholders)";
+    $params = array_merge($params, $allowed_departments);
+}
 
 // Apply status filter if specified
 if (!empty($allowed_status) && !in_array('ALL', $allowed_status)) {
@@ -222,14 +237,26 @@ foreach ($statusMap as &$data) {
  $statusData = array_values($statusMap);
 
 // Get list of departments for dropdown
- $stmt = $pdo->prepare("SELECT DISTINCT department FROM users WHERE role = 'voter' AND position = ? AND department IS NOT NULL AND department != '' ORDER BY department");
- $stmt->execute([$election['target_position']]);
- $departmentsList = $stmt->fetchAll(PDO::FETCH_COLUMN);
+if ($election['target_position'] === 'non-academic' && !empty($allowed_departments) && !in_array('ALL', $allowed_departments)) {
+    // For non-academic elections with specific department restrictions, show only allowed departments
+    $departmentsList = $allowed_departments; // We already have this from earlier
+} else {
+    // For other cases, get all departments
+    $stmt = $pdo->prepare("SELECT DISTINCT department FROM users WHERE role = 'voter' AND position = ? AND department IS NOT NULL AND department != '' ORDER BY department");
+    $stmt->execute([$election['target_position']]);
+    $departmentsList = $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
 
 // Get list of statuses for dropdown
- $stmt = $pdo->prepare("SELECT DISTINCT status FROM users WHERE role = 'voter' AND position = ? AND status IS NOT NULL AND status != '' ORDER BY status");
- $stmt->execute([$election['target_position']]);
- $statusesList = $stmt->fetchAll(PDO::FETCH_COLUMN);
+if ($election['target_position'] === 'non-academic' && !empty($allowed_status) && !in_array('ALL', $allowed_status)) {
+    // For non-academic elections with specific status restrictions, show only allowed statuses
+    $statusesList = $allowed_status; // We already have this from earlier
+} else {
+    // For other cases, get all statuses
+    $stmt = $pdo->prepare("SELECT DISTINCT status FROM users WHERE role = 'voter' AND position = ? AND status IS NOT NULL AND status != '' ORDER BY status");
+    $stmt->execute([$election['target_position']]);
+    $statusesList = $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
 
  $pageTitle = 'Non-Academic Election Analytics';
 
@@ -378,6 +405,54 @@ include 'sidebar.php';
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+    
+    /* No data message styles */
+    .no-data-message {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem;
+      text-align: center;
+      color: #6b7280;
+    }
+    
+    .no-data-message i {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      color: #d1d5db;
+    }
+    
+    .no-data-message p {
+      font-size: 1.125rem;
+      font-weight: 500;
+    }
+    
+    /* Chart container with no data message */
+    .chart-wrapper {
+      position: relative;
+      height: 100%;
+      width: 100%;
+    }
+    
+    .chart-no-data {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: rgba(249, 250, 251, 0.9);
+      z-index: 10;
+    }
+    
+    .table-no-data {
+      padding: 3rem;
+      text-align: center;
+    }
   </style>
 </head>
 <body class="bg-gray-50">
@@ -477,9 +552,9 @@ include 'sidebar.php';
         
         <div class="p-6">
           <?php if (empty($winnersByPosition)): ?>
-            <div class="text-center py-8">
-              <i class="fas fa-users text-gray-400 text-4xl mb-3"></i>
-              <p class="text-gray-600">No winners data available.</p>
+            <div class="no-data-message">
+              <i class="fas fa-users"></i>
+              <p>No winners data available</p>
             </div>
           <?php else: ?>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -523,31 +598,29 @@ include 'sidebar.php';
         
         <div class="p-6">
           <?php if (empty($voterTurnoutData)): ?>
-            <div class="text-center py-8">
-              <i class="fas fa-chart-bar text-gray-400 text-5xl mb-4"></i>
-              <p class="text-gray-600 text-lg">No voter turnout data available.</p>
+            <div class="no-data-message">
+              <i class="fas fa-chart-bar"></i>
+              <p>No voters and votes data available</p>
             </div>
           <?php else: ?>
             <!-- Filter Section -->
             <div class="mb-6">
-              <!-- Department Selector -->
+              <!-- Breakdown Type Selector -->
               <div class="mb-4 flex items-center justify-center">
-                <label for="departmentSelect" class="mr-3 text-sm font-medium text-gray-700">Select Department:</label>
-                <select id="departmentSelect" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                  <option value="all">All Departments</option>
-                  <?php foreach ($departmentsList as $department): ?>
-                    <option value="<?= htmlspecialchars($department) ?>"><?= htmlspecialchars($department) ?></option>
-                  <?php endforeach; ?>
+                <label for="breakdownType" class="mr-3 text-sm font-medium text-gray-700">Breakdown by:</label>
+                <select id="breakdownType" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                  <option value="department" selected>Department</option>
+                  <option value="status">Status</option>
                 </select>
               </div>
               
-              <!-- Status Selector -->
+              <!-- Filter Selector (Department or Status) -->
               <div class="mb-4 flex items-center justify-center">
-                <label for="statusSelect" class="mr-3 text-sm font-medium text-gray-700">Select Status:</label>
-                <select id="statusSelect" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                  <option value="all">All Statuses</option>
-                  <?php foreach ($statusesList as $status): ?>
-                    <option value="<?= htmlspecialchars($status) ?>"><?= htmlspecialchars($status) ?></option>
+                <label id="filterLabel" for="filterSelect" class="mr-3 text-sm font-medium text-gray-700">Select Department:</label>
+                <select id="filterSelect" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                  <option value="all">All Departments</option>
+                  <?php foreach ($departmentsList as $department): ?>
+                    <option value="<?= htmlspecialchars($department) ?>"><?= htmlspecialchars($department) ?></option>
                   <?php endforeach; ?>
                 </select>
               </div>
@@ -558,7 +631,13 @@ include 'sidebar.php';
               <h3 class="text-xl font-semibold text-gray-800 mb-6 text-center">Turnout Visualization</h3>
               <div class="bg-gray-50 p-6 rounded-xl shadow-sm">
                 <div class="h-96">
-                  <canvas id="turnoutChart"></canvas>
+                  <div class="chart-wrapper">
+                    <canvas id="turnoutChart"></canvas>
+                    <div id="chartNoData" class="chart-no-data" style="display: none;">
+                      <i class="fas fa-chart-bar text-gray-400 text-4xl mb-3"></i>
+                      <p class="text-gray-600 text-lg">No voters and votes data available</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -602,13 +681,17 @@ const breakdownData = {
   'status': <?= json_encode($statusData) ?>
 };
 
+// List of departments and statuses
+const departmentsList = <?= json_encode($departmentsList) ?>;
+const statusesList = <?= json_encode($statusesList) ?>;
+
 // Chart instance
 let turnoutChartInstance = null;
 
 // Current state
 let currentState = {
-  department: 'all',
-  status: 'all'
+  breakdownType: 'department',
+  filterValue: 'all'
 };
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -616,16 +699,18 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Initialize URL parameters
   const urlParams = new URLSearchParams(window.location.search);
-  currentState.department = urlParams.get('department') || 'all';
-  currentState.status = urlParams.get('status') || 'all';
+  currentState.breakdownType = urlParams.get('breakdown') || 'department';
+  currentState.filterValue = urlParams.get('filter') || 'all';
   
   // Set initial dropdown values
-  if (currentState.department !== 'all') {
-    document.getElementById('departmentSelect').value = currentState.department;
-  }
+  document.getElementById('breakdownType').value = currentState.breakdownType;
   
-  if (currentState.status !== 'all') {
-    document.getElementById('statusSelect').value = currentState.status;
+  // Update filter dropdown based on breakdown type
+  updateFilterDropdown(currentState.breakdownType);
+  
+  // Set filter dropdown value
+  if (currentState.filterValue !== 'all') {
+    document.getElementById('filterSelect').value = currentState.filterValue;
   }
   
   // Check if Chart.js is loaded
@@ -639,7 +724,7 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     script.onerror = function() {
       console.error('Failed to load Chart.js');
-      showNoDataMessage();
+      showChartNoDataMessage('Error loading chart library');
     };
     document.head.appendChild(script);
   } else {
@@ -647,23 +732,26 @@ document.addEventListener('DOMContentLoaded', function() {
     updateView();
   }
   
-  // Add event listener to department selector
-  document.getElementById('departmentSelect')?.addEventListener('change', function() {
-    const selectedDepartment = this.value;
+  // Add event listener to breakdown type selector
+  document.getElementById('breakdownType')?.addEventListener('change', function() {
+    const selectedBreakdown = this.value;
+    
+    // Update filter dropdown options
+    updateFilterDropdown(selectedBreakdown);
     
     // Update state and URL
     updateState({ 
-      department: selectedDepartment,
-      status: 'all'
+      breakdownType: selectedBreakdown,
+      filterValue: 'all'
     });
   });
   
-  // Add event listener to status selector
-  document.getElementById('statusSelect')?.addEventListener('change', function() {
-    const selectedStatus = this.value;
+  // Add event listener to filter selector
+  document.getElementById('filterSelect')?.addEventListener('change', function() {
+    const selectedFilter = this.value;
     
     // Update state and URL
-    updateState({ status: selectedStatus });
+    updateState({ filterValue: selectedFilter });
   });
   
   // Handle back/forward buttons
@@ -672,14 +760,48 @@ document.addEventListener('DOMContentLoaded', function() {
       currentState = event.state;
       
       // Update dropdowns
-      document.getElementById('departmentSelect').value = currentState.department;
-      document.getElementById('statusSelect').value = currentState.status;
+      document.getElementById('breakdownType').value = currentState.breakdownType;
+      updateFilterDropdown(currentState.breakdownType);
+      document.getElementById('filterSelect').value = currentState.filterValue;
       
       // Update view without showing loading
       updateView(false);
     }
   });
 });
+
+function updateFilterDropdown(breakdownType) {
+  const filterSelect = document.getElementById('filterSelect');
+  const filterLabel = document.getElementById('filterLabel');
+  
+  // Clear existing options
+  filterSelect.innerHTML = '';
+  
+  if (breakdownType === 'department') {
+    filterLabel.textContent = 'Select Department:';
+    filterSelect.innerHTML = '<option value="all">All Departments</option>';
+    
+    departmentsList.forEach(department => {
+      const option = document.createElement('option');
+      option.value = department;
+      option.textContent = department;
+      filterSelect.appendChild(option);
+    });
+  } else {
+    filterLabel.textContent = 'Select Status:';
+    filterSelect.innerHTML = '<option value="all">All Statuses</option>';
+    
+    statusesList.forEach(status => {
+      const option = document.createElement('option');
+      option.value = status;
+      option.textContent = status;
+      filterSelect.appendChild(option);
+    });
+  }
+  
+  // Reset filter value to 'all' when breakdown type changes
+  currentState.filterValue = 'all';
+}
 
 function updateState(newState) {
   // Show loading
@@ -690,8 +812,8 @@ function updateState(newState) {
   
   // Update URL without reloading the page
   const url = new URL(window.location);
-  url.searchParams.set('department', currentState.department);
-  url.searchParams.set('status', currentState.status);
+  url.searchParams.set('breakdown', currentState.breakdownType);
+  url.searchParams.set('filter', currentState.filterValue);
   
   // Push new state to history
   window.history.pushState(currentState, '', url);
@@ -705,69 +827,70 @@ function updateView(showLoading = true) {
     // Small delay to show loading indicator
     setTimeout(() => {
       const data = getFilteredData();
-      const breakdownType = getBreakdownType();
-      updateChart(data, breakdownType);
-      generateTable(data, breakdownType);
+      updateChart(data);
+      generateTable(data);
       hideLoading();
     }, 300);
   } else {
     const data = getFilteredData();
-    const breakdownType = getBreakdownType();
-    updateChart(data, breakdownType);
-    generateTable(data, breakdownType);
+    updateChart(data);
+    generateTable(data);
   }
 }
 
 function getFilteredData() {
   let data;
-  let breakdownType;
   
   // Determine which data to show based on selections
-  if (currentState.department === 'all' && currentState.status === 'all') {
-    // Show all departments
+  if (currentState.breakdownType === 'department') {
+    // Show department data
     data = breakdownData['department'];
-    breakdownType = 'department';
-  } else if (currentState.department !== 'all' && currentState.status === 'all') {
-    // Show specific department
-    data = breakdownData['department'];
-    breakdownType = 'department';
     
-    // Filter data to only include the specific department
-    data = data.filter(item => item.department === currentState.department);
-  } else if (currentState.status !== 'all') {
-    // Show specific status
+    // Filter data if a specific department is selected
+    if (currentState.filterValue !== 'all') {
+      data = data.filter(item => item.department === currentState.filterValue);
+    }
+  } else {
+    // Show status data
     data = breakdownData['status'];
-    breakdownType = 'status';
     
-    // Filter data to only include the specific status
-    data = data.filter(item => item.status === currentState.status);
+    // Filter data if a specific status is selected
+    if (currentState.filterValue !== 'all') {
+      data = data.filter(item => item.status === currentState.filterValue);
+    }
   }
   
   return data;
 }
 
-function getBreakdownType() {
-  if (currentState.department === 'all' && currentState.status === 'all') {
-    return 'department';
-  } else if (currentState.status !== 'all') {
-    return 'status';
-  } else {
-    return 'department';
-  }
-}
-
-function updateChart(data, breakdownType) {
+function updateChart(data) {
   const canvas = document.getElementById('turnoutChart');
-  if (!canvas) {
-    console.error('Canvas element not found!');
+  const noDataDiv = document.getElementById('chartNoData');
+  
+  // If data is empty, show no data message and return
+  if (data.length === 0) {
+    if (canvas) {
+      canvas.style.display = 'none';
+    }
+    if (noDataDiv) {
+      noDataDiv.style.display = 'flex';
+    }
     return;
+  }
+
+  // If we have data, make sure the canvas is visible and the no data message is hidden
+  if (canvas) {
+    canvas.style.display = 'block';
+  }
+  if (noDataDiv) {
+    noDataDiv.style.display = 'none';
   }
   
   const ctx = canvas.getContext('2d');
   
   // Prepare labels
   const labels = data.map(item => {
-    if (breakdownType === 'status') {
+    if (currentState.breakdownType === 'status') {
       return item.status;
     } else {
       return item.department;
@@ -860,7 +983,7 @@ function updateChart(data, breakdownType) {
           },
           title: {
             display: true,
-            text: 'Voter Turnout by Group',
+            text: `Voter Turnout by ${currentState.breakdownType === 'status' ? 'Status' : 'Department'}`,
             font: {
               size: 18,
               weight: 'bold'
@@ -933,7 +1056,7 @@ function updateChart(data, breakdownType) {
             },
             title: {
               display: true,
-              text: getChartTitle(breakdownType),
+              text: currentState.breakdownType === 'status' ? 'Status' : 'Department',
               font: {
                 size: 14,
                 weight: 'bold'
@@ -959,15 +1082,27 @@ function updateChart(data, breakdownType) {
     console.log('Chart updated successfully!');
   } catch (error) {
     console.error('Error updating chart:', error);
-    showNoDataMessage();
+    showChartNoDataMessage('Error loading chart data');
   }
 }
 
-function generateTable(data, breakdownType) {
+function generateTable(data) {
   const tableContainer = document.getElementById('tableContainer');
   
   // Clear existing content
   tableContainer.innerHTML = '';
+  
+  // If data is empty, show no data message and return
+  if (data.length === 0) {
+    const noDataDiv = document.createElement('div');
+    noDataDiv.className = 'table-no-data';
+    noDataDiv.innerHTML = `
+      <i class="fas fa-table text-gray-400 text-4xl mb-3"></i>
+      <p class="text-gray-600 text-lg">No voters and votes data available</p>
+    `;
+    tableContainer.appendChild(noDataDiv);
+    return;
+  }
   
   // Create table element
   const table = document.createElement('table');
@@ -977,7 +1112,7 @@ function generateTable(data, breakdownType) {
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
   
-  if (breakdownType === 'status') {
+  if (currentState.breakdownType === 'status') {
     headerRow.innerHTML = `
       <th style="width: 40%">Status</th>
       <th style="width: 20%" class="text-center">Eligible</th>
@@ -1002,7 +1137,7 @@ function generateTable(data, breakdownType) {
   data.forEach(item => {
     const row = document.createElement('tr');
     
-    if (breakdownType === 'status') {
+    if (currentState.breakdownType === 'status') {
       row.innerHTML = `
         <td style="width: 40%">${item.status}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
@@ -1023,14 +1158,6 @@ function generateTable(data, breakdownType) {
   
   table.appendChild(tbody);
   tableContainer.appendChild(table);
-}
-
-function getChartTitle(breakdownType) {
-  if (breakdownType === 'status') {
-    return 'Status';
-  } else {
-    return 'Department';
-  }
 }
 
 function createTurnoutBar(percentage) {
@@ -1064,16 +1191,17 @@ function hideLoading() {
   document.getElementById('loadingOverlay').classList.remove('active');
 }
 
-function showNoDataMessage(message = 'No data available for chart') {
-  const chartContainer = document.querySelector('#turnoutChart').parentElement;
-  chartContainer.innerHTML = `
-    <div class="flex items-center justify-center h-64 bg-gray-50 rounded-lg border border-gray-200">
-      <div class="text-center">
-        <i class="fas fa-chart-bar text-gray-400 text-4xl mb-3"></i>
-        <p class="text-gray-600">${message}</p>
-      </div>
-    </div>
-  `;
+function showChartNoDataMessage(message = 'No data available for chart') {
+  const canvas = document.getElementById('turnoutChart');
+  const noDataDiv = document.getElementById('chartNoData');
+  
+  if (canvas) {
+    canvas.style.display = 'none';
+  }
+  if (noDataDiv) {
+    noDataDiv.querySelector('p').textContent = message;
+    noDataDiv.style.display = 'flex';
+  }
 }
 </script>
 </body>
