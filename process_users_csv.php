@@ -107,6 +107,428 @@ switch ($adminType) {
         break;
 }
 
+// College mapping - Full name to code
+ $collegeMapping = [
+    // Full name variations
+    'college of engineering and information technology' => 'CEIT',
+    'college of engineering, information and technology' => 'CEIT',
+    'ceit' => 'CEIT',
+    'engineering' => 'CEIT',
+    
+    'college of arts and sciences' => 'CAS',
+    'cas' => 'CAS',
+    'arts and sciences' => 'CAS',
+    
+    'college of economics, management and development studies' => 'CEMDS',
+    'college of economics management and development studies' => 'CEMDS',
+    'cemds' => 'CEMDS',
+    'economics' => 'CEMDS',
+    
+    'college of criminal justice education' => 'CCJ',
+    'ccj' => 'CCJ',
+    'criminal justice' => 'CCJ',
+    
+    'college of agriculture, food, environment and natural resources' => 'CAFENR',
+    'college of agriculture food environment and natural resources' => 'CAFENR',
+    'cafenr' => 'CAFENR',
+    'agriculture' => 'CAFENR',
+    
+    'college of nursing' => 'CON',
+    'con' => 'CON',
+    'nursing' => 'CON',
+    
+    'college of education' => 'CED',
+    'ced' => 'CED',
+    'education' => 'CED',
+    'coed' => 'CED',
+    
+    'college of veterinary medicine and biomedical sciences' => 'CVMBS',
+    'college of veterinary medicine & biomedical sciences' => 'CVMBS',
+    'cvmbs' => 'CVMBS',
+    'veterinary medicine' => 'CVMBS',
+    
+    'college of sports, physical education and recreation' => 'CSPEAR',
+    'csphear' => 'CSPEAR',
+    'sports' => 'CSPEAR',
+    
+    'college of medicine' => 'COM',
+    'com' => 'COM',
+    'medicine' => 'COM',
+    
+    'college of tourism and hospitality management' => 'CTHM',
+    'cthm' => 'CTHM',
+    'tourism' => 'CTHM',
+    'hospitality' => 'CTHM',
+    
+    'graduate school and open learning college' => 'GS-OLC',
+    'graduate school and open learning center' => 'GS-OLC',
+    'gs-olc' => 'GS-OLC',
+    'graduate school' => 'GS-OLC',
+    'open learning' => 'GS-OLC',
+];
+
+// Course mapping - Full name to code (match election creation format)
+ $courseMapping = [
+    // CEIT Courses
+    'bs computer science' => 'BSCS',
+    'bachelor of science in computer science' => 'BSCS',
+    'computer science' => 'BSCS',
+    
+    'bs information technology' => 'BSIT',
+    'bachelor of science in information technology' => 'BSIT',
+    'information technology' => 'BSIT',
+    
+    'bs computer engineering' => 'BSCpE',  // Match election creation format
+    'bachelor of science in computer engineering' => 'BSCpE',
+    'computer engineering' => 'BSCpE',
+    
+    'bs electronics engineering' => 'BSECE',
+    'bachelor of science in electronics engineering' => 'BSECE',
+    'electronics engineering' => 'BSECE',
+    
+    'bs civil engineering' => 'BSCE',
+    'bachelor of science in civil engineering' => 'BSCE',
+    'civil engineering' => 'BSCE',
+    
+    'bs mechanical engineering' => 'BSME',
+    'bachelor of science in mechanical engineering' => 'BSME',
+    'mechanical engineering' => 'BSME',
+    
+    'bs electrical engineering' => 'BSEE',
+    'bachelor of science in electrical engineering' => 'BSEE',
+    'electrical engineering' => 'BSEE',
+    
+    'bs industrial engineering' => 'BSIE',
+    'bachelor of science in industrial engineering' => 'BSIE',
+    'industrial engineering' => 'BSIE',
+    
+    'bs architecture' => 'BSArch',
+    'bachelor of science in architecture' => 'BSArch',
+    'architecture' => 'BSArch',
+    
+    // CAFENR Courses
+    'bs agriculture' => 'BSAgri',
+    'bachelor of science in agriculture' => 'BSAgri',
+    'agriculture' => 'BSAgri',
+    
+    'bs agribusiness' => 'BSAB',
+    'bachelor of science in agribusiness' => 'BSAB',
+    'agribusiness' => 'BSAB',
+    
+    'bs environmental science' => 'BSES',
+    'bachelor of science in environmental science' => 'BSES',
+    'environmental science' => 'BSES',
+    
+    'bs food technology' => 'BSFT',
+    'bachelor of science in food technology' => 'BSFT',
+    'food technology' => 'BSFT',
+    
+    'bs forestry' => 'BSFor',
+    'bachelor of science in forestry' => 'BSFor',
+    'forestry' => 'BSFor',
+    
+    'bs agricultural and biosystems engineering' => 'BSABE',
+    'bachelor of science in agricultural and biosystems engineering' => 'BSABE',
+    'agricultural and biosystems engineering' => 'BSABE',
+    
+    'bachelor of agricultural entrepreneurship' => 'BAE',
+    'agricultural entrepreneurship' => 'BAE',
+    
+    'bs land use design and management' => 'BSLDM',
+    'bachelor of science in land use design and management' => 'BSLDM',
+    'land use design and management' => 'BSLDM',
+    
+    // CAS Courses
+    'bs biology' => 'BSBio',
+    'bachelor of science in biology' => 'BSBio',
+    'biology' => 'BSBio',
+    
+    'bs chemistry' => 'BSChem',
+    'bachelor of science in chemistry' => 'BSChem',
+    'chemistry' => 'BSChem',
+    
+    'bs mathematics' => 'BSMath',
+    'bachelor of science in mathematics' => 'BSMath',
+    'mathematics' => 'BSMath',
+    
+    'bs physics' => 'BSPhysics',
+    'bachelor of science in physics' => 'BSPhysics',
+    'physics' => 'BSPhysics',
+    
+    'bs psychology' => 'BSPsych',
+    'bachelor of science in psychology' => 'BSPsych',
+    'psychology' => 'BSPsych',
+    
+    'ba english language studies' => 'BAELS',
+    'bachelor of arts in english language studies' => 'BAELS',
+    'english language studies' => 'BAELS',
+    
+    'ba communication' => 'BAComm',
+    'bachelor of arts in communication' => 'BAComm',
+    'communication' => 'BAComm',
+    
+    'bs statistics' => 'BSStat',
+    'bachelor of science in statistics' => 'BSStat',
+    'statistics' => 'BSStat',
+    
+    // CVMBS Courses
+    'doctor of veterinary medicine' => 'DVM',
+    'veterinary medicine' => 'DVM',
+    
+    'bs biology (pre-veterinary)' => 'BSPV',
+    'biology (pre-veterinary)' => 'BSPV',
+    'pre-veterinary' => 'BSPV',
+    
+    // CED Courses
+    'bachelor of elementary education' => 'BEEd',
+    'elementary education' => 'BEEd',
+    
+    'bachelor of secondary education' => 'BSEd',
+    'secondary education' => 'BSEd',
+    
+    'bachelor of physical education' => 'BPE',
+    'physical education' => 'BPE',
+    
+    'bachelor of technology and livelihood education' => 'BTLE',
+    'technology and livelihood education' => 'BTLE',
+    
+    // CEMDS Courses
+    'bs business administration' => 'BSBA',
+    'bachelor of science in business administration' => 'BSBA',
+    'business administration' => 'BSBA',
+    
+    'bs accountancy' => 'BSAcc',
+    'bachelor of science in accountancy' => 'BSAcc',
+    'accountancy' => 'BSAcc',
+    
+    'bs economics' => 'BSEco',
+    'bachelor of science in economics' => 'BSEco',
+    'economics' => 'BSEco',
+    
+    'bs entrepreneurship' => 'BSEnt',
+    'bachelor of science in entrepreneurship' => 'BSEnt',
+    'entrepreneurship' => 'BSEnt',
+    
+    'bs office administration' => 'BSOA',
+    'bachelor of science in office administration' => 'BSOA',
+    'office administration' => 'BSOA',
+    
+    // CSPEAR Courses
+    'bs exercise and sports sciences' => 'BSESS',
+    'bachelor of science in exercise and sports sciences' => 'BSESS',
+    'exercise and sports sciences' => 'BSESS',
+    
+    // CCJ Courses
+    'bs criminology' => 'BSCrim',
+    'bachelor of science in criminology' => 'BSCrim',
+    'criminology' => 'BSCrim',
+    
+    // CON Courses
+    'bs nursing' => 'BSN',
+    'bachelor of science in nursing' => 'BSN',
+    'nursing' => 'BSN',
+    
+    // CTHM Courses
+    'bs hospitality management' => 'BSHM',
+    'bachelor of science in hospitality management' => 'BSHM',
+    'hospitality management' => 'BSHM',
+    
+    'bs tourism management' => 'BSTM',
+    'bachelor of science in tourism management' => 'BSTM',
+    'tourism management' => 'BSTM',
+    
+    // COM Courses
+    'bachelor of library and information science' => 'BLIS',
+    'library and information science' => 'BLIS',
+    
+    // GS-OLC Courses
+    'doctor of philosophy' => 'PhD',
+    'master of science' => 'MS',
+    'master of arts' => 'MA',
+];
+
+// Department mapping for academic staff
+ $academicDepartmentMapping = [
+    // CEIT Departments
+    'department of civil engineering' => 'Department of Civil Engineering',
+    'civil engineering department' => 'Department of Civil Engineering',
+    'civil engineering' => 'Department of Civil Engineering',
+    
+    'department of computer and electronics engineering' => 'Department of Computer and Electronics Engineering',
+    'computer and electronics engineering department' => 'Department of Computer and Electronics Engineering',
+    'computer and electronics engineering' => 'Department of Computer and Electronics Engineering',
+    
+    'department of industrial engineering and technology' => 'Department of Industrial Engineering and Technology',
+    'industrial engineering and technology department' => 'Department of Industrial Engineering and Technology',
+    'industrial engineering and technology' => 'Department of Industrial Engineering and Technology',
+    
+    'department of mechanical and electronics engineering' => 'Department of Mechanical and Electronics Engineering',
+    'mechanical and electronics engineering department' => 'Department of Mechanical and Electronics Engineering',
+    'mechanical and electronics engineering' => 'Department of Mechanical and Electronics Engineering',
+    
+    'department of information technology' => 'Department of Information Technology',
+    'information technology department' => 'Department of Information Technology',
+    'information technology' => 'Department of Information Technology',
+    
+    // CAS Departments
+    'department of biological sciences' => 'Department of Biological Sciences',
+    'biological sciences department' => 'Department of Biological Sciences',
+    'biological sciences' => 'Department of Biological Sciences',
+    
+    'department of physical sciences' => 'Department of Physical Sciences',
+    'physical sciences department' => 'Department of Physical Sciences',
+    'physical sciences' => 'Department of Physical Sciences',
+    
+    'department of languages and mass communication' => 'Department of Languages and Mass Communication',
+    'languages and mass communication department' => 'Department of Languages and Mass Communication',
+    'languages and mass communication' => 'Department of Languages and Mass Communication',
+    
+    'department of social sciences' => 'Department of Social Sciences',
+    'social sciences department' => 'Department of Social Sciences',
+    'social sciences' => 'Department of Social Sciences',
+    
+    'department of mathematics and statistics' => 'Department of Mathematics and Statistics',
+    'mathematics and statistics department' => 'Department of Mathematics and Statistics',
+    'mathematics and statistics' => 'Department of Mathematics and Statistics',
+    
+    // CCJ Departments
+    'department of criminal justice' => 'Department of Criminal Justice',
+    'criminal justice department' => 'Department of Criminal Justice',
+    'criminal justice' => 'Department of Criminal Justice',
+    
+    // CEMDS Departments
+    'department of economics' => 'Department of Economics',
+    'economics department' => 'Department of Economics',
+    'economics' => 'Department of Economics',
+    
+    'department of business and management' => 'Department of Business and Management',
+    'business and management department' => 'Department of Business and Management',
+    'business and management' => 'Department of Business and Management',
+    
+    'department of development studies' => 'Department of Development Studies',
+    'development studies department' => 'Department of Development Studies',
+    'development studies' => 'Department of Development Studies',
+    
+    // CED Departments
+    'department of science education' => 'Department of Science Education',
+    'science education department' => 'Department of Science Education',
+    'science education' => 'Department of Science Education',
+    
+    'department of technology and livelihood education' => 'Department of Technology and Livelihood Education',
+    'technology and livelihood education department' => 'Department of Technology and Livelihood Education',
+    'technology and livelihood education' => 'Department of Technology and Livelihood Education',
+    
+    'department of curriculum and instruction' => 'Department of Curriculum and Instruction',
+    'curriculum and instruction department' => 'Department of Curriculum and Instruction',
+    'curriculum and instruction' => 'Department of Curriculum and Instruction',
+    
+    'department of human kinetics' => 'Department of Human Kinetics',
+    'human kinetics department' => 'Department of Human Kinetics',
+    'human kinetics' => 'Department of Human Kinetics',
+    
+    // CON Departments
+    'department of nursing' => 'Department of Nursing',
+    'nursing department' => 'Department of Nursing',
+    'nursing' => 'Department of Nursing',
+    
+    // COM Departments
+    'department of basic medical sciences' => 'Department of Basic Medical Sciences',
+    'basic medical sciences department' => 'Department of Basic Medical Sciences',
+    'basic medical sciences' => 'Department of Basic Medical Sciences',
+    
+    'department of clinical sciences' => 'Department of Clinical Sciences',
+    'clinical sciences department' => 'Department of Clinical Sciences',
+    'clinical sciences' => 'Department of Clinical Sciences',
+    
+    // CSPEAR Departments
+    'department of physical education and recreation' => 'Department of Physical Education and Recreation',
+    'physical education and recreation department' => 'Department of Physical Education and Recreation',
+    'physical education and recreation' => 'Department of Physical Education and Recreation',
+    
+    // CVMBS Departments
+    'department of veterinary medicine' => 'Department of Veterinary Medicine',
+    'veterinary medicine department' => 'Department of Veterinary Medicine',
+    'veterinary medicine' => 'Department of Veterinary Medicine',
+    
+    'department of biomedical sciences' => 'Department of Biomedical Sciences',
+    'biomedical sciences department' => 'Department of Biomedical Sciences',
+    'biomedical sciences' => 'Department of Biomedical Sciences',
+    
+    // GS-OLC Departments
+    'department of various graduate programs' => 'Department of Various Graduate Programs',
+    'various graduate programs department' => 'Department of Various Graduate Programs',
+    'various graduate programs' => 'Department of Various Graduate Programs',
+];
+
+// Department mapping for non-academic staff
+ $nonAcademicDepartmentMapping = [
+    // Non-Academic Departments
+    'administration' => 'ADMIN',
+    'admin' => 'ADMIN',
+    'administrative' => 'ADMIN',
+    
+    'finance' => 'FINANCE',
+    'financial' => 'FINANCE',
+    
+    'human resources' => 'HR',
+    'hr' => 'HR',
+    'human resource' => 'HR',
+    
+    'information technology' => 'IT',
+    'it' => 'IT',
+    'information tech' => 'IT',
+    'tech support' => 'IT',
+    
+    'maintenance' => 'MAINTENANCE',
+    'maint' => 'MAINTENANCE',
+    
+    'security' => 'SECURITY',
+    'guard' => 'SECURITY',
+    'security guard' => 'SECURITY',
+    
+    'library' => 'LIBRARY',
+    'lib' => 'LIBRARY',
+    
+    'non-academic employees association' => 'NAEA',
+    'naea' => 'NAEA',
+    'non-academic employees assoc' => 'NAEA',
+    
+    'non-academic employee services' => 'NAES',
+    'naes' => 'NAES',
+    'non-academic employee service' => 'NAES',
+    
+    'non-academic employee management' => 'NAEM',
+    'naem' => 'NAEM',
+    'non-academic employee manage' => 'NAEM',
+    
+    'non-academic employee health' => 'NAEH',
+    'naeh' => 'NAEH',
+    'non-academic employee health services' => 'NAEH',
+    
+    'non-academic employee it' => 'NAEIT',
+    'naeit' => 'NAEIT',
+    'non-academic employee information technology' => 'NAEIT',
+];
+
+// Allowed values
+ $allowedColleges = array_values($collegeMapping);
+ $allowedNonAcademicDepts = array_values($nonAcademicDepartmentMapping);
+ $allowedStatuses = ['Regular', 'Part-time', 'Contractual'];
+
+// Status mapping and validation
+ $statusMapping = [
+    'full-time' => 'Regular',
+    'part-time' => 'Part-time',
+    'contractual' => 'Contractual',
+    'regular' => 'Regular',
+    'full time' => 'Regular',
+    'part time' => 'Part-time',
+    'permanent' => 'Regular',
+    'temporary' => 'Contractual',
+    'probationary' => 'Contractual',
+    'casual' => 'Contractual',
+];
+
 // Department to College Mapping for COOP academic staff
  $departmentToCollegeMapping = [
     'Department of Computer and Electronics Engineering' => 'CEIT',
@@ -193,12 +615,7 @@ while (($row = fgetcsv($file)) !== FALSE) {
             $department = trim($row[6] ?? '');
             $course = trim($row[7] ?? '');
             $is_coop_member = 0; // Default to 0 for students
-            
-            // Map to database fields
-            $department_db = $college;      // Store college in department field
-            $department1 = $department;     // Store department in department1 field
-            $employee_number = null;
-            $status = null;                // No status for students
+            $status = null; // No status for students
             
             // VALIDATION: Check if position is valid for this admin type
             if (strtolower($position) !== 'student') {
@@ -207,12 +624,33 @@ while (($row = fgetcsv($file)) !== FALSE) {
                 continue 2; // Skip to next iteration of while loop
             }
             
+            // MAP COLLEGE
+            $college_lower = strtolower($college);
+            if (isset($collegeMapping[$college_lower])) {
+                $college = $collegeMapping[$college_lower];
+            } elseif (!in_array($college, $allowedColleges)) {
+                $errors++;
+                $errorMessages[] = "Row $totalRows: Invalid college '$college'. College must be one of: " . implode(', ', $allowedColleges);
+                continue 2;
+            }
+            
             // VALIDATION: Check if college matches assigned scope (except for CSG ADMIN)
-            if ($normalizedAssignedScope !== 'CSG ADMIN' && strtoupper($college) !== $normalizedAssignedScope) {
+            if ($normalizedAssignedScope !== 'CSG ADMIN' && $college !== $normalizedAssignedScope) {
                 $restrictedRows++;
                 $errorMessages[] = "Row $totalRows: College '$college' not in your assigned scope '$assignedScope'.";
                 continue 2; // Skip to next iteration of while loop
             }
+            
+            // MAP COURSE
+            $course_lower = strtolower($course);
+            if (isset($courseMapping[$course_lower])) {
+                $course = $courseMapping[$course_lower];
+            }
+            
+            // Map to database fields
+            $department_db = $college;      // Store college in department field
+            $department1 = $department;     // Store department in department1 field
+            $employee_number = null;
             break;
             
         case 'admin_academic':
@@ -226,18 +664,44 @@ while (($row = fgetcsv($file)) !== FALSE) {
             $status = trim($row[7] ?? '');
             $is_coop_member = intval(trim($row[8] ?? '0'));
             
-            // Map to database fields
-            $department_db = $college;      // Store college in department field
-            $department1 = $department;     // Store department in department1 field
-            $student_number = null;
-            $course = null;
-            
             // VALIDATION: Check if position is valid for this admin type
             if (strtolower($position) !== 'academic') {
                 $restrictedRows++;
                 $errorMessages[] = "Row $totalRows: Invalid position '$position' for admin_academic. Only 'academic' position is allowed.";
                 continue 2; // Skip to next iteration of while loop
             }
+            
+            // MAP COLLEGE
+            $college_lower = strtolower($college);
+            if (isset($collegeMapping[$college_lower])) {
+                $college = $collegeMapping[$college_lower];
+            } elseif (!in_array($college, $allowedColleges)) {
+                $errors++;
+                $errorMessages[] = "Row $totalRows: Invalid college '$college'. College must be one of: " . implode(', ', $allowedColleges);
+                continue 2;
+            }
+            
+            // MAP DEPARTMENT
+            $department_lower = strtolower($department);
+            if (isset($academicDepartmentMapping[$department_lower])) {
+                $department = $academicDepartmentMapping[$department_lower];
+            }
+            
+            // VALIDATE AND MAP STATUS
+            $status_lower = strtolower($status);
+            if (isset($statusMapping[$status_lower])) {
+                $status = $statusMapping[$status_lower];
+            } elseif (!in_array($status, $allowedStatuses)) {
+                $errors++;
+                $errorMessages[] = "Row $totalRows: Invalid status '$status'. Only Regular, Part-time, or Contractual are allowed.";
+                continue 2;
+            }
+            
+            // Map to database fields
+            $department_db = $college;      // Store college in department field
+            $department1 = $department;     // Store department in department1 field
+            $student_number = null;
+            $course = null;
             break;
             
         case 'admin_non_academic':
@@ -250,18 +714,38 @@ while (($row = fgetcsv($file)) !== FALSE) {
             $status = trim($row[6] ?? '');
             $is_coop_member = intval(trim($row[7] ?? '0'));
             
-            // Map to database fields
-            $department_db = $department;   // Store department as is
-            $department1 = null;            // No department1 for non-academic
-            $student_number = null;
-            $course = null;
-            
             // VALIDATION: Check if position is valid for this admin type
             if (strtolower($position) !== 'non-academic') {
                 $restrictedRows++;
                 $errorMessages[] = "Row $totalRows: Invalid position '$position' for admin_non_academic. Only 'non-academic' position is allowed.";
                 continue 2; // Skip to next iteration of while loop
             }
+            
+            // MAP DEPARTMENT
+            $department_lower = strtolower($department);
+            if (isset($nonAcademicDepartmentMapping[$department_lower])) {
+                $department = $nonAcademicDepartmentMapping[$department_lower];
+            } elseif (!in_array($department, $allowedNonAcademicDepts)) {
+                $errors++;
+                $errorMessages[] = "Row $totalRows: Invalid department '$department'. Department must be one of: " . implode(', ', $allowedNonAcademicDepts);
+                continue 2;
+            }
+            
+            // VALIDATE AND MAP STATUS
+            $status_lower = strtolower($status);
+            if (isset($statusMapping[$status_lower])) {
+                $status = $statusMapping[$status_lower];
+            } elseif (!in_array($status, $allowedStatuses)) {
+                $errors++;
+                $errorMessages[] = "Row $totalRows: Invalid status '$status'. Only Regular, Part-time, or Contractual are allowed.";
+                continue 2;
+            }
+            
+            // Map to database fields
+            $department_db = $department;   // Store department as is (now mapped)
+            $department1 = null;            // No department1 for non-academic
+            $student_number = null;
+            $course = null;
             break;
             
         case 'admin_coop':
@@ -292,7 +776,18 @@ while (($row = fgetcsv($file)) !== FALSE) {
             // Handle differently based on position
             if ($position === 'academic') {
                 // For academic staff: college in department field, department in department1 field
-                if (empty($college)) {
+                
+                // MAP COLLEGE if provided
+                if (!empty($college)) {
+                    $college_lower = strtolower($college);
+                    if (isset($collegeMapping[$college_lower])) {
+                        $college = $collegeMapping[$college_lower];
+                    } elseif (!in_array($college, $allowedColleges)) {
+                        $errors++;
+                        $errorMessages[] = "Row $totalRows: Invalid college '$college'. College must be one of: " . implode(', ', $allowedColleges);
+                        continue 2;
+                    }
+                } else {
                     // Try to infer college from department using mapping
                     $college = $departmentToCollegeMapping[$department] ?? null;
                     
@@ -302,16 +797,43 @@ while (($row = fgetcsv($file)) !== FALSE) {
                         continue 2; // Skip to next iteration of while loop
                     }
                 }
+                
+                // MAP DEPARTMENT
+                $department_lower = strtolower($department);
+                if (isset($academicDepartmentMapping[$department_lower])) {
+                    $department = $academicDepartmentMapping[$department_lower];
+                }
+                
                 $department_db = $college; // This is the college (e.g., "CEIT")
                 $department1 = $department; // This is the actual department
             } else {
                 // For non-academic staff: department in department field, department1 is NULL
+                // MAP DEPARTMENT for non-academic COOP staff
+                $department_lower = strtolower($department);
+                if (isset($nonAcademicDepartmentMapping[$department_lower])) {
+                    $department = $nonAcademicDepartmentMapping[$department_lower];
+                } elseif (!in_array($department, $allowedNonAcademicDepts)) {
+                    $errors++;
+                    $errorMessages[] = "Row $totalRows: Invalid department '$department'. Department must be one of: " . implode(', ', $allowedNonAcademicDepts);
+                    continue 2;
+                }
+                
                 $department_db = $department;
                 $department1 = null;
             }
             
             $student_number = null;
             $course = null;
+            
+            // VALIDATE AND MAP STATUS
+            $status_lower = strtolower($status);
+            if (isset($statusMapping[$status_lower])) {
+                $status = $statusMapping[$status_lower];
+            } elseif (!in_array($status, $allowedStatuses)) {
+                $errors++;
+                $errorMessages[] = "Row $totalRows: Invalid status '$status'. Only Regular, Part-time, or Contractual are allowed.";
+                continue 2;
+            }
             break;
             
         case 'super_admin':
@@ -327,6 +849,63 @@ while (($row = fgetcsv($file)) !== FALSE) {
             $course = trim($row[8] ?? '');
             $status = trim($row[9] ?? '');
             $is_coop_member = intval(trim($row[10] ?? '0'));
+            
+            // Apply mapping based on position
+            if ($position === 'student') {
+                // MAP COLLEGE
+                $college_lower = strtolower($college);
+                if (isset($collegeMapping[$college_lower])) {
+                    $college = $collegeMapping[$college_lower];
+                } elseif (!empty($college) && !in_array($college, $allowedColleges)) {
+                    $errors++;
+                    $errorMessages[] = "Row $totalRows: Invalid college '$college'. College must be one of: " . implode(', ', $allowedColleges);
+                    continue 2;
+                }
+                
+                // MAP COURSE
+                $course_lower = strtolower($course);
+                if (isset($courseMapping[$course_lower])) {
+                    $course = $courseMapping[$course_lower];
+                }
+            } elseif ($position === 'academic') {
+                // MAP COLLEGE
+                $college_lower = strtolower($college);
+                if (isset($collegeMapping[$college_lower])) {
+                    $college = $collegeMapping[$college_lower];
+                } elseif (!empty($college) && !in_array($college, $allowedColleges)) {
+                    $errors++;
+                    $errorMessages[] = "Row $totalRows: Invalid college '$college'. College must be one of: " . implode(', ', $allowedColleges);
+                    continue 2;
+                }
+                
+                // MAP DEPARTMENT
+                $department_lower = strtolower($department);
+                if (isset($academicDepartmentMapping[$department_lower])) {
+                    $department = $academicDepartmentMapping[$department_lower];
+                }
+            } elseif ($position === 'non-academic') {
+                // MAP DEPARTMENT
+                $department_lower = strtolower($department);
+                if (isset($nonAcademicDepartmentMapping[$department_lower])) {
+                    $department = $nonAcademicDepartmentMapping[$department_lower];
+                } elseif (!in_array($department, $allowedNonAcademicDepts)) {
+                    $errors++;
+                    $errorMessages[] = "Row $totalRows: Invalid department '$department'. Department must be one of: " . implode(', ', $allowedNonAcademicDepts);
+                    continue 2;
+                }
+            }
+            
+            // VALIDATE AND MAP STATUS for non-student positions
+            if ($position !== 'student' && !empty($status)) {
+                $status_lower = strtolower($status);
+                if (isset($statusMapping[$status_lower])) {
+                    $status = $statusMapping[$status_lower];
+                } elseif (!in_array($status, $allowedStatuses)) {
+                    $errors++;
+                    $errorMessages[] = "Row $totalRows: Invalid status '$status'. Only Regular, Part-time, or Contractual are allowed.";
+                    continue 2;
+                }
+            }
             
             // Map to database fields based on position
             if ($position === 'student') {
@@ -706,6 +1285,18 @@ unlink($csvFilePath);
                     break;
             }
             ?>
+          </p>
+          <p class="text-sm text-blue-700 mt-2">
+            <strong>Automatic Field Mapping:</strong> The system automatically maps various input formats to standardized values:
+          </p>
+          <ul class="text-sm text-blue-700 mt-1 ml-5 list-disc">
+            <li><strong>Colleges:</strong> Full names (e.g., "College of Engineering") are converted to codes (e.g., "CEIT")</li>
+            <li><strong>Courses:</strong> Full names (e.g., "Bachelor of Science in Computer Science") are converted to codes (e.g., "BSCS")</li>
+            <li><strong>Departments:</strong> Various formats are standardized (e.g., "Administration" → "ADMIN")</li>
+            <li><strong>Status:</strong> Variations like "full-time" are converted to "Regular"</li>
+          </ul>
+          <p class="text-sm text-blue-700 mt-2">
+            This ensures consistency with users registered through the web form and proper matching with election eligibility criteria.
           </p>
         </div>
       </div>
