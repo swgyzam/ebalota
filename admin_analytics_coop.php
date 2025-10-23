@@ -72,18 +72,9 @@ if (!$election) {
  $totalVotesCast = $stmt->fetch()['total'];
 
 // ===== GET ELIGIBLE VOTERS COUNT =====
+// For COOP elections, we only count voters with is_coop_member=1 AND migs_status=1
  $conditions = ["role = 'voter'", "is_coop_member = 1", "migs_status = 1"];
  $params = [];
-
-// Get allowed filters from election
- $allowed_status = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status'] ?? ''))));
-
-// Apply status filter if specified
-if (!empty($allowed_status) && !in_array('ALL', $allowed_status)) {
-    $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
-    $conditions[] = "UPPER(status) IN ($placeholders)";
-    $params = array_merge($params, $allowed_status);
-}
 
 // Build and execute the query for eligible voters
  $sql = "SELECT COUNT(*) as total FROM users WHERE " . implode(' AND ', $conditions);
@@ -143,40 +134,57 @@ foreach ($winnersByPosition as $position => &$candidates) {
 }
 
 // ===== GET VOTER TURNOUT BREAKDOWN =====
- $sql = "
+// We'll get data for both breakdown types and store them in arrays
+ $breakdownData = [];
+
+// Breakdown by Position (Academic and Non-Academic)
+ $sql_position = "
     SELECT 
-        u.department,
+        u.position,
         COUNT(DISTINCT u.user_id) as eligible_count,
         COUNT(DISTINCT v.voter_id) as voted_count
     FROM users u
     LEFT JOIN votes v ON u.user_id = v.voter_id AND v.election_id = ?
     WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
+    GROUP BY u.position
+    ORDER BY u.position
 ";
+ $stmt = $pdo->prepare($sql_position);
+ $stmt->execute([$electionId]);
+ $positionData = $stmt->fetchAll();
 
- $params = [$electionId];
-
-// Apply status filter if specified
-if (!empty($allowed_status) && !in_array('ALL', $allowed_status)) {
-    $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
-    $sql .= " AND UPPER(u.status) IN ($placeholders)";
-    $params = array_merge($params, $allowed_status);
-}
-
- $sql .= " GROUP BY u.department ORDER BY u.department";
-
- $stmt = $pdo->prepare($sql);
- $stmt->execute($params);
- $voterTurnoutData = $stmt->fetchAll();
-
-// Calculate turnout percentage for each group
-foreach ($voterTurnoutData as &$data) {
+// Calculate turnout percentage for each position
+foreach ($positionData as &$data) {
     $data['turnout_percentage'] = ($data['eligible_count'] > 0) ? 
         round(($data['voted_count'] / $data['eligible_count']) * 100, 1) : 0;
 }
+ $breakdownData['position'] = $positionData;
 
-// Get list of statuses for dropdown
- $stmt = $pdo->query("SELECT DISTINCT status FROM users WHERE role = 'voter' AND is_coop_member = 1 AND migs_status = 1 AND status IS NOT NULL AND status != '' ORDER BY status");
- $statusesList = $stmt->fetchAll(PDO::FETCH_COLUMN);
+// Breakdown by Status
+ $sql_status = "
+    SELECT 
+        u.status,
+        COUNT(DISTINCT u.user_id) as eligible_count,
+        COUNT(DISTINCT v.voter_id) as voted_count
+    FROM users u
+    LEFT JOIN votes v ON u.user_id = v.voter_id AND v.election_id = ?
+    WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
+    GROUP BY u.status
+    ORDER BY u.status
+";
+ $stmt = $pdo->prepare($sql_status);
+ $stmt->execute([$electionId]);
+ $statusData = $stmt->fetchAll();
+
+// Calculate turnout percentage for each status
+foreach ($statusData as &$data) {
+    $data['turnout_percentage'] = ($data['eligible_count'] > 0) ? 
+        round(($data['voted_count'] / $data['eligible_count']) * 100, 1) : 0;
+}
+ $breakdownData['status'] = $statusData;
+
+// Get list of statuses for the dropdown
+ $statusesList = array_column($statusData, 'status');
 
  $pageTitle = 'COOP Election Analytics';
 
@@ -325,6 +333,15 @@ include 'sidebar.php';
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+    
+    /* Custom dropdown styles */
+    .filter-dropdown {
+      transition: all 0.3s ease;
+    }
+    
+    .filter-dropdown:focus {
+      box-shadow: 0 0 0 3px rgba(30, 111, 70, 0.2);
+    }
   </style>
 </head>
 <body class="bg-gray-50">
@@ -465,27 +482,32 @@ include 'sidebar.php';
           <h2 class="text-xl font-semibold text-gray-800">
             <i class="fas fa-chart-pie text-green-600 mr-2"></i>Voter Turnout Analytics
           </h2>
-          <p class="text-sm text-gray-500 mt-1">COOP Election (MIGS members by college/department)</p>
+          <p class="text-sm text-gray-500 mt-1">COOP Election (MIGS members)</p>
         </div>
         
         <div class="p-6">
-          <?php if (empty($voterTurnoutData)): ?>
+          <?php if (empty($breakdownData['position']) && empty($breakdownData['status'])): ?>
             <div class="text-center py-8">
               <i class="fas fa-chart-bar text-gray-400 text-5xl mb-4"></i>
               <p class="text-gray-600 text-lg">No voter turnout data available.</p>
             </div>
           <?php else: ?>
             <!-- Filter Section -->
-            <div class="mb-6">
-              <!-- Status Selector -->
-              <div class="mb-4 flex items-center justify-center">
-                <label for="statusSelect" class="mr-3 text-sm font-medium text-gray-700">Select Status:</label>
-                <select id="statusSelect" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                  <option value="all">All Statuses</option>
-                  <?php foreach ($statusesList as $status): ?>
-                    <option value="<?= htmlspecialchars($status) ?>"><?= htmlspecialchars($status) ?></option>
-                  <?php endforeach; ?>
-                </select>
+            <div class="mb-8">
+              <div class="flex flex-wrap items-center justify-center gap-6">
+                <!-- Breakdown Dropdown -->
+                <div>
+                  <label for="breakdownSelect" class="block text-sm font-medium text-gray-700 mb-1">Breakdown by:</label>
+                  <select id="breakdownSelect" class="filter-dropdown block w-56 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
+                    <option value="position">Position</option>
+                    <option value="status">Status</option>
+                  </select>
+                </div>
+                
+                <!-- Filter Dropdown Container -->
+                <div id="filterContainer">
+                  <!-- This will be populated by JavaScript -->
+                </div>
               </div>
             </div>
             
@@ -534,7 +556,8 @@ include 'sidebar.php';
 <script>
 // Store all breakdown data
 const breakdownData = {
-  'department': <?= json_encode($voterTurnoutData) ?>
+  'position': <?= json_encode($breakdownData['position']) ?>,
+  'status': <?= json_encode($breakdownData['status']) ?>
 };
 
 // Chart instance
@@ -542,7 +565,8 @@ let turnoutChartInstance = null;
 
 // Current state
 let currentState = {
-  status: 'all'
+  breakdown: 'position',
+  filter: 'all'
 };
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -550,12 +574,14 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Initialize URL parameters
   const urlParams = new URLSearchParams(window.location.search);
-  currentState.status = urlParams.get('status') || 'all';
+  currentState.breakdown = urlParams.get('breakdown') || 'position';
+  currentState.filter = urlParams.get('filter') || 'all';
   
-  // Set status dropdown value
-  if (currentState.status !== 'all') {
-    document.getElementById('statusSelect').value = currentState.status;
-  }
+  // Set dropdown values
+  document.getElementById('breakdownSelect').value = currentState.breakdown;
+  
+  // Initialize filter dropdown
+  updateFilterDropdown();
   
   // Check if Chart.js is loaded
   if (typeof Chart === 'undefined') {
@@ -576,12 +602,9 @@ document.addEventListener('DOMContentLoaded', function() {
     updateView();
   }
   
-  // Add event listener to status selector
-  document.getElementById('statusSelect')?.addEventListener('change', function() {
-    const selectedStatus = this.value;
-    
-    // Update state and URL
-    updateState({ status: selectedStatus });
+  // Add event listener to breakdown dropdown
+  document.getElementById('breakdownSelect')?.addEventListener('change', function() {
+    updateState({ breakdown: this.value, filter: 'all' });
   });
   
   // Handle back/forward buttons
@@ -590,13 +613,54 @@ document.addEventListener('DOMContentLoaded', function() {
       currentState = event.state;
       
       // Update dropdowns
-      document.getElementById('statusSelect').value = currentState.status;
+      document.getElementById('breakdownSelect').value = currentState.breakdown;
+      updateFilterDropdown();
       
       // Update view without showing loading
       updateView(false);
     }
   });
 });
+
+// Update the filter dropdown based on the selected breakdown type
+function updateFilterDropdown() {
+  const filterContainer = document.getElementById('filterContainer');
+  const breakdown = currentState.breakdown;
+  
+  let options = '';
+  
+  if (breakdown === 'position') {
+    options = `
+      <div>
+        <label for="filterSelect" class="block text-sm font-medium text-gray-700 mb-1">Select by:</label>
+        <select id="filterSelect" class="filter-dropdown block w-56 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
+          <option value="all">All Positions</option>
+          <option value="academic" ${currentState.filter === 'academic' ? 'selected' : ''}>Faculty</option>
+          <option value="non-academic" ${currentState.filter === 'non-academic' ? 'selected' : ''}>Non-Academic</option>
+        </select>
+      </div>
+    `;
+  } else if (breakdown === 'status') {
+    options = `
+      <div>
+        <label for="filterSelect" class="block text-sm font-medium text-gray-700 mb-1">Select by:</label>
+        <select id="filterSelect" class="filter-dropdown block w-56 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
+          <option value="all">All Statuses</option>
+          ${breakdownData.status.map(status => 
+            `<option value="${status.status}" ${currentState.filter === status.status ? 'selected' : ''}>${status.status}</option>`
+          ).join('')}
+        </select>
+      </div>
+    `;
+  }
+  
+  filterContainer.innerHTML = options;
+  
+  // Add event listener to the new filter dropdown
+  document.getElementById('filterSelect')?.addEventListener('change', function() {
+    updateState({ filter: this.value });
+  });
+}
 
 function updateState(newState) {
   // Show loading
@@ -607,10 +671,16 @@ function updateState(newState) {
   
   // Update URL without reloading the page
   const url = new URL(window.location);
-  url.searchParams.set('status', currentState.status);
+  url.searchParams.set('breakdown', currentState.breakdown);
+  url.searchParams.set('filter', currentState.filter);
   
   // Push new state to history
   window.history.pushState(currentState, '', url);
+  
+  // Update filter dropdown if breakdown changed
+  if (newState.breakdown) {
+    updateFilterDropdown();
+  }
   
   // Update view
   updateView();
@@ -621,26 +691,29 @@ function updateView(showLoading = true) {
     // Small delay to show loading indicator
     setTimeout(() => {
       const data = getFilteredData();
-      updateChart(data, 'department');
-      generateTable(data, 'department');
+      updateChart(data, currentState.breakdown);
+      generateTable(data, currentState.breakdown);
       hideLoading();
     }, 300);
   } else {
     const data = getFilteredData();
-    updateChart(data, 'department');
-    generateTable(data, 'department');
+    updateChart(data, currentState.breakdown);
+    generateTable(data, currentState.breakdown);
   }
 }
 
 function getFilteredData() {
-  let data = breakdownData['department'];
+  let data = breakdownData[currentState.breakdown];
   
-  // Filter by status if specified
-  if (currentState.status !== 'all') {
-    // For COOP, we need to filter the original data by status
-    // Since we don't have status in the breakdown data, we'll need to make an API call
-    // For now, we'll just return all data
-    // In a real implementation, you would fetch filtered data from the server
+  // If there's a filter selected, filter the data
+  if (currentState.filter !== 'all') {
+    if (currentState.breakdown === 'position') {
+      // For position, the filter is the position value (academic or non-academic)
+      data = data.filter(item => item.position === currentState.filter);
+    } else if (currentState.breakdown === 'status') {
+      // For status, the filter is the status value
+      data = data.filter(item => item.status === currentState.filter);
+    }
   }
   
   return data;
@@ -655,12 +728,28 @@ function updateChart(data, breakdownType) {
   
   const ctx = canvas.getContext('2d');
   
-  // Prepare labels
-  const labels = data.map(item => item.department);
+  // Prepare labels and data based on breakdown type
+  let labels, eligibleData, votedData, chartTitle;
   
-  // Prepare data
-  const eligibleData = data.map(item => parseInt(item.eligible_count) || 0);
-  const votedData = data.map(item => parseInt(item.voted_count) || 0);
+  if (breakdownType === 'position') {
+    // Map position values to proper display names
+    labels = data.map(item => {
+      if (item.position === 'academic') {
+        return 'Faculty';
+      } else if (item.position === 'non-academic') {
+        return 'Non-Academic';
+      } else {
+        return item.position;
+      }
+    });
+    chartTitle = 'Voter Turnout by Position';
+  } else if (breakdownType === 'status') {
+    labels = data.map(item => item.status);
+    chartTitle = 'Voter Turnout by Status';
+  }
+  
+  eligibleData = data.map(item => parseInt(item.eligible_count) || 0);
+  votedData = data.map(item => parseInt(item.voted_count) || 0);
   
   // Destroy existing chart if it exists
   if (turnoutChartInstance) {
@@ -744,7 +833,7 @@ function updateChart(data, breakdownType) {
           },
           title: {
             display: true,
-            text: 'Voter Turnout by College',
+            text: chartTitle,
             font: {
               size: 18,
               weight: 'bold'
@@ -817,7 +906,7 @@ function updateChart(data, breakdownType) {
             },
             title: {
               display: true,
-              text: 'College',
+              text: breakdownType === 'position' ? 'Position' : 'Status',
               font: {
                 size: 14,
                 weight: 'bold'
@@ -861,8 +950,16 @@ function generateTable(data, breakdownType) {
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
   
+  // Determine header label based on breakdown type
+  let headerLabel;
+  if (breakdownType === 'position') {
+    headerLabel = 'Position';
+  } else if (breakdownType === 'status') {
+    headerLabel = 'Status';
+  }
+  
   headerRow.innerHTML = `
-    <th style="width: 40%">College</th>
+    <th style="width: 40%">${headerLabel}</th>
     <th style="width: 20%" class="text-center">Eligible</th>
     <th style="width: 20%" class="text-center">Voted</th>
     <th style="width: 20%" class="text-center">Turnout %</th>
@@ -877,8 +974,23 @@ function generateTable(data, breakdownType) {
   data.forEach(item => {
     const row = document.createElement('tr');
     
+    // Determine cell value based on breakdown type
+    let cellValue;
+    if (breakdownType === 'position') {
+      // Map position values to proper display names
+      if (item.position === 'academic') {
+        cellValue = 'Faculty';
+      } else if (item.position === 'non-academic') {
+        cellValue = 'Non-Academic';
+      } else {
+        cellValue = item.position;
+      }
+    } else if (breakdownType === 'status') {
+      cellValue = item.status;
+    }
+    
     row.innerHTML = `
-      <td style="width: 40%">${item.department}</td>
+      <td style="width: 40%">${cellValue}</td>
       <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
       <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
       <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
