@@ -38,7 +38,7 @@ if (!isset($_SESSION['user_id'])) {
  $scope = strtoupper(trim($userInfo['assigned_scope'] ?? ''));
 
 // Valid college scopes
- $validCollegeScopes = ['CEIT', 'CAS', 'CEMDS', 'CCJ', 'CAFENR', 'CON', 'COED', 'CVM', 'GRADUATE SCHOOL'];
+ $validCollegeScopes = ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC'];
 
 if (!in_array($scope, $validCollegeScopes)) {
     header('Location: admin_analytics.php');
@@ -69,56 +69,281 @@ if (!empty($allowed_colleges) && !in_array('ALL', $allowed_colleges) && !in_arra
     exit();
 }
 
-// Course mapping for student elections
- $course_map = [
+// UPDATED COURSE MAPPINGS - Match election creation format exactly
+$course_map = [
+  // CEIT Courses
+  'BS Computer Science' => 'BSCS',
+  'Bachelor of Science in Computer Science' => 'BSCS',
+  'Computer Science' => 'BSCS',
+  'bscs' => 'BSCS',
+  
+  'BS Information Technology' => 'BSIT',
+  'Bachelor of Science in Information Technology' => 'BSIT',
+  'Information Technology' => 'BSIT',
+  'bsit' => 'BSIT',
+  
+  'BS Computer Engineering' => 'BSCpE',
+  'Bachelor of Science in Computer Engineering' => 'BSCpE',
+  'Computer Engineering' => 'BSCpE',
+  'bscpe' => 'BSCpE',
+  
+  'BS Electronics Engineering' => 'BSECE',
+  'Bachelor of Science in Electronics Engineering' => 'BSECE',
+  'Electronics Engineering' => 'BSECE',
+  'bsece' => 'BSECE',
+  
+  'BS Civil Engineering' => 'BSCE',
+  'Bachelor of Science in Civil Engineering' => 'BSCE',
+  'Civil Engineering' => 'BSCE',
+  'bsce' => 'BSCE',
+  
+  'BS Mechanical Engineering' => 'BSME',
+  'Bachelor of Science in Mechanical Engineering' => 'BSME',
+  'Mechanical Engineering' => 'BSME',
+  'bsme' => 'BSME',
+  
+  'BS Electrical Engineering' => 'BSEE',
+  'Bachelor of Science in Electrical Engineering' => 'BSEE',
+  'Electrical Engineering' => 'BSEE',
+  'bsee' => 'BSEE',
+  
+  'BS Industrial Engineering' => 'BSIE',
+  'Bachelor of Science in Industrial Engineering' => 'BSIE',
+  'Industrial Engineering' => 'BSIE',
+  'bsie' => 'BSIE',
+  
+  'BS Architecture' => 'BSArch',
+  'Bachelor of Science in Architecture' => 'BSArch',
+  'Architecture' => 'BSArch',
+  'bsarch' => 'BSArch',
+  
+  // CAFENR Courses
+  'BS Agriculture' => 'BSAgri',
+  'Bachelor of Science in Agriculture' => 'BSAgri',
+  'Agriculture' => 'BSAgri',
+  'bsagri' => 'BSAgri',
+  
+  'BS Agribusiness' => 'BSAB',
+  'Bachelor of Science in Agribusiness' => 'BSAB',
+  'Agribusiness' => 'BSAB',
+  'bsab' => 'BSAB',
+  
+  'BS Environmental Science' => 'BSES',
+  'Bachelor of Science in Environmental Science' => 'BSES',
+  'Environmental Science' => 'BSES',
+  'bses' => 'BSES',
+  
+  'BS Food Technology' => 'BSFT',
+  'Bachelor of Science in Food Technology' => 'BSFT',
+  'Food Technology' => 'BSFT',
+  'bsft' => 'BSFT',
+  
+  'BS Forestry' => 'BSFor',
+  'Bachelor of Science in Forestry' => 'BSFor',
+  'Forestry' => 'BSFor',
+  'bsfor' => 'BSFor',
+  
+  'BS Agricultural and Biosystems Engineering' => 'BSABE',
+  'Bachelor of Science in Agricultural and Biosystems Engineering' => 'BSABE',
+  'Agricultural and Biosystems Engineering' => 'BSABE',
+  'bsabe' => 'BSABE',
+  
+  'Bachelor of Agricultural Entrepreneurship' => 'BAE',
+  'Agricultural Entrepreneurship' => 'BAE',
+  'bae' => 'BAE',
+  
+  'BS Land Use Design and Management' => 'BSLDM',
+  'Bachelor of Science in Land Use Design and Management' => 'BSLDM',
+  'Land Use Design and Management' => 'BSLDM',
+  'bsldm' => 'BSLDM',
+  
+  // CAS Courses
+  'BS Biology' => 'BSBio',
+  'Bachelor of Science in Biology' => 'BSBio',
+  'Biology' => 'BSBio',
+  'bsbio' => 'BSBio',
+  
+  'BS Chemistry' => 'BSChem',
+  'Bachelor of Science in Chemistry' => 'BSChem',
+  'Chemistry' => 'BSChem',
+  'bschem' => 'BSChem',
+  
+  'BS Mathematics' => 'BSMath',
+  'Bachelor of Science in Mathematics' => 'BSMath',
+  'Mathematics' => 'BSMath',
+  'bsmath' => 'BSMath',
+  
+  'BS Physics' => 'BSPhysics',
+  'Bachelor of Science in Physics' => 'BSPhysics',
+  'Physics' => 'BSPhysics',
+  'bsphysics' => 'BSPhysics',
+  
+  'BS Psychology' => 'BSPsych',
+  'Bachelor of Science in Psychology' => 'BSPsych',
+  'Psychology' => 'BSPsych',
+  'bspsych' => 'BSPsych',
+  
+  'BA English Language Studies' => 'BAELS',
+  'Bachelor of Arts in English Language Studies' => 'BAELS',
+  'English Language Studies' => 'BAELS',
+  'baels' => 'BAELS',
+  
+  'BA Communication' => 'BAComm',
+  'Bachelor of Arts in Communication' => 'BAComm',
+  'Communication' => 'BAComm',
+  'bacomm' => 'BAComm',
+  
+  'BS Statistics' => 'BSStat',
+  'Bachelor of Science in Statistics' => 'BSStat',
+  'Statistics' => 'BSStat',
+  'bsstat' => 'BSStat',
+  
+  // CVMBS Courses
+  'Doctor of Veterinary Medicine' => 'DVM',
+  'Veterinary Medicine' => 'DVM',
+  'dvm' => 'DVM',
+  
+  'BS Biology (Pre-Veterinary)' => 'BSPV',
+  'Biology (Pre-Veterinary)' => 'BSPV',
+  'Pre-Veterinary' => 'BSPV',
+  'bspv' => 'BSPV',
+  
+  // CED Courses
+  'Bachelor of Elementary Education' => 'BEEd',
+  'Elementary Education' => 'BEEd',
+  'beed' => 'BEEd',
+  
+  'Bachelor of Secondary Education' => 'BSEd',
+  'Secondary Education' => 'BSEd',
+  'bsed' => 'BSEd',
+  
+  'Bachelor of Physical Education' => 'BPE',
+  'Physical Education' => 'BPE',
+  'bpe' => 'BPE',
+  
+  'Bachelor of Technology and Livelihood Education' => 'BTLE',
+  'Technology and Livelihood Education' => 'BTLE',
+  'btle' => 'BTLE',
+  
+  // CEMDS Courses
+  'BS Business Administration' => 'BSBA',
+  'Bachelor of Science in Business Administration' => 'BSBA',
+  'Business Administration' => 'BSBA',
+  'bsba' => 'BSBA',
+  
+  'BS Accountancy' => 'BSAcc',
+  'Bachelor of Science in Accountancy' => 'BSAcc',
+  'Accountancy' => 'BSAcc',
+  'bsacc' => 'BSAcc',
+  
+  'BS Economics' => 'BSEco',
+  'Bachelor of Science in Economics' => 'BSEco',
+  'Economics' => 'BSEco',
+  'bseco' => 'BSEco',
+  
+  'BS Entrepreneurship' => 'BSEnt',
+  'Bachelor of Science in Entrepreneurship' => 'BSEnt',
+  'Entrepreneurship' => 'BSEnt',
+  'bsent' => 'BSEnt',
+  
+  'BS Office Administration' => 'BSOA',
+  'Bachelor of Science in Office Administration' => 'BSOA',
+  'Office Administration' => 'BSOA',
+  'bsoa' => 'BSOA',
+  
+  // CSPEAR Courses
+  'BS Exercise and Sports Sciences' => 'BSESS',
+  'Bachelor of Science in Exercise and Sports Sciences' => 'BSESS',
+  'Exercise and Sports Sciences' => 'BSESS',
+  'bsess' => 'BSESS',
+  
+  // CCJ Courses
+  'BS Criminology' => 'BSCrim',
+  'Bachelor of Science in Criminology' => 'BSCrim',
+  'Criminology' => 'BSCrim',
+  'bscrim' => 'BSCrim',
+  
+  // CON Courses
+  'BS Nursing' => 'BSN',
+  'Bachelor of Science in Nursing' => 'BSN',
+  'Nursing' => 'BSN',
+  'bsn' => 'BSN',
+  
+  // CTHM Courses
+  'BS Hospitality Management' => 'BSHM',
+  'Bachelor of Science in Hospitality Management' => 'BSHM',
+  'Hospitality Management' => 'BSHM',
+  'bshm' => 'BSHM',
+  
+  'BS Tourism Management' => 'BSTM',
+  'Bachelor of Science in Tourism Management' => 'BSTM',
+  'Tourism Management' => 'BSTM',
+  'bstm' => 'BSTM',
+  
+  // COM Courses
+  'Bachelor of Library and Information Science' => 'BLIS',
+  'Library and Information Science' => 'BLIS',
+  'blis' => 'BLIS',
+  
+  // GS-OLC Courses
+  'Doctor of Philosophy' => 'PhD',
+  'Master of Science' => 'MS',
+  'Master of Arts' => 'MA',
+];
+
+// Department abbreviation mapping
+ $department_abbr_map = [
     // CEIT
-    'BS Computer Science' => 'BSCS',
-    'BS Information Technology' => 'BSIT',
-    'BS Computer Engineering' => 'BSCPE',
-    'BS Electronics Engineering' => 'BSECE',
-    'BS Civil Engineering' => 'BSCE',
-    'BS Mechanical Engineering' => 'BSME',
-    'BS Electrical Engineering' => 'BSEE',
-    'BS Industrial Engineering' => 'BSIE',
+    'Department of Civil Engineering' => 'DCE',
+    'Department of Computer and Electronics Engineering' => 'DCEE',
+    'Department of Industrial Engineering and Technology' => 'DIET',
+    'Department of Mechanical and Electronics Engineering' => 'DMEE',
+    'Department of Information Technology' => 'DIT',
+    
     // CAFENR
-    'BS Agriculture' => 'BSAGRI',
-    'BS Agribusiness' => 'BSAB',
-    'BS Environmental Science' => 'BSES',
-    'BS Food Technology' => 'BSFT',
-    'BS Forestry' => 'BSFOR',
-    'BS Agricultural and Biosystems Engineering' => 'BSABE',
-    'Bachelor of Agricultural Entrepreneurship' => 'BAE',
-    'BS Land Use Design and Management' => 'BSLDM',
+    'Department of Animal Science' => 'DAS',
+    'Department of Crop Science' => 'DCS',
+    'Department of Food Science and Technology' => 'DFST',
+    'Department of Forestry and Environmental Science' => 'DFES',
+    'Department of Agricultural Economics and Development' => 'DAED',
+    
     // CAS
-    'BS Biology' => 'BSBIO',
-    'BS Chemistry' => 'BSCHEM',
-    'BS Mathematics' => 'BSMATH',
-    'BS Physics' => 'BSPHY',
-    'BS Psychology' => 'BSPSY',
-    'BA English Language Studies' => 'BAELS',
-    'BA Communication' => 'BACOMM',
-    'BS Statistics' => 'BSSTAT',
-    // CVMBS
-    'Doctor of Veterinary Medicine' => 'DVM',
-    'BS Biology (Pre-Veterinary)' => 'BSPV',
-    // CED
-    'Bachelor of Elementary Education' => 'BEE',
-    'Bachelor of Secondary Education' => 'BSE',
-    'Bachelor of Physical Education' => 'BPE',
-    'Bachelor of Technology and Livelihood Education' => 'BTLE',
-    // CEMDS
-    'BS Business Administration' => 'BSBA',
-    'BS Accountancy' => 'BSACC',
-    'BS Economics' => 'BSECO',
-    'BS Entrepreneurship' => 'BSENT',
-    'BS Office Administration' => 'BSOA',
-    // CSPEAR
-    'Bachelor of Physical Education' => 'BPE',  // same as CED BPE
-    'BS Exercise and Sports Sciences' => 'BSESS',
+    'Department of Biological Sciences' => 'DBS',
+    'Department of Physical Sciences' => 'DPS',
+    'Department of Languages and Mass Communication' => 'DLMC',
+    'Department of Social Sciences' => 'DSS',
+    'Department of Mathematics and Statistics' => 'DMS',
+    
     // CCJ
-    'BS Criminology' => 'BSCRIM',
+    'Department of Criminal Justice' => 'DCJ',
+    
+    // CEMDS
+    'Department of Economics' => 'DE',
+    'Department of Business and Management' => 'DBM',
+    'Department of Development Studies' => 'DDS',
+    
+    // CED
+    'Department of Science Education' => 'DSE',
+    'Department of Technology and Livelihood Education' => 'DTLE',
+    'Department of Curriculum and Instruction' => 'DCI',
+    'Department of Human Kinetics' => 'DHK',
+    
     // CON
-    'BS Nursing' => 'BSN',
+    'Department of Nursing' => 'DN',
+    
+    // COM
+    'Department of Basic Medical Sciences' => 'DBMS',
+    'Department of Clinical Sciences' => 'DCS',
+    
+    // CSPEAR
+    'Department of Physical Education and Recreation' => 'DPER',
+    
+    // CVMBS
+    'Department of Veterinary Medicine' => 'DVM',
+    'Department of Biomedical Sciences' => 'DBS',
+    
+    // GS-OLC
+    'Department of Various Graduate Programs' => 'DVGP',
 ];
 
 // Define college departments structure
@@ -203,7 +428,6 @@ if (!empty($allowed_colleges) && !in_array('ALL', $allowed_colleges) && !in_arra
     ],
     "CVMBS" => [
         "Doctor of Veterinary Medicine",
-        "BS Biology (Pre-Veterinary)"
     ],
     "CED" => [
         "Bachelor of Elementary Education",
@@ -626,7 +850,35 @@ include 'sidebar.php';
       padding: 3rem;
       text-align: center;
     }
-  </style>
+
+    .tooltip {
+      position: relative;
+      display: inline-block;
+    }
+
+    .tooltip .tooltiptext {
+      visibility: hidden;
+      width: 200px;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 8px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      margin-left: -100px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-size: 14px;
+    }
+
+    .tooltip:hover .tooltiptext {
+      visibility: visible;
+      opacity: 1;
+    }
+      </style>
 </head>
 <body class="bg-gray-50">
 <div class="flex min-h-screen">
@@ -778,24 +1030,27 @@ include 'sidebar.php';
           <?php else: ?>
             <!-- Filter Section -->
             <div class="mb-6">
-              <!-- Breakdown Type Selector -->
-              <div class="mb-4 flex items-center justify-center">
-                <label for="breakdownType" class="mr-3 text-sm font-medium text-gray-700">Breakdown by:</label>
-                <select id="breakdownType" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                  <option value="department">Department</option>
-                  <option value="course">Course</option>
-                </select>
-              </div>
-              
-              <!-- Department/Course Selector -->
-              <div class="mb-4 flex items-center justify-center">
-                <label id="filterLabel" for="filterSelect" class="mr-3 text-sm font-medium text-gray-700">Select Department:</label>
-                <select id="filterSelect" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                  <option value="all">All Departments</option>
-                  <?php foreach ($departmentsList as $department): ?>
-                    <option value="<?= htmlspecialchars($department) ?>"><?= htmlspecialchars($department) ?></option>
-                  <?php endforeach; ?>
-                </select>
+              <!-- Single flex container for all dropdowns -->
+              <div class="flex flex-wrap items-center justify-center gap-6 mb-4">
+                <!-- Breakdown Type Selector -->
+                <div class="flex items-center">
+                  <label for="breakdownType" class="mr-3 text-sm font-medium text-gray-700">Breakdown by:</label>
+                  <select id="breakdownType" class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <option value="department">Department</option>
+                    <option value="course">Course</option>
+                  </select>
+                </div>
+                
+                <!-- Department/Course Selector -->
+                <div class="flex items-center">
+                  <label id="filterLabel" for="filterSelect" class="mr-3 text-sm font-medium text-gray-700">Select Department:</label>
+                  <select id="filterSelect" class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <option value="all">All Departments</option>
+                    <?php foreach ($departmentsList as $department): ?>
+                      <option value="<?= htmlspecialchars($department) ?>"><?= htmlspecialchars($department) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
               </div>
             </div>
             
@@ -857,6 +1112,24 @@ const breakdownData = {
 // Store departments and courses for this college
 const collegeDepartments = <?= json_encode($departmentsList) ?>;
 const collegeCourses = <?= json_encode($coursesList) ?>;
+
+// Map from full name to abbreviation for courses
+const fullNameToAbbrMap = {
+  <?php 
+  foreach ($course_map as $full_name => $abbr) {
+    echo "'" . addslashes($full_name) . "': '$abbr',\n";
+  }
+  ?>
+};
+
+// Map from full name to abbreviation for departments
+const departmentFullNameToAbbrMap = {
+  <?php 
+  foreach ($department_abbr_map as $full_name => $abbr) {
+    echo "'" . addslashes($full_name) . "': '$abbr',\n";
+  }
+  ?>
+};
 
 // User scope (college)
 const userScope = '<?= $scope ?>';
@@ -1020,7 +1293,9 @@ function getFilteredData() {
       if (currentState.breakdownType === 'department') {
         return item.department1 === currentState.filterValue;
       } else {
-        return item.course === currentState.filterValue;
+        // For courses, map the selected full name to abbreviation
+        const abbr = fullNameToAbbrMap[currentState.filterValue] || currentState.filterValue;
+        return item.course === abbr;
       }
     });
   }
@@ -1053,12 +1328,14 @@ function updateChart(data) {
   
   const ctx = canvas.getContext('2d');
   
-  // Prepare labels
+  // Prepare labels - use abbreviations for display
   const labels = data.map(item => {
     if (currentState.breakdownType === 'course') {
+      // Show the abbreviation for courses
       return item.course;
     } else {
-      return item.department1;
+      // For departments, convert full name to abbreviation
+      return departmentFullNameToAbbrMap[item.department1] || item.department1;
     }
   });
   
@@ -1181,6 +1458,13 @@ function updateChart(data) {
                   }).format(context.parsed.y);
                 }
                 return label;
+              },
+              // Use the title callback to show the full name
+              title: function(context) {
+                // Get the abbreviation from the chart label
+                const abbreviation = context[0].label;
+                // Convert the abbreviation to the full name
+                return convertToFullName(abbreviation);
               }
             }
           }
@@ -1303,15 +1587,18 @@ function generateTable(data) {
     const row = document.createElement('tr');
     
     if (currentState.breakdownType === 'course') {
+      // Show the full name for courses instead of abbreviation
+      const fullName = convertToFullName(item.course);
       row.innerHTML = `
-        <td style="width: 40%">${item.course}</td>
+        <td style="width: 40%; white-space: normal; word-wrap: break-word;">${fullName}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
         <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
       `;
     } else {
+      // Show the full name for departments
       row.innerHTML = `
-        <td style="width: 40%">${item.department1}</td>
+        <td style="width: 40%; white-space: normal; word-wrap: break-word;">${item.department1}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
         <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
@@ -1342,6 +1629,123 @@ function createTurnoutBar(percentage) {
       <span class="text-sm font-bold text-gray-700 mt-1">${percentage}%</span>
     </div>
   `;
+}
+
+// Function to convert abbreviations to full names
+function convertToFullName(abbreviation) {
+  // Complete mapping of abbreviations to full names
+  const fullNameMap = {
+    // Colleges
+    'CEIT': 'College of Engineering and Information Technology',
+    'CAS': 'College of Arts and Sciences',
+    'CAFENR': 'College of Agriculture, Food, Environment and Natural Resources',
+    'CCJ': 'College of Criminal Justice',
+    'CEMDS': 'College of Economics, Management and Development Studies',
+    'CED': 'College of Education',
+    'CON': 'College of Nursing',
+    'COM': 'College of Medicine',
+    'CSPEAR': 'College of Sports, Physical Education and Recreation',
+    'CVMBS': 'College of Veterinary Medicine and Biomedical Sciences',
+    'GS-OLC': 'Graduate School and Open Learning College',
+    
+    // Departments under CEIT
+    'DCE': 'Department of Civil Engineering',
+    'DCEE': 'Department of Computer and Electronics Engineering',
+    'DIET': 'Department of Industrial Engineering and Technology',
+    'DMEE': 'Department of Mechanical and Electronics Engineering',
+    'DIT': 'Department of Information Technology',
+    
+    // Departments under CAS
+    'DBS': 'Department of Biological Sciences',
+    'DPS': 'Department of Physical Sciences',
+    'DLMC': 'Department of Languages and Mass Communication',
+    'DSS': 'Department of Social Sciences',
+    'DMS': 'Department of Mathematics and Statistics',
+    
+    // Departments under CAFENR
+    'DAS': 'Department of Animal Science',
+    'DCS': 'Department of Crop Science',
+    'DFST': 'Department of Food Science and Technology',
+    'DFES': 'Department of Forestry and Environmental Science',
+    'DAED': 'Department of Agricultural Economics and Development',
+    
+    // Departments under CCJ
+    'DCJ': 'Department of Criminal Justice',
+    
+    // Departments under CEMDS
+    'DE': 'Department of Economics',
+    'DBM': 'Department of Business and Management',
+    'DDS': 'Department of Development Studies',
+    
+    // Departments under CED
+    'DSE': 'Department of Science Education',
+    'DTLE': 'Department of Technology and Livelihood Education',
+    'DCI': 'Department of Curriculum and Instruction',
+    'DHK': 'Department of Human Kinetics',
+    
+    // Departments under CON
+    'DN': 'Department of Nursing',
+    
+    // Departments under COM
+    'DBMS': 'Department of Basic Medical Sciences',
+    'DCS': 'Department of Clinical Sciences',
+    
+    // Departments under CSPEAR
+    'DPER': 'Department of Physical Education and Recreation',
+    
+    // Departments under CVMBS
+    'DVM': 'Department of Veterinary Medicine',
+    'DBS': 'Department of Biomedical Sciences',
+    
+    // Departments under GS-OLC
+    'DVGP': 'Department of Various Graduate Programs',
+    
+    // Courses
+    'BSCS': 'Bachelor of Science in Computer Science',
+    'BSIT': 'Bachelor of Science in Information Technology',
+    'BSCpE': 'Bachelor of Science in Computer Engineering',
+    'BSECE': 'Bachelor of Science in Electronics Engineering',
+    'BSCE': 'Bachelor of Science in Civil Engineering',
+    'BSME': 'Bachelor of Science in Mechanical Engineering',
+    'BSEE': 'Bachelor of Science in Electrical Engineering',
+    'BSIE': 'Bachelor of Science in Industrial Engineering',
+    'BSAgri': 'Bachelor of Science in Agriculture',
+    'BSAB': 'Bachelor of Science in Agribusiness',
+    'BSES': 'Bachelor of Science in Environmental Science',
+    'BSFT': 'Bachelor of Science in Food Technology',
+    'BSFor': 'Bachelor of Science in Forestry',
+    'BSABE': 'Bachelor of Science in Agricultural and Biosystems Engineering',
+    'BAE': 'Bachelor of Agricultural Entrepreneurship',
+    'BSLDM': 'Bachelor of Science in Land Use Design and Management',
+    'BSBio': 'Bachelor of Science in Biology',
+    'BSChem': 'Bachelor of Science in Chemistry',
+    'BSMath': 'Bachelor of Science in Mathematics',
+    'BSPhysics': 'Bachelor of Science in Physics',
+    'BSPsych': 'Bachelor of Science in Psychology',
+    'BAELS': 'Bachelor of Arts in English Language Studies',
+    'BAComm': 'Bachelor of Arts in Communication',
+    'BSStat': 'Bachelor of Science in Statistics',
+    'DVM': 'Doctor of Veterinary Medicine',
+    'BSPV': 'Bachelor of Science in Biology (Pre-Veterinary)',
+    'BEEd': 'Bachelor of Elementary Education',
+    'BSEd': 'Bachelor of Secondary Education',
+    'BPE': 'Bachelor of Physical Education',
+    'BTLE': 'Bachelor of Technology and Livelihood Education',
+    'BSBA': 'Bachelor of Science in Business Administration',
+    'BSAcc': 'Bachelor of Science in Accountancy',
+    'BSEco': 'Bachelor of Science in Economics',
+    'BSEnt': 'Bachelor of Science in Entrepreneurship',
+    'BSOA': 'Bachelor of Science in Office Administration',
+    'BSESS': 'Bachelor of Science in Exercise and Sports Sciences',
+    'BSCrim': 'Bachelor of Science in Criminology',
+    'BSN': 'Bachelor of Science in Nursing',
+    'BSHM': 'Bachelor of Science in Hospitality Management',
+    'BSTM': 'Bachelor of Science in Tourism Management',
+    'BLIS': 'Bachelor of Library and Information Science'
+  };
+  
+  // Return the full name if found, otherwise return the original abbreviation
+  return fullNameMap[abbreviation] || abbreviation;
 }
 
 function numberFormat(num) {

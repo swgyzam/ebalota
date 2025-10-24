@@ -4,7 +4,7 @@ date_default_timezone_set('Asia/Manila');
 
 // --- DB Connection ---
  $host = 'localhost';
- $db   = 'evoting_system';
+ $db = 'evoting_system';
  $user = 'root';
  $pass = '';
  $charset = 'utf8mb4';
@@ -29,6 +29,17 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
+// Get user role and assigned scope
+ $stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = ?");
+ $stmt->execute([$_SESSION['user_id']]);
+ $userInfo = $stmt->fetch();
+
+ $role = $userInfo['role'] ?? '';
+ $scope = strtoupper(trim($userInfo['assigned_scope'] ?? ''));
+
+// Valid college scopes
+ $validCollegeScopes = ['CEIT', 'CAS', 'CEMDS', 'CCJ', 'CAFENR', 'CON', 'COED', 'CVM', 'GRADUATE SCHOOL', 'CSPEAR'];
+
 // Get election ID from URL
  $electionId = $_GET['id'] ?? 0;
 if (!$electionId) {
@@ -48,54 +59,315 @@ if (!$election) {
 
 // Course mapping for student elections
  $course_map = [
-    // CEIT
-    'bs computer science' => 'bscs',
-    'bs information technology' => 'bsit',
-    'bs computer engineering' => 'bscpe',
-    'bs electronics engineering' => 'bsece',
-    'bs civil engineering' => 'bsce',
-    'bs mechanical engineering' => 'bsme',
-    'bs electrical engineering' => 'bsee',
-    'bs industrial engineering' => 'bsie',
-    // CAFENR
-    'bs agriculture' => 'bsagri',
-    'bs agribusiness' => 'bsab',
-    'bs environmental science' => 'bses',
-    'bs food technology' => 'bsft',
-    'bs forestry' => 'bsfor',
-    'bs agricultural and biosystems engineering' => 'bsabe',
-    'bachelor of agricultural entrepreneurship' => 'bae',
-    'bs land use design and management' => 'bsldm',
-    // CAS
-    'bs biology' => 'bsbio',
-    'bs chemistry' => 'bschem',
-    'bs mathematics' => 'bsmath',
-    'bs physics' => 'bsphy',
-    'bs psychology' => 'bspsy',
-    'ba english language studies' => 'baels',
-    'ba communication' => 'bacomm',
-    'bs statistics' => 'bsstat',
-    // CVMBS
-    'doctor of veterinary medicine' => 'dvm',
-    'bs biology (pre-veterinary)' => 'bspv',
-    // CED
-    'bachelor of elementary education' => 'bee',
-    'bachelor of secondary education' => 'bse',
-    'bachelor of physical education' => 'bpe',
-    'bachelor of technology and livelihood education' => 'btle',
-    // CEMDS
-    'bs business administration' => 'bsba',
-    'bs accountancy' => 'bsacc',
-    'bs economics' => 'bseco',
-    'bs entrepreneurship' => 'bsent',
-    'bs office administration' => 'bsoa',
-    // CSPEAR
-    'bachelor of physical education' => 'bpe',  // same as CED bpe
-    'bs exercise and sports sciences' => 'bsess',
-    // CCJ
-    'bs criminology' => 'bscrim',
-    // CON
-    'bs nursing' => 'bsn',
+  // CEIT Courses
+  'bs computer science' => 'BSCS',
+  'bachelor of science in computer science' => 'BSCS',
+  'computer science' => 'BSCS',
+  'Bachelor of Science in Computer Science' => 'BSCS',
+  'BS Computer Science' => 'BSCS',
+  'BSCS' => 'BSCS',
+
+  'bs information technology' => 'BSIT',
+  'bachelor of science in information technology' => 'BSIT',
+  'information technology' => 'BSIT',
+  'Bachelor of Science in Information Technology' => 'BSIT',
+  'BS Information Technology' => 'BSIT',
+  'BSIT' => 'BSIT',
+
+  'bs computer engineering' => 'BSCpE',
+  'bachelor of science in computer engineering' => 'BSCpE',
+  'computer engineering' => 'BSCpE',
+  'Bachelor of Science in Computer Engineering' => 'BSCpE',
+  'BS Computer Engineering' => 'BSCpE',
+  'BSCpE' => 'BSCpE',
+
+  'bs electronics engineering' => 'BSECE',
+  'bachelor of science in electronics engineering' => 'BSECE',
+  'electronics engineering' => 'BSECE',
+  'Bachelor of Science in Electronics Engineering' => 'BSECE',
+  'BS Electronics Engineering' => 'BSECE',
+  'BSECE' => 'BSECE',
+
+  'bs civil engineering' => 'BSCE',
+  'bachelor of science in civil engineering' => 'BSCE',
+  'civil engineering' => 'BSCE',
+  'Bachelor of Science in Civil Engineering' => 'BSCE',
+  'BS Civil Engineering' => 'BSCE',
+  'BSCE' => 'BSCE',
+
+  'bs mechanical engineering' => 'BSME',
+  'bachelor of science in mechanical engineering' => 'BSME',
+  'mechanical engineering' => 'BSME',
+  'Bachelor of Science in Mechanical Engineering' => 'BSME',
+  'BS Mechanical Engineering' => 'BSME',
+  'BSME' => 'BSME',
+
+  'bs electrical engineering' => 'BSEE',
+  'bachelor of science in electrical engineering' => 'BSEE',
+  'electrical engineering' => 'BSEE',
+  'Bachelor of Science in Electrical Engineering' => 'BSEE',
+  'BS Electrical Engineering' => 'BSEE',
+  'BSEE' => 'BSEE',
+
+  'bs industrial engineering' => 'BSIE',
+  'bachelor of science in industrial engineering' => 'BSIE',
+  'industrial engineering' => 'BSIE',
+  'Bachelor of Science in Industrial Engineering' => 'BSIE',
+  'BS Industrial Engineering' => 'BSIE',
+  'BSIE' => 'BSIE',
+
+  'bs architecture' => 'BSArch',
+  'bachelor of science in architecture' => 'BSArch',
+  'architecture' => 'BSArch',
+  'Bachelor of Science in Architecture' => 'BSArch',
+  'BS Architecture' => 'BSArch',
+  'BSArch' => 'BSArch',
+
+  // CAFENR Courses
+  'bs agriculture' => 'BSAgri',
+  'bachelor of science in agriculture' => 'BSAgri',
+  'agriculture' => 'BSAgri',
+  'Bachelor of Science in Agriculture' => 'BSAgri',
+  'BS Agriculture' => 'BSAgri',
+  'BSAgri' => 'BSAgri',
+
+  'bs agribusiness' => 'BSAB',
+  'bachelor of science in agribusiness' => 'BSAB',
+  'agribusiness' => 'BSAB',
+  'Bachelor of Science in Agribusiness' => 'BSAB',
+  'BS Agribusiness' => 'BSAB',
+  'BSAB' => 'BSAB',
+
+  'bs environmental science' => 'BSES',
+  'bachelor of science in environmental science' => 'BSES',
+  'environmental science' => 'BSES',
+  'Bachelor of Science in Environmental Science' => 'BSES',
+  'BS Environmental Science' => 'BSES',
+  'BSES' => 'BSES',
+
+  'bs food technology' => 'BSFT',
+  'bachelor of science in food technology' => 'BSFT',
+  'food technology' => 'BSFT',
+  'Bachelor of Science in Food Technology' => 'BSFT',
+  'BS Food Technology' => 'BSFT',
+  'BSFT' => 'BSFT',
+
+  'bs forestry' => 'BSFor',
+  'bachelor of science in forestry' => 'BSFor',
+  'forestry' => 'BSFor',
+  'Bachelor of Science in Forestry' => 'BSFor',
+  'BS Forestry' => 'BSFor',
+  'BSFor' => 'BSFor',
+
+  'bs agricultural and biosystems engineering' => 'BSABE',
+  'bachelor of science in agricultural and biosystems engineering' => 'BSABE',
+  'agricultural and biosystems engineering' => 'BSABE',
+  'Bachelor of Science in Agricultural and Biosystems Engineering' => 'BSABE',
+  'BS Agricultural and Biosystems Engineering' => 'BSABE',
+  'BSABE' => 'BSABE',
+
+  'bachelor of agricultural entrepreneurship' => 'BAE',
+  'agricultural entrepreneurship' => 'BAE',
+  'Bachelor of Agricultural Entrepreneurship' => 'BAE',
+  'BA Agricultural Entrepreneurship' => 'BAE',
+  'BAE' => 'BAE',
+
+  'bs land use design and management' => 'BSLDM',
+  'bachelor of science in land use design and management' => 'BSLDM',
+  'land use design and management' => 'BSLDM',
+  'Bachelor of Science in Land Use Design and Management' => 'BSLDM',
+  'BS Land Use Design and Management' => 'BSLDM',
+  'BSLDM' => 'BSLDM',
+
+  // CAS Courses
+  'bs biology' => 'BSBio',
+  'bachelor of science in biology' => 'BSBio',
+  'biology' => 'BSBio',
+  'Bachelor of Science in Biology' => 'BSBio',
+  'BS Biology' => 'BSBio',
+  'BSBio' => 'BSBio',
+
+  'bs chemistry' => 'BSChem',
+  'bachelor of science in chemistry' => 'BSChem',
+  'chemistry' => 'BSChem',
+  'Bachelor of Science in Chemistry' => 'BSChem',
+  'BS Chemistry' => 'BSChem',
+  'BSChem' => 'BSChem',
+
+  'bs mathematics' => 'BSMath',
+  'bachelor of science in mathematics' => 'BSMath',
+  'mathematics' => 'BSMath',
+  'Bachelor of Science in Mathematics' => 'BSMath',
+  'BS Mathematics' => 'BSMath',
+  'BSMath' => 'BSMath',
+
+  'bs physics' => 'BSPhysics',
+  'bachelor of science in physics' => 'BSPhysics',
+  'physics' => 'BSPhysics',
+  'Bachelor of Science in Physics' => 'BSPhysics',
+  'BS Physics' => 'BSPhysics',
+  'BSPhysics' => 'BSPhysics',
+
+  'bs psychology' => 'BSPsych',
+  'bachelor of science in psychology' => 'BSPsych',
+  'psychology' => 'BSPsych',
+  'Bachelor of Science in Psychology' => 'BSPsych',
+  'BS Psychology' => 'BSPsych',
+  'BSPsych' => 'BSPsych',
+
+  'ba english language studies' => 'BAELS',
+  'bachelor of arts in english language studies' => 'BAELS',
+  'english language studies' => 'BAELS',
+  'Bachelor of Arts in English Language Studies' => 'BAELS',
+  'BA English Language Studies' => 'BAELS',
+  'BAELS' => 'BAELS',
+
+  'ba communication' => 'BAComm',
+  'bachelor of arts in communication' => 'BAComm',
+  'communication' => 'BAComm',
+  'Bachelor of Arts in Communication' => 'BAComm',
+  'BA Communication' => 'BAComm',
+  'BAComm' => 'BAComm',
+
+  'bs statistics' => 'BSStat',
+  'bachelor of science in statistics' => 'BSStat',
+  'statistics' => 'BSStat',
+  'Bachelor of Science in Statistics' => 'BSStat',
+  'BS Statistics' => 'BSStat',
+  'BSStat' => 'BSStat',
+
+  // CVMBS Courses
+  'doctor of veterinary medicine' => 'DVM',
+  'veterinary medicine' => 'DVM',
+  'Doctor of Veterinary Medicine' => 'DVM',
+  'DVM' => 'DVM',
+
+  'bs biology (pre-veterinary)' => 'BSPV',
+  'bachelor of science in biology (pre-veterinary)' => 'BSPV',
+  'biology (pre-veterinary)' => 'BSPV',
+  'Bachelor of Science in Biology (Pre-Veterinary)' => 'BSPV',
+  'BS Biology (Pre-Veterinary)' => 'BSPV',
+  'BSPV' => 'BSPV',
+
+  // CED Courses
+  'bachelor of elementary education' => 'BEEd',
+  'elementary education' => 'BEEd',
+  'Bachelor of Elementary Education' => 'BEEd',
+  'BE Elementary Education' => 'BEEd',
+  'BEEd' => 'BEEd',
+
+  'bachelor of secondary education' => 'BSEd',
+  'secondary education' => 'BSEd',
+  'Bachelor of Secondary Education' => 'BSEd',
+  'BS Secondary Education' => 'BSEd',
+  'BSEd' => 'BSEd',
+
+  'bachelor of physical education' => 'BPE',
+  'physical education' => 'BPE',
+  'Bachelor of Physical Education' => 'BPE',
+  'BS Physical Education' => 'BPE',
+  'BPE' => 'BPE',
+
+  'bachelor of technology and livelihood education' => 'BTLE',
+  'technology and livelihood education' => 'BTLE',
+  'Bachelor of Technology and Livelihood Education' => 'BTLE',
+  'BS Technology and Livelihood Education' => 'BTLE',
+  'BTLE' => 'BTLE',
+
+  // CEMDS Courses
+  'bs business administration' => 'BSBA',
+  'bachelor of science in business administration' => 'BSBA',
+  'business administration' => 'BSBA',
+  'Bachelor of Science in Business Administration' => 'BSBA',
+  'BS Business Administration' => 'BSBA',
+  'BSBA' => 'BSBA',
+
+  'bs accountancy' => 'BSAcc',
+  'bachelor of science in accountancy' => 'BSAcc',
+  'accountancy' => 'BSAcc',
+  'Bachelor of Science in Accountancy' => 'BSAcc',
+  'BS Accountancy' => 'BSAcc',
+  'BSAcc' => 'BSAcc',
+
+  'bs economics' => 'BSEco',
+  'bachelor of science in economics' => 'BSEco',
+  'economics' => 'BSEco',
+  'Bachelor of Science in Economics' => 'BSEco',
+  'BS Economics' => 'BSEco',
+  'BSEco' => 'BSEco',
+
+  'bs entrepreneurship' => 'BSEnt',
+  'bachelor of science in entrepreneurship' => 'BSEnt',
+  'entrepreneurship' => 'BSEnt',
+  'Bachelor of Science in Entrepreneurship' => 'BSEnt',
+  'BS Entrepreneurship' => 'BSEnt',
+  'BSEnt' => 'BSEnt',
+
+  'bs office administration' => 'BSOA',
+  'bachelor of science in office administration' => 'BSOA',
+  'office administration' => 'BSOA',
+  'Bachelor of Science in Office Administration' => 'BSOA',
+  'BS Office Administration' => 'BSOA',
+  'BSOA' => 'BSOA',
+
+  // CSPEAR Courses
+  'bs exercise and sports sciences' => 'BSESS',
+  'bachelor of science in exercise and sports sciences' => 'BSESS',
+  'exercise and sports sciences' => 'BSESS',
+  'Bachelor of Science in Exercise and Sports Sciences' => 'BSESS',
+  'BS Exercise and Sports Sciences' => 'BSESS',
+  'BSESS' => 'BSESS',
+
+  // CCJ Courses
+  'bs criminology' => 'BSCrim',
+  'bachelor of science in criminology' => 'BSCrim',
+  'criminology' => 'BSCrim',
+  'Bachelor of Science in Criminology' => 'BSCrim',
+  'BS Criminology' => 'BSCrim',
+  'BSCrim' => 'BSCrim',
+
+  // CON Courses
+  'bs nursing' => 'BSN',
+  'bachelor of science in nursing' => 'BSN',
+  'nursing' => 'BSN',
+  'Bachelor of Science in Nursing' => 'BSN',
+  'BS Nursing' => 'BSN',
+  'BSN' => 'BSN',
+
+  // CTHM Courses
+  'bs hospitality management' => 'BSHM',
+  'bachelor of science in hospitality management' => 'BSHM',
+  'hospitality management' => 'BSHM',
+  'Bachelor of Science in Hospitality Management' => 'BSHM',
+  'BS Hospitality Management' => 'BSHM',
+  'BSHM' => 'BSHM',
+
+  'bs tourism management' => 'BSTM',
+  'bachelor of science in tourism management' => 'BSTM',
+  'tourism management' => 'BSTM',
+  'Bachelor of Science in Tourism Management' => 'BSTM',
+  'BS Tourism Management' => 'BSTM',
+  'BSTM' => 'BSTM',
+
+  // COM Courses
+  'bachelor of library and information science' => 'BLIS',
+  'library and information science' => 'BLIS',
+  'Bachelor of Library and Information Science' => 'BLIS',
+  'BS Library and Information Science' => 'BLIS',
+  'BLIS' => 'BLIS',
+
+  // GS-OLC Courses
+  'doctor of philosophy' => 'PhD',
+  'Doctor of Philosophy' => 'PhD',
+  'PhD' => 'PhD',
+
+  'master of science' => 'MS',
+  'Master of Science' => 'MS',
+  'MS' => 'MS',
+
+  'master of arts' => 'MA',
+  'Master of Arts' => 'MA',
+  'MA' => 'MA',
 ];
 
 // Determine if election is completed
@@ -114,66 +386,86 @@ if (!$election) {
  $conditions = ["role = 'voter'"];
  $params = [];
 
+// Check if user is a college admin and add department filter
+if (in_array($scope, $validCollegeScopes)) {
+   // For college admins, filter by their assigned college
+   $conditions[] = "UPPER(TRIM(department)) = ?";
+   $params[] = $scope;
+}
+// Add handling for Non-Academic Admin
+else if ($scope === 'NON-ACADEMIC') {
+   // For Non-Academic Admin, only show non-academic voters
+   $conditions[] = "position = 'non-academic'";
+}
+
 if ($election['target_position'] === 'coop') {
-    // For COOP elections - only users with both is_coop_member=1 AND migs_status=1
-    $conditions[] = "is_coop_member = 1";
-    $conditions[] = "migs_status = 1";
+   // For COOP elections - only users with both is_coop_member=1 AND migs_status=1
+   $conditions[] = "is_coop_member = 1";
+   $conditions[] = "migs_status = 1";
 } else {
-    // For other elections - apply position filter first
-    if ($election['target_position'] !== 'All') {
-        if ($election['target_position'] === 'faculty') {
-            $conditions[] = "position = ?";
-            $params[] = 'academic';
-        } else {
-            $conditions[] = "position = ?";
-            $params[] = $election['target_position'];
-        }
-    }
-    
-    // Get allowed filters from election
-    $allowed_colleges = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_colleges'] ?? ''))));
-    $allowed_courses = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_courses'] ?? ''))));
-    $allowed_status = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status'] ?? ''))));
-    
-    // Apply college filter if specified
-    if (!empty($allowed_colleges) && !in_array('ALL', $allowed_colleges)) {
-        $placeholders = implode(',', array_fill(0, count($allowed_colleges), '?'));
-        $conditions[] = "UPPER(department) IN ($placeholders)";
-        $params = array_merge($params, $allowed_colleges);
-    }
-    
-    // Apply course filter if specified (mainly for students)
-    if (!empty($allowed_courses) && !in_array('ALL', $allowed_courses)) {
-        // Create reverse course map: short_code => array of full names (in lowercase)
-        $reverse_course_map = [];
-        foreach ($course_map as $full_name => $short_code) {
-            $reverse_course_map[strtoupper($short_code)][] = strtolower($full_name);
-        }
+   // For other elections - apply position filter first
+   if ($election['target_position'] !== 'All') {
+       if ($election['target_position'] === 'faculty') {
+           $conditions[] = "position = ?";
+           $params[] = 'academic';
+       } else {
+           $conditions[] = "position = ?";
+           $params[] = $election['target_position'];
+       }
+   }
+   
+   // Get allowed filters from election
+   $allowed_colleges = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_colleges'] ?? ''))));
+   $allowed_courses = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_courses'] ?? ''))));
+   $allowed_status = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status'] ?? ''))));
+   $allowed_departments = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_departments'] ?? ''))));
+   
+   // Apply college filter if specified (but not for college admins, as they're already filtered by their scope)
+   if (!empty($allowed_colleges) && !in_array('ALL', $allowed_colleges) && !in_array($scope, $validCollegeScopes)) {
+       $placeholders = implode(',', array_fill(0, count($allowed_colleges), '?'));
+       $conditions[] = "UPPER(department) IN ($placeholders)";
+       $params = array_merge($params, $allowed_colleges);
+   }
+   
+   // Apply department filter if specified (for non-academic elections)
+   if ($election['target_position'] === 'non-academic' && !empty($allowed_departments) && !in_array('ALL', $allowed_departments)) {
+       $placeholders = implode(',', array_fill(0, count($allowed_departments), '?'));
+       $conditions[] = "UPPER(department) IN ($placeholders)";
+       $params = array_merge($params, $allowed_departments);
+   }
+   
+   // Apply course filter if specified (mainly for students)
+   if (!empty($allowed_courses) && !in_array('ALL', $allowed_courses)) {
+       // Create reverse course map: short_code => array of full names (in lowercase)
+       $reverse_course_map = [];
+       foreach ($course_map as $full_name => $short_code) {
+           $reverse_course_map[strtoupper($short_code)][] = strtolower($full_name);
+       }
 
-        $course_list = [];
-        foreach ($allowed_courses as $course) {
-            if (isset($reverse_course_map[$course])) {
-                $course_list = array_merge($course_list, $reverse_course_map[$course]);
-            }
-            // If the course is not in the map, add it as is (in case it's already a full name)
-            else {
-                $course_list[] = strtolower($course);
-            }
-        }
+       $course_list = [];
+       foreach ($allowed_courses as $course) {
+           if (isset($reverse_course_map[$course])) {
+               $course_list = array_merge($course_list, $reverse_course_map[$course]);
+           }
+           // If the course is not in the map, add it as is (in case it's already a full name)
+           else {
+               $course_list[] = strtolower($course);
+           }
+       }
 
-        if (!empty($course_list)) {
-            $placeholders = implode(',', array_fill(0, count($course_list), '?'));
-            $conditions[] = "LOWER(course) IN ($placeholders)";
-            $params = array_merge($params, $course_list);
-        }
-    }
-    
-    // Apply status filter if specified (mainly for faculty and non-academic)
-    if (!empty($allowed_status) && !in_array('ALL', $allowed_status)) {
-        $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
-        $conditions[] = "UPPER(status) IN ($placeholders)";
-        $params = array_merge($params, $allowed_status);
-    }
+       if (!empty($course_list)) {
+           $placeholders = implode(',', array_fill(0, count($course_list), '?'));
+           $conditions[] = "LOWER(course) IN ($placeholders)";
+           $params = array_merge($params, $course_list);
+       }
+   }
+   
+   // Apply status filter if specified (mainly for faculty and non-academic)
+   if (!empty($allowed_status) && !in_array('ALL', $allowed_status)) {
+       $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
+       $conditions[] = "UPPER(status) IN ($placeholders)";
+       $params = array_merge($params, $allowed_status);
+   }
 }
 
 // Build and execute the query for eligible voters

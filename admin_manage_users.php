@@ -44,7 +44,7 @@ if ($currentRole === 'super_admin') {
     $filterOptions['courses'] = $pdo->query("SELECT DISTINCT course FROM users WHERE role = 'voter' AND course IS NOT NULL AND course != '' ORDER BY course ASC")->fetchAll(PDO::FETCH_COLUMN);
 } 
 // College Admin (CEIT, CAS, etc.) - only students from their college
-else if (in_array($assignedScope, ['CEIT', 'CAS', 'CEMDS', 'CCJ', 'CAFENR', 'CON', 'COED', 'CVM', 'GRADUATE SCHOOL'])) {
+else if (in_array($assignedScope, ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC'])) {
     $conditions[] = "position = 'student'";
     $conditions[] = "UPPER(TRIM(department)) = :scope";
     $params[':scope'] = $assignedScope;

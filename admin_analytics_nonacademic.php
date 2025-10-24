@@ -76,7 +76,7 @@ if (!$election) {
  $params = [$election['target_position']];
 
 // Get allowed filters from election
- $allowed_status = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status'] ?? ''))));
+ $allowed_status = array_filter(array_map('trim', explode(',', $election['allowed_status'] ?? '')));
  $allowed_departments = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_departments'] ?? ''))));
 
 // Apply department filter if specified (for non-academic elections)
@@ -89,7 +89,7 @@ if ($election['target_position'] === 'non-academic' && !empty($allowed_departmen
 // Apply status filter if specified
 if (!empty($allowed_status) && !in_array('ALL', $allowed_status)) {
     $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
-    $conditions[] = "UPPER(status) IN ($placeholders)";
+    $conditions[] = "status IN ($placeholders)";
     $params = array_merge($params, $allowed_status);
 }
 
@@ -174,7 +174,7 @@ if ($election['target_position'] === 'non-academic' && !empty($allowed_departmen
 // Apply status filter if specified
 if (!empty($allowed_status) && !in_array('ALL', $allowed_status)) {
     $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
-    $sql .= " AND UPPER(u.status) IN ($placeholders)";
+    $sql .= " AND status IN ($placeholders)";
     $params = array_merge($params, $allowed_status);
 }
 
@@ -605,24 +605,26 @@ include 'sidebar.php';
           <?php else: ?>
             <!-- Filter Section -->
             <div class="mb-6">
-              <!-- Breakdown Type Selector -->
-              <div class="mb-4 flex items-center justify-center">
-                <label for="breakdownType" class="mr-3 text-sm font-medium text-gray-700">Breakdown by:</label>
-                <select id="breakdownType" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                  <option value="department" selected>Department</option>
-                  <option value="status">Status</option>
-                </select>
-              </div>
-              
-              <!-- Filter Selector (Department or Status) -->
-              <div class="mb-4 flex items-center justify-center">
-                <label id="filterLabel" for="filterSelect" class="mr-3 text-sm font-medium text-gray-700">Select Department:</label>
-                <select id="filterSelect" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                  <option value="all">All Departments</option>
-                  <?php foreach ($departmentsList as $department): ?>
-                    <option value="<?= htmlspecialchars($department) ?>"><?= htmlspecialchars($department) ?></option>
-                  <?php endforeach; ?>
-                </select>
+              <div class="flex flex-col md:flex-row items-center justify-center space-y-4 md:space-y-0 md:space-x-8">
+                <!-- Breakdown Type Selector -->
+                <div class="flex items-center">
+                  <label for="breakdownType" class="mr-3 text-sm font-medium text-gray-700">Breakdown by:</label>
+                  <select id="breakdownType" class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <option value="department" selected>Department</option>
+                    <option value="status">Status</option>
+                  </select>
+                </div>
+                
+                <!-- Filter Selector (Department or Status) -->
+                <div class="flex items-center">
+                  <label id="filterLabel" for="filterSelect" class="mr-3 text-sm font-medium text-gray-700">Select Department:</label>
+                  <select id="filterSelect" class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <option value="all">All Departments</option>
+                    <?php foreach ($departmentsList as $department): ?>
+                      <option value="<?= htmlspecialchars($department) ?>"><?= htmlspecialchars($department) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
               </div>
             </div>
             
@@ -684,6 +686,26 @@ const breakdownData = {
 // List of departments and statuses
 const departmentsList = <?= json_encode($departmentsList) ?>;
 const statusesList = <?= json_encode($statusesList) ?>;
+
+// Department mapping function
+function getFullDepartmentName(deptAbbr) {
+  const departmentMap = {
+    'NAEA': 'Non-Academic Employees Association',
+    'ADMIN': 'Administration',
+    'FINANCE': 'Finance',
+    'HR': 'Human Resources',
+    'IT': 'Information Technology',
+    'MAINTENANCE': 'Maintenance',
+    'SECURITY': 'Security',
+    'LIBRARY': 'Library',
+    'NAES': 'Non-Academic Employee Services',
+    'NAEM': 'Non-Academic Employee Management',
+    'NAEH': 'Non-Academic Employee Health',
+    'NAEIT': 'Non-Academic Employee IT'
+  };
+  
+  return departmentMap[deptAbbr] || deptAbbr;
+}
 
 // Chart instance
 let turnoutChartInstance = null;
@@ -784,7 +806,7 @@ function updateFilterDropdown(breakdownType) {
     departmentsList.forEach(department => {
       const option = document.createElement('option');
       option.value = department;
-      option.textContent = department;
+      option.textContent = getFullDepartmentName(department);
       filterSelect.appendChild(option);
     });
   } else {
@@ -888,11 +910,12 @@ function updateChart(data) {
   
   const ctx = canvas.getContext('2d');
   
-  // Prepare labels
+  // Prepare labels - use abbreviations for chart labels
   const labels = data.map(item => {
     if (currentState.breakdownType === 'status') {
       return item.status;
     } else {
+      // Use abbreviation for chart labels
       return item.department;
     }
   });
@@ -1004,6 +1027,14 @@ function updateChart(data) {
             padding: 12,
             cornerRadius: 4,
             callbacks: {
+              title: function(context) {
+                if (currentState.breakdownType === 'status') {
+                  return context[0].label;
+                } else {
+                  // Convert abbreviation to full name in tooltip
+                  return getFullDepartmentName(context[0].label);
+                }
+              },
               label: function(context) {
                 let label = context.dataset.label || '';
                 if (label) {
@@ -1145,8 +1176,10 @@ function generateTable(data) {
         <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
       `;
     } else {
+      // Table shows full department names
+      const fullDeptName = getFullDepartmentName(item.department);
       row.innerHTML = `
-        <td style="width: 40%">${item.department}</td>
+        <td style="width: 40%">${fullDeptName}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
         <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>

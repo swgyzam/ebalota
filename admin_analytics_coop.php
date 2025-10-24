@@ -87,18 +87,18 @@ if (!$election) {
 
 // ===== GET WINNERS BY POSITION =====
  $sql = "
-    SELECT 
-        ec.position,
-        c.id as candidate_id,
-        CONCAT(c.first_name, ' ', c.last_name) as candidate_name,
-        COUNT(v.vote_id) as vote_count
-    FROM election_candidates ec
-    JOIN candidates c ON ec.candidate_id = c.id
-    LEFT JOIN votes v ON ec.election_id = v.election_id 
-                   AND ec.candidate_id = v.candidate_id
-    WHERE ec.election_id = ?
-    GROUP BY ec.position, c.id, c.first_name, c.last_name
-    ORDER BY ec.position, vote_count DESC
+   SELECT 
+       ec.position,
+       c.id as candidate_id,
+       CONCAT(c.first_name, ' ', c.last_name) as candidate_name,
+       COUNT(v.vote_id) as vote_count
+   FROM election_candidates ec
+   JOIN candidates c ON ec.candidate_id = c.id
+   LEFT JOIN votes v ON ec.election_id = v.election_id 
+                  AND ec.candidate_id = v.candidate_id
+   WHERE ec.election_id = ?
+   GROUP BY ec.position, c.id, c.first_name, c.last_name
+   ORDER BY ec.position, vote_count DESC
 ";
 
  $stmt = $pdo->prepare($sql);
@@ -139,15 +139,15 @@ foreach ($winnersByPosition as $position => &$candidates) {
 
 // Breakdown by Position (Academic and Non-Academic)
  $sql_position = "
-    SELECT 
-        u.position,
-        COUNT(DISTINCT u.user_id) as eligible_count,
-        COUNT(DISTINCT v.voter_id) as voted_count
-    FROM users u
-    LEFT JOIN votes v ON u.user_id = v.voter_id AND v.election_id = ?
-    WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
-    GROUP BY u.position
-    ORDER BY u.position
+   SELECT 
+       u.position,
+       COUNT(DISTINCT u.user_id) as eligible_count,
+       COUNT(DISTINCT v.voter_id) as voted_count
+   FROM users u
+   LEFT JOIN votes v ON u.user_id = v.voter_id AND v.election_id = ?
+   WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
+   GROUP BY u.position
+   ORDER BY u.position
 ";
  $stmt = $pdo->prepare($sql_position);
  $stmt->execute([$electionId]);
@@ -162,15 +162,15 @@ foreach ($positionData as &$data) {
 
 // Breakdown by Status
  $sql_status = "
-    SELECT 
-        u.status,
-        COUNT(DISTINCT u.user_id) as eligible_count,
-        COUNT(DISTINCT v.voter_id) as voted_count
-    FROM users u
-    LEFT JOIN votes v ON u.user_id = v.voter_id AND v.election_id = ?
-    WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
-    GROUP BY u.status
-    ORDER BY u.status
+   SELECT 
+       u.status,
+       COUNT(DISTINCT u.user_id) as eligible_count,
+       COUNT(DISTINCT v.voter_id) as voted_count
+   FROM users u
+   LEFT JOIN votes v ON u.user_id = v.voter_id AND v.election_id = ?
+   WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
+   GROUP BY u.status
+   ORDER BY u.status
 ";
  $stmt = $pdo->prepare($sql_status);
  $stmt->execute([$electionId]);
@@ -334,6 +334,35 @@ include 'sidebar.php';
       100% { transform: rotate(360deg); }
     }
     
+    /* No data message styles */
+    .no-data-message {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem;
+      text-align: center;
+      color: #6b7280;
+    }
+    
+    .no-data-message i {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      color: #d1d5db;
+    }
+    
+    .no-data-message h3 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #4b5563;
+    }
+    
+    .no-data-message p {
+      font-size: 1rem;
+      font-weight: 500;
+    }
+    
     /* Custom dropdown styles */
     .filter-dropdown {
       transition: all 0.3s ease;
@@ -341,6 +370,28 @@ include 'sidebar.php';
     
     .filter-dropdown:focus {
       box-shadow: 0 0 0 3px rgba(30, 111, 70, 0.2);
+    }
+    
+    /* Chart container with no data message */
+    .chart-wrapper {
+      position: relative;
+      height: 100%;
+      width: 100%;
+    }
+    
+    .chart-no-data {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: rgba(249, 250, 251, 0.9);
+      z-index: 10;
+      border-radius: 0.5rem;
     }
   </style>
 </head>
@@ -516,7 +567,16 @@ include 'sidebar.php';
               <h3 class="text-xl font-semibold text-gray-800 mb-6 text-center">Turnout Visualization</h3>
               <div class="bg-gray-50 p-6 rounded-xl shadow-sm">
                 <div class="h-96">
-                  <canvas id="turnoutChart"></canvas>
+                  <div class="chart-wrapper">
+                    <canvas id="turnoutChart"></canvas>
+                    <div id="chartNoData" class="chart-no-data" style="display: none;">
+                      <div class="no-data-message">
+                        <i class="fas fa-chart-bar"></i>
+                        <h3>No Data Available</h3>
+                        <p id="chartNoDataMessage">No data available for the selected filter</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -594,7 +654,7 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     script.onerror = function() {
       console.error('Failed to load Chart.js');
-      showNoDataMessage();
+      showChartNoDataMessage('Error loading chart library');
     };
     document.head.appendChild(script);
   } else {
@@ -727,6 +787,16 @@ function updateChart(data, breakdownType) {
   }
   
   const ctx = canvas.getContext('2d');
+  
+  // Check if data is empty
+  if (!data || data.length === 0) {
+    showChartNoDataMessage();
+    return;
+  }
+  
+  // Make sure canvas is visible (in case it was hidden before)
+  canvas.style.display = 'block';
+  hideChartNoDataMessage();
   
   // Prepare labels and data based on breakdown type
   let labels, eligibleData, votedData, chartTitle;
@@ -932,7 +1002,7 @@ function updateChart(data, breakdownType) {
     console.log('Chart updated successfully!');
   } catch (error) {
     console.error('Error updating chart:', error);
-    showNoDataMessage();
+    showChartNoDataMessage('Error loading chart data');
   }
 }
 
@@ -941,6 +1011,32 @@ function generateTable(data, breakdownType) {
   
   // Clear existing content
   tableContainer.innerHTML = '';
+  
+  // Check if data is empty
+  if (!data || data.length === 0) {
+    // Create no data message for table
+    const noDataDiv = document.createElement('div');
+    noDataDiv.className = 'no-data-message';
+    
+    // Set appropriate message based on breakdown type
+    let message;
+    if (breakdownType === 'position') {
+      message = 'No position data available for the selected filter';
+    } else if (breakdownType === 'status') {
+      message = 'No status data available for the selected filter';
+    } else {
+      message = 'No data available for the selected filter';
+    }
+    
+    noDataDiv.innerHTML = `
+      <i class="fas fa-table"></i>
+      <h3>No Data Available</h3>
+      <p>${message}</p>
+    `;
+    
+    tableContainer.appendChild(noDataDiv);
+    return;
+  }
   
   // Create table element
   const table = document.createElement('table');
@@ -1034,16 +1130,26 @@ function hideLoading() {
   document.getElementById('loadingOverlay').classList.remove('active');
 }
 
-function showNoDataMessage(message = 'No data available for chart') {
-  const chartContainer = document.querySelector('#turnoutChart').parentElement;
-  chartContainer.innerHTML = `
-    <div class="flex items-center justify-center h-64 bg-gray-50 rounded-lg border border-gray-200">
-      <div class="text-center">
-        <i class="fas fa-chart-bar text-gray-400 text-4xl mb-3"></i>
-        <p class="text-gray-600">${message}</p>
-      </div>
-    </div>
-  `;
+function showChartNoDataMessage(message = 'No data available for the selected filter') {
+  const canvas = document.getElementById('turnoutChart');
+  const noDataDiv = document.getElementById('chartNoData');
+  const messageElement = document.getElementById('chartNoDataMessage');
+  
+  // Hide canvas and show no data message
+  if (canvas) canvas.style.display = 'none';
+  if (noDataDiv) {
+    noDataDiv.style.display = 'flex';
+    if (messageElement) messageElement.textContent = message;
+  }
+}
+
+function hideChartNoDataMessage() {
+  const canvas = document.getElementById('turnoutChart');
+  const noDataDiv = document.getElementById('chartNoData');
+  
+  // Show canvas and hide no data message
+  if (canvas) canvas.style.display = 'block';
+  if (noDataDiv) noDataDiv.style.display = 'none';
 }
 </script>
 </body>

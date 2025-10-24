@@ -3989,3 +3989,883 @@ Array
 )
 
 Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CSPEAR
+    [:allowed_courses] => BPE,BSESS
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CSPEAR
+    [:allowed_courses] => BSESS
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSCS,BSIT,BSCpE,BSECE,BSCE,BSME,BSEE,BSIE,BSArch
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSCS
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => all
+    [:allowed_courses] => BSCS,BSIT,BSCpE,BSECE,BSCE,BSME,BSEE,BSIE,BSArch
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSCS,BSIT,BSCpE,BSECE,BSCE,BSME,BSEE,BSIE,BSArch
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CAFENR
+    [:allowed_courses] => BSAgri
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => all
+    [:allowed_courses] => BSAgri
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSIT
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CEMDS
+    [:allowed_courses] => BSBA
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CAS
+    [:allowed_courses] => BSBio,BSChem,BSMath,BSPhysics,BSPsych,BAELS,BAComm,BSStat
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => all
+    [:allowed_courses] => BSBio,BSChem,BSMath,BSPhysics,BSPsych,BAELS,BAComm,BSStat
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CAS
+    [:allowed_courses] => BSBio
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => CAS
+    [:allowed_courses] => BSBio,BSChem,BSMath,BSPhysics,BSPsych,BAELS,BAComm,BSStat
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => all
+    [:allowed_courses] => BSBio,BSChem,BSMath,BSPhysics,BSPsych,BAELS,BAComm,BSStat
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => all
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CSPEAR
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:allowed_colleges] => CEMDS
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => ADMIN
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => HR
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => LIBRARY
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => NAEA
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Contractual
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Part-time
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Regular
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Regular,Part-time
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Part-time
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-25 13:43:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NA ONLEH
+    [:start_datetime] => 2025-10-23 01:34:00
+    [:end_datetime] => 2025-10-26 13:43:00
+    [:target_position] => coop
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => MIGS
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1761154266_FIRE.jpeg
+    [:election_id] => 203
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 203
+Executing with params:
+Array
+(
+    [:title] => non-acad
+    [:description] => try
+    [:start_datetime] => 2025-10-25 00:07:00
+    [:end_datetime] => 2025-10-26 11:11:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => LIBRARY
+    [:realtime_results] => 0
+    [:logo_path] => 
+    [:election_id] => 204
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 204
+Executing with params:
+Array
+(
+    [:title] => non-acad
+    [:description] => try
+    [:start_datetime] => 2025-10-25 00:07:00
+    [:end_datetime] => 2025-10-26 11:11:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => 
+    [:election_id] => 204
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 204
+Executing with params:
+Array
+(
+    [:title] => non-acad
+    [:description] => try
+    [:start_datetime] => 2025-10-25 00:07:00
+    [:end_datetime] => 2025-10-26 11:11:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => LIBRARY
+    [:realtime_results] => 0
+    [:logo_path] => 
+    [:election_id] => 204
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 204
+Executing with params:
+Array
+(
+    [:title] => non-acad
+    [:description] => try
+    [:start_datetime] => 2025-10-25 00:07:00
+    [:end_datetime] => 2025-10-26 11:11:00
+    [:target_position] => non-academic
+    [:target_department] => All
+    [:allowed_colleges] => All
+    [:allowed_courses] => All
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => 
+    [:election_id] => 204
+    [:assigned_admin_id] => 125
+)
+
+Update successful for election 204

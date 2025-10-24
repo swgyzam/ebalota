@@ -369,6 +369,9 @@ include 'sidebar.php';
     
     .data-table td {
       border-bottom: 1px solid #e5e7eb;
+      max-width: 300px;
+      word-wrap: break-word;
+      white-space: normal;
     }
     
     .data-table tr:hover {
@@ -662,32 +665,35 @@ include 'sidebar.php';
           <?php else: ?>
             <!-- Filter Section -->
             <div class="mb-6">
-              <!-- Breakdown Type Selector -->
-              <div class="mb-4 flex items-center justify-center">
-                <label for="breakdownType" class="mr-3 text-sm font-medium text-gray-700">Breakdown by:</label>
-                <select id="breakdownType" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                  <option value="college" selected>College</option>
-                  <option value="status">Status</option>
-                </select>
-              </div>
-              
-              <!-- Filter Selector (College or Status) -->
-              <div class="mb-4 flex items-center justify-center">
-                <label id="filterLabel" for="filterSelect" class="mr-3 text-sm font-medium text-gray-700">Select College:</label>
-                <select id="filterSelect" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                  <option value="all">All Colleges</option>
-                  <?php foreach ($collegesList as $college): ?>
-                    <option value="<?= htmlspecialchars($college) ?>"><?= htmlspecialchars($college) ?></option>
-                  <?php endforeach; ?>
-                </select>
-              </div>
-              
-              <!-- Department Selector (only visible when College breakdown is selected) -->
-              <div id="departmentSelector" class="mb-4 flex items-center justify-center">
-                <label for="departmentSelect" class="mr-3 text-sm font-medium text-gray-700">Select Department:</label>
-                <select id="departmentSelect" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" disabled>
-                  <option value="all">All Departments</option>
-                </select>
+              <!-- Single flex container for all dropdowns -->
+              <div class="flex flex-wrap items-center justify-center gap-6 mb-4">
+                <!-- Breakdown Type Selector -->
+                <div class="flex items-center">
+                  <label for="breakdownType" class="mr-3 text-sm font-medium text-gray-700">Breakdown by:</label>
+                  <select id="breakdownType" class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <option value="college" selected>College</option>
+                    <option value="status">Status</option>
+                  </select>
+                </div>
+                
+                <!-- Filter Selector (College or Status) -->
+                <div class="flex items-center">
+                  <label id="filterLabel" for="filterSelect" class="mr-3 text-sm font-medium text-gray-700">Select College:</label>
+                  <select id="filterSelect" class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <option value="all">All Colleges</option>
+                    <?php foreach ($collegesList as $college): ?>
+                      <option value="<?= htmlspecialchars($college) ?>"><?= htmlspecialchars($college) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                
+                <!-- Department Selector (only visible when College breakdown is selected) -->
+                <div id="departmentSelector" class="flex items-center">
+                  <label for="departmentSelect" class="mr-3 text-sm font-medium text-gray-700">Select Department:</label>
+                  <select id="departmentSelect" class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" disabled>
+                    <option value="all">All Departments</option>
+                  </select>
+                </div>
               </div>
             </div>
             
@@ -749,6 +755,26 @@ const breakdownData = {
 
 // College departments structure
 const collegeDepartments = <?= json_encode($collegeDepartments) ?>;
+
+// College abbreviation to full name mapping
+const collegeFullNameMap = {
+    'CAFENR': 'College of Agriculture, Food, Environment and Natural Resources',
+    'CAS': 'College of Arts and Sciences',
+    'CCJ': 'College of Criminal Justice',
+    'CEMDS': 'College of Economics, Management and Development Studies',
+    'CED': 'College of Education',
+    'CEIT': 'College of Engineering and Information Technology',
+    'CON': 'College of Nursing',
+    'COM': 'College of Medicine',
+    'CSPEAR': 'College of Sports, Physical Education and Recreation',
+    'CVMBS': 'College of Veterinary Medicine and Biomedical Sciences',
+    'GS-OLC': 'Graduate School and Open Learning College'
+};
+
+// Function to get full college name from abbreviation
+function getCollegeFullName(abbreviation) {
+    return collegeFullNameMap[abbreviation] || abbreviation;
+}
 
 // List of colleges and statuses
 const collegesList = <?= json_encode($collegesList) ?>;
@@ -1153,6 +1179,14 @@ function updateChart(data) {
             padding: 12,
             cornerRadius: 4,
             callbacks: {
+              title: function(context) {
+                const label = context[0].label;
+                // Show full college name in tooltip when hovering over college bars
+                if (currentState.breakdownType === 'college' && currentState.filterValue === 'all') {
+                    return getCollegeFullName(label);
+                }
+                return label;
+              },
               label: function(context) {
                 let label = context.dataset.label || '';
                 if (label) {
@@ -1321,8 +1355,10 @@ function generateTable(data) {
         <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
       `;
     } else if (currentState.breakdownType === 'college' && currentState.filterValue === 'all') {
+      // Show full college name instead of abbreviation
+      const fullName = getCollegeFullName(item.college);
       row.innerHTML = `
-        <td style="width: 40%">${item.college}</td>
+        <td style="width: 40%; white-space: normal; word-wrap: break-word;">${fullName}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
         <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>

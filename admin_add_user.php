@@ -34,7 +34,7 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin','super
 // Determine admin type based on assigned scope
 if ($adminRole === 'super_admin') {
     $adminType = 'super_admin';
-} else if (in_array($assignedScope, ['CEIT', 'CAS', 'CEMDS', 'CCJ', 'CAFENR', 'CON', 'COED', 'CVM', 'GRADUATE SCHOOL'])) {
+} else if (in_array($assignedScope, ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC'])) {
     $adminType = 'admin_students';
 } else if ($assignedScope === 'FACULTY ASSOCIATION') {
     $adminType = 'admin_academic';

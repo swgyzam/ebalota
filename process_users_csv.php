@@ -28,7 +28,7 @@ if (!$adminType) {
     // Determine admin type based on assigned scope
     if ($adminRole === 'super_admin') {
         $adminType = 'super_admin';
-    } else if (in_array($normalizedAssignedScope, ['CEIT', 'CAS', 'CEMDS', 'CCJ', 'CAFENR', 'CON', 'COED', 'CVM', 'GRADUATE SCHOOL'])) {
+    } else if (in_array($normalizedAssignedScope, ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC'])) {
         $adminType = 'admin_students';
     } else if ($normalizedAssignedScope === 'FACULTY ASSOCIATION') {
         $adminType = 'admin_academic';
@@ -108,356 +108,604 @@ switch ($adminType) {
 }
 
 // College mapping - Full name to code
- $collegeMapping = [
-    // Full name variations
+$collegeMapping = [
+    // CEIT
     'college of engineering and information technology' => 'CEIT',
+    'College of Engineering and Information Technology' => 'CEIT',
     'college of engineering, information and technology' => 'CEIT',
+    'College of Engineering, Information and Technology' => 'CEIT',
     'ceit' => 'CEIT',
+    'CEIT' => 'CEIT',
     'engineering' => 'CEIT',
-    
+    'Engineering' => 'CEIT',
+
+    // CAS
     'college of arts and sciences' => 'CAS',
+    'College of Arts and Sciences' => 'CAS',
     'cas' => 'CAS',
+    'CAS' => 'CAS',
     'arts and sciences' => 'CAS',
-    
+    'Arts and Sciences' => 'CAS',
+
+    // CEMDS
     'college of economics, management and development studies' => 'CEMDS',
+    'College of Economics, Management and Development Studies' => 'CEMDS',
     'college of economics management and development studies' => 'CEMDS',
+    'College of Economics Management and Development Studies' => 'CEMDS',
     'cemds' => 'CEMDS',
+    'CEMDS' => 'CEMDS',
     'economics' => 'CEMDS',
-    
+    'Economics' => 'CEMDS',
+
+    // CCJ
     'college of criminal justice education' => 'CCJ',
+    'College of Criminal Justice Education' => 'CCJ',
     'ccj' => 'CCJ',
+    'CCJ' => 'CCJ',
     'criminal justice' => 'CCJ',
-    
+    'Criminal Justice' => 'CCJ',
+
+    // CAFENR
     'college of agriculture, food, environment and natural resources' => 'CAFENR',
+    'College of Agriculture, Food, Environment and Natural Resources' => 'CAFENR',
     'college of agriculture food environment and natural resources' => 'CAFENR',
+    'College of Agriculture Food Environment and Natural Resources' => 'CAFENR',
     'cafenr' => 'CAFENR',
+    'CAFENR' => 'CAFENR',
     'agriculture' => 'CAFENR',
-    
+    'Agriculture' => 'CAFENR',
+
+    // CON
     'college of nursing' => 'CON',
+    'College of Nursing' => 'CON',
     'con' => 'CON',
+    'CON' => 'CON',
     'nursing' => 'CON',
-    
+    'Nursing' => 'CON',
+
+    // CED
     'college of education' => 'CED',
+    'College of Education' => 'CED',
     'ced' => 'CED',
+    'CED' => 'CED',
     'education' => 'CED',
+    'Education' => 'CED',
     'coed' => 'CED',
-    
+    'CoEd' => 'CED',
+
+    // CVMBS
     'college of veterinary medicine and biomedical sciences' => 'CVMBS',
+    'College of Veterinary Medicine and Biomedical Sciences' => 'CVMBS',
     'college of veterinary medicine & biomedical sciences' => 'CVMBS',
+    'College of Veterinary Medicine & Biomedical Sciences' => 'CVMBS',
     'cvmbs' => 'CVMBS',
+    'CVMBS' => 'CVMBS',
     'veterinary medicine' => 'CVMBS',
-    
+    'Veterinary Medicine' => 'CVMBS',
+
+    // CSPEAR
     'college of sports, physical education and recreation' => 'CSPEAR',
+    'College of Sports, Physical Education and Recreation' => 'CSPEAR',
     'csphear' => 'CSPEAR',
+    'CSPEAR' => 'CSPEAR',
     'sports' => 'CSPEAR',
-    
+    'Sports' => 'CSPEAR',
+
+    // COM
     'college of medicine' => 'COM',
+    'College of Medicine' => 'COM',
     'com' => 'COM',
+    'COM' => 'COM',
     'medicine' => 'COM',
-    
+    'Medicine' => 'COM',
+
+    // CTHM
     'college of tourism and hospitality management' => 'CTHM',
+    'College of Tourism and Hospitality Management' => 'CTHM',
     'cthm' => 'CTHM',
+    'CTHM' => 'CTHM',
     'tourism' => 'CTHM',
+    'Tourism' => 'CTHM',
     'hospitality' => 'CTHM',
-    
+    'Hospitality' => 'CTHM',
+
+    // GS-OLC
     'graduate school and open learning college' => 'GS-OLC',
+    'Graduate School and Open Learning College' => 'GS-OLC',
     'graduate school and open learning center' => 'GS-OLC',
+    'Graduate School and Open Learning Center' => 'GS-OLC',
     'gs-olc' => 'GS-OLC',
+    'GS-OLC' => 'GS-OLC',
     'graduate school' => 'GS-OLC',
+    'Graduate School' => 'GS-OLC',
     'open learning' => 'GS-OLC',
+    'Open Learning' => 'GS-OLC',
 ];
 
+
 // Course mapping - Full name to code (match election creation format)
- $courseMapping = [
+$courseMapping = [
     // CEIT Courses
     'bs computer science' => 'BSCS',
     'bachelor of science in computer science' => 'BSCS',
     'computer science' => 'BSCS',
-    
+    'Bachelor of Science in Computer Science' => 'BSCS',
+    'BS Computer Science' => 'BSCS',
+    'BSCS' => 'BSCS',
+
     'bs information technology' => 'BSIT',
     'bachelor of science in information technology' => 'BSIT',
     'information technology' => 'BSIT',
-    
-    'bs computer engineering' => 'BSCpE',  // Match election creation format
+    'Bachelor of Science in Information Technology' => 'BSIT',
+    'BS Information Technology' => 'BSIT',
+    'BSIT' => 'BSIT',
+
+    'bs computer engineering' => 'BSCpE',
     'bachelor of science in computer engineering' => 'BSCpE',
     'computer engineering' => 'BSCpE',
-    
+    'Bachelor of Science in Computer Engineering' => 'BSCpE',
+    'BS Computer Engineering' => 'BSCpE',
+    'BSCpE' => 'BSCpE',
+
     'bs electronics engineering' => 'BSECE',
     'bachelor of science in electronics engineering' => 'BSECE',
     'electronics engineering' => 'BSECE',
-    
+    'Bachelor of Science in Electronics Engineering' => 'BSECE',
+    'BS Electronics Engineering' => 'BSECE',
+    'BSECE' => 'BSECE',
+
     'bs civil engineering' => 'BSCE',
     'bachelor of science in civil engineering' => 'BSCE',
     'civil engineering' => 'BSCE',
-    
+    'Bachelor of Science in Civil Engineering' => 'BSCE',
+    'BS Civil Engineering' => 'BSCE',
+    'BSCE' => 'BSCE',
+
     'bs mechanical engineering' => 'BSME',
     'bachelor of science in mechanical engineering' => 'BSME',
     'mechanical engineering' => 'BSME',
-    
+    'Bachelor of Science in Mechanical Engineering' => 'BSME',
+    'BS Mechanical Engineering' => 'BSME',
+    'BSME' => 'BSME',
+
     'bs electrical engineering' => 'BSEE',
     'bachelor of science in electrical engineering' => 'BSEE',
     'electrical engineering' => 'BSEE',
-    
+    'Bachelor of Science in Electrical Engineering' => 'BSEE',
+    'BS Electrical Engineering' => 'BSEE',
+    'BSEE' => 'BSEE',
+
     'bs industrial engineering' => 'BSIE',
     'bachelor of science in industrial engineering' => 'BSIE',
     'industrial engineering' => 'BSIE',
-    
+    'Bachelor of Science in Industrial Engineering' => 'BSIE',
+    'BS Industrial Engineering' => 'BSIE',
+    'BSIE' => 'BSIE',
+
     'bs architecture' => 'BSArch',
     'bachelor of science in architecture' => 'BSArch',
     'architecture' => 'BSArch',
-    
+    'Bachelor of Science in Architecture' => 'BSArch',
+    'BS Architecture' => 'BSArch',
+    'BSArch' => 'BSArch',
+
     // CAFENR Courses
     'bs agriculture' => 'BSAgri',
     'bachelor of science in agriculture' => 'BSAgri',
     'agriculture' => 'BSAgri',
-    
+    'Bachelor of Science in Agriculture' => 'BSAgri',
+    'BS Agriculture' => 'BSAgri',
+    'BSAgri' => 'BSAgri',
+
     'bs agribusiness' => 'BSAB',
     'bachelor of science in agribusiness' => 'BSAB',
     'agribusiness' => 'BSAB',
-    
+    'Bachelor of Science in Agribusiness' => 'BSAB',
+    'BS Agribusiness' => 'BSAB',
+    'BSAB' => 'BSAB',
+
     'bs environmental science' => 'BSES',
     'bachelor of science in environmental science' => 'BSES',
     'environmental science' => 'BSES',
-    
+    'Bachelor of Science in Environmental Science' => 'BSES',
+    'BS Environmental Science' => 'BSES',
+    'BSES' => 'BSES',
+
     'bs food technology' => 'BSFT',
     'bachelor of science in food technology' => 'BSFT',
     'food technology' => 'BSFT',
-    
+    'Bachelor of Science in Food Technology' => 'BSFT',
+    'BS Food Technology' => 'BSFT',
+    'BSFT' => 'BSFT',
+
     'bs forestry' => 'BSFor',
     'bachelor of science in forestry' => 'BSFor',
     'forestry' => 'BSFor',
-    
+    'Bachelor of Science in Forestry' => 'BSFor',
+    'BS Forestry' => 'BSFor',
+    'BSFor' => 'BSFor',
+
     'bs agricultural and biosystems engineering' => 'BSABE',
     'bachelor of science in agricultural and biosystems engineering' => 'BSABE',
     'agricultural and biosystems engineering' => 'BSABE',
-    
+    'Bachelor of Science in Agricultural and Biosystems Engineering' => 'BSABE',
+    'BS Agricultural and Biosystems Engineering' => 'BSABE',
+    'BSABE' => 'BSABE',
+
     'bachelor of agricultural entrepreneurship' => 'BAE',
     'agricultural entrepreneurship' => 'BAE',
-    
+    'Bachelor of Agricultural Entrepreneurship' => 'BAE',
+    'BA Agricultural Entrepreneurship' => 'BAE',
+    'BAE' => 'BAE',
+
     'bs land use design and management' => 'BSLDM',
     'bachelor of science in land use design and management' => 'BSLDM',
     'land use design and management' => 'BSLDM',
-    
+    'Bachelor of Science in Land Use Design and Management' => 'BSLDM',
+    'BS Land Use Design and Management' => 'BSLDM',
+    'BSLDM' => 'BSLDM',
+
     // CAS Courses
     'bs biology' => 'BSBio',
     'bachelor of science in biology' => 'BSBio',
     'biology' => 'BSBio',
-    
+    'Bachelor of Science in Biology' => 'BSBio',
+    'BS Biology' => 'BSBio',
+    'BSBio' => 'BSBio',
+
     'bs chemistry' => 'BSChem',
     'bachelor of science in chemistry' => 'BSChem',
     'chemistry' => 'BSChem',
-    
+    'Bachelor of Science in Chemistry' => 'BSChem',
+    'BS Chemistry' => 'BSChem',
+    'BSChem' => 'BSChem',
+
     'bs mathematics' => 'BSMath',
     'bachelor of science in mathematics' => 'BSMath',
     'mathematics' => 'BSMath',
-    
+    'Bachelor of Science in Mathematics' => 'BSMath',
+    'BS Mathematics' => 'BSMath',
+    'BSMath' => 'BSMath',
+
     'bs physics' => 'BSPhysics',
     'bachelor of science in physics' => 'BSPhysics',
     'physics' => 'BSPhysics',
-    
+    'Bachelor of Science in Physics' => 'BSPhysics',
+    'BS Physics' => 'BSPhysics',
+    'BSPhysics' => 'BSPhysics',
+
     'bs psychology' => 'BSPsych',
     'bachelor of science in psychology' => 'BSPsych',
     'psychology' => 'BSPsych',
-    
+    'Bachelor of Science in Psychology' => 'BSPsych',
+    'BS Psychology' => 'BSPsych',
+    'BSPsych' => 'BSPsych',
+
     'ba english language studies' => 'BAELS',
     'bachelor of arts in english language studies' => 'BAELS',
     'english language studies' => 'BAELS',
-    
+    'Bachelor of Arts in English Language Studies' => 'BAELS',
+    'BA English Language Studies' => 'BAELS',
+    'BAELS' => 'BAELS',
+
     'ba communication' => 'BAComm',
     'bachelor of arts in communication' => 'BAComm',
     'communication' => 'BAComm',
-    
+    'Bachelor of Arts in Communication' => 'BAComm',
+    'BA Communication' => 'BAComm',
+    'BAComm' => 'BAComm',
+
     'bs statistics' => 'BSStat',
     'bachelor of science in statistics' => 'BSStat',
     'statistics' => 'BSStat',
-    
+    'Bachelor of Science in Statistics' => 'BSStat',
+    'BS Statistics' => 'BSStat',
+    'BSStat' => 'BSStat',
+
     // CVMBS Courses
     'doctor of veterinary medicine' => 'DVM',
     'veterinary medicine' => 'DVM',
-    
+    'Doctor of Veterinary Medicine' => 'DVM',
+    'DVM' => 'DVM',
+
     'bs biology (pre-veterinary)' => 'BSPV',
+    'bachelor of science in biology (pre-veterinary)' => 'BSPV',
     'biology (pre-veterinary)' => 'BSPV',
-    'pre-veterinary' => 'BSPV',
-    
+    'Bachelor of Science in Biology (Pre-Veterinary)' => 'BSPV',
+    'BS Biology (Pre-Veterinary)' => 'BSPV',
+    'BSPV' => 'BSPV',
+
     // CED Courses
     'bachelor of elementary education' => 'BEEd',
     'elementary education' => 'BEEd',
-    
+    'Bachelor of Elementary Education' => 'BEEd',
+    'BE Elementary Education' => 'BEEd',
+    'BEEd' => 'BEEd',
+
     'bachelor of secondary education' => 'BSEd',
     'secondary education' => 'BSEd',
-    
+    'Bachelor of Secondary Education' => 'BSEd',
+    'BS Secondary Education' => 'BSEd',
+    'BSEd' => 'BSEd',
+
     'bachelor of physical education' => 'BPE',
     'physical education' => 'BPE',
-    
+    'Bachelor of Physical Education' => 'BPE',
+    'BS Physical Education' => 'BPE',
+    'BPE' => 'BPE',
+
     'bachelor of technology and livelihood education' => 'BTLE',
     'technology and livelihood education' => 'BTLE',
-    
+    'Bachelor of Technology and Livelihood Education' => 'BTLE',
+    'BS Technology and Livelihood Education' => 'BTLE',
+    'BTLE' => 'BTLE',
+
     // CEMDS Courses
     'bs business administration' => 'BSBA',
     'bachelor of science in business administration' => 'BSBA',
     'business administration' => 'BSBA',
-    
+    'Bachelor of Science in Business Administration' => 'BSBA',
+    'BS Business Administration' => 'BSBA',
+    'BSBA' => 'BSBA',
+
     'bs accountancy' => 'BSAcc',
     'bachelor of science in accountancy' => 'BSAcc',
     'accountancy' => 'BSAcc',
-    
+    'Bachelor of Science in Accountancy' => 'BSAcc',
+    'BS Accountancy' => 'BSAcc',
+    'BSAcc' => 'BSAcc',
+
     'bs economics' => 'BSEco',
     'bachelor of science in economics' => 'BSEco',
     'economics' => 'BSEco',
-    
+    'Bachelor of Science in Economics' => 'BSEco',
+    'BS Economics' => 'BSEco',
+    'BSEco' => 'BSEco',
+
     'bs entrepreneurship' => 'BSEnt',
     'bachelor of science in entrepreneurship' => 'BSEnt',
     'entrepreneurship' => 'BSEnt',
-    
+    'Bachelor of Science in Entrepreneurship' => 'BSEnt',
+    'BS Entrepreneurship' => 'BSEnt',
+    'BSEnt' => 'BSEnt',
+
     'bs office administration' => 'BSOA',
     'bachelor of science in office administration' => 'BSOA',
     'office administration' => 'BSOA',
-    
+    'Bachelor of Science in Office Administration' => 'BSOA',
+    'BS Office Administration' => 'BSOA',
+    'BSOA' => 'BSOA',
+
     // CSPEAR Courses
     'bs exercise and sports sciences' => 'BSESS',
     'bachelor of science in exercise and sports sciences' => 'BSESS',
     'exercise and sports sciences' => 'BSESS',
-    
+    'Bachelor of Science in Exercise and Sports Sciences' => 'BSESS',
+    'BS Exercise and Sports Sciences' => 'BSESS',
+    'BSESS' => 'BSESS',
+
     // CCJ Courses
     'bs criminology' => 'BSCrim',
     'bachelor of science in criminology' => 'BSCrim',
     'criminology' => 'BSCrim',
-    
+    'Bachelor of Science in Criminology' => 'BSCrim',
+    'BS Criminology' => 'BSCrim',
+    'BSCrim' => 'BSCrim',
+
     // CON Courses
     'bs nursing' => 'BSN',
     'bachelor of science in nursing' => 'BSN',
     'nursing' => 'BSN',
-    
+    'Bachelor of Science in Nursing' => 'BSN',
+    'BS Nursing' => 'BSN',
+    'BSN' => 'BSN',
+
     // CTHM Courses
     'bs hospitality management' => 'BSHM',
     'bachelor of science in hospitality management' => 'BSHM',
     'hospitality management' => 'BSHM',
-    
+    'Bachelor of Science in Hospitality Management' => 'BSHM',
+    'BS Hospitality Management' => 'BSHM',
+    'BSHM' => 'BSHM',
+
     'bs tourism management' => 'BSTM',
     'bachelor of science in tourism management' => 'BSTM',
     'tourism management' => 'BSTM',
-    
+    'Bachelor of Science in Tourism Management' => 'BSTM',
+    'BS Tourism Management' => 'BSTM',
+    'BSTM' => 'BSTM',
+
     // COM Courses
     'bachelor of library and information science' => 'BLIS',
     'library and information science' => 'BLIS',
-    
+    'Bachelor of Library and Information Science' => 'BLIS',
+    'BS Library and Information Science' => 'BLIS',
+    'BLIS' => 'BLIS',
+
     // GS-OLC Courses
     'doctor of philosophy' => 'PhD',
+    'Doctor of Philosophy' => 'PhD',
+    'PhD' => 'PhD',
+
     'master of science' => 'MS',
+    'Master of Science' => 'MS',
+    'MS' => 'MS',
+
     'master of arts' => 'MA',
+    'Master of Arts' => 'MA',
+    'MA' => 'MA',
 ];
 
+
 // Department mapping for academic staff
- $academicDepartmentMapping = [
+$academicDepartmentMapping = [
     // CEIT Departments
     'department of civil engineering' => 'Department of Civil Engineering',
     'civil engineering department' => 'Department of Civil Engineering',
     'civil engineering' => 'Department of Civil Engineering',
+    'Department of Civil Engineering' => 'Department of Civil Engineering',
     
     'department of computer and electronics engineering' => 'Department of Computer and Electronics Engineering',
     'computer and electronics engineering department' => 'Department of Computer and Electronics Engineering',
     'computer and electronics engineering' => 'Department of Computer and Electronics Engineering',
+    'Department of Computer and Electronics Engineering' => 'Department of Computer and Electronics Engineering',
     
     'department of industrial engineering and technology' => 'Department of Industrial Engineering and Technology',
     'industrial engineering and technology department' => 'Department of Industrial Engineering and Technology',
     'industrial engineering and technology' => 'Department of Industrial Engineering and Technology',
+    'Department of Industrial Engineering and Technology' => 'Department of Industrial Engineering and Technology',
     
     'department of mechanical and electronics engineering' => 'Department of Mechanical and Electronics Engineering',
     'mechanical and electronics engineering department' => 'Department of Mechanical and Electronics Engineering',
     'mechanical and electronics engineering' => 'Department of Mechanical and Electronics Engineering',
+    'Department of Mechanical and Electronics Engineering' => 'Department of Mechanical and Electronics Engineering',
     
     'department of information technology' => 'Department of Information Technology',
     'information technology department' => 'Department of Information Technology',
     'information technology' => 'Department of Information Technology',
+    'Department of Information Technology' => 'Department of Information Technology',
     
+    // CAFENR Departments (provisional)
+    'department of agriculture' => 'Department of Agriculture',
+    'agriculture department' => 'Department of Agriculture',
+    'agriculture' => 'Department of Agriculture',
+
+    'department of agribusiness' => 'Department of Agribusiness',
+    'agribusiness department' => 'Department of Agribusiness',
+    'agribusiness' => 'Department of Agribusiness',
+
+    'department of environmental science' => 'Department of Environmental Science',
+    'environmental science department' => 'Department of Environmental Science',
+    'environmental science' => 'Department of Environmental Science',
+
+    'department of food technology' => 'Department of Food Technology',
+    'food technology department' => 'Department of Food Technology',
+    'food technology' => 'Department of Food Technology',
+
+    'department of forestry' => 'Department of Forestry',
+    'forestry department' => 'Department of Forestry',
+    'forestry' => 'Department of Forestry',
+
+    'department of agricultural and biosystems engineering' => 'Department of Agricultural and Biosystems Engineering',
+    'agricultural and biosystems engineering department' => 'Department of Agricultural and Biosystems Engineering',
+    'agricultural and biosystems engineering' => 'Department of Agricultural and Biosystems Engineering',
+
+    'department of agricultural entrepreneurship' => 'Department of Agricultural Entrepreneurship',
+    'agricultural entrepreneurship department' => 'Department of Agricultural Entrepreneurship',
+    'agricultural entrepreneurship' => 'Department of Agricultural Entrepreneurship',
+
+    'department of land use design and management' => 'Department of Land Use Design and Management',
+    'land use design and management department' => 'Department of Land Use Design and Management',
+    'land use design and management' => 'Department of Land Use Design and Management',
+
     // CAS Departments
     'department of biological sciences' => 'Department of Biological Sciences',
     'biological sciences department' => 'Department of Biological Sciences',
     'biological sciences' => 'Department of Biological Sciences',
+    'Department of Biological Sciences' => 'Department of Biological Sciences',
     
     'department of physical sciences' => 'Department of Physical Sciences',
     'physical sciences department' => 'Department of Physical Sciences',
     'physical sciences' => 'Department of Physical Sciences',
+    'Department of Physical Sciences' => 'Department of Physical Sciences',
     
     'department of languages and mass communication' => 'Department of Languages and Mass Communication',
     'languages and mass communication department' => 'Department of Languages and Mass Communication',
     'languages and mass communication' => 'Department of Languages and Mass Communication',
+    'Department of Languages and Mass Communication' => 'Department of Languages and Mass Communication',
     
     'department of social sciences' => 'Department of Social Sciences',
     'social sciences department' => 'Department of Social Sciences',
     'social sciences' => 'Department of Social Sciences',
+    'Department of Social Sciences' => 'Department of Social Sciences',
     
     'department of mathematics and statistics' => 'Department of Mathematics and Statistics',
     'mathematics and statistics department' => 'Department of Mathematics and Statistics',
     'mathematics and statistics' => 'Department of Mathematics and Statistics',
+    'Department of Mathematics and Statistics' => 'Department of Mathematics and Statistics',
     
     // CCJ Departments
     'department of criminal justice' => 'Department of Criminal Justice',
     'criminal justice department' => 'Department of Criminal Justice',
     'criminal justice' => 'Department of Criminal Justice',
+    'Department of Criminal Justice' => 'Department of Criminal Justice',
     
     // CEMDS Departments
     'department of economics' => 'Department of Economics',
     'economics department' => 'Department of Economics',
     'economics' => 'Department of Economics',
+    'Department of Economics' => 'Department of Economics',
     
     'department of business and management' => 'Department of Business and Management',
     'business and management department' => 'Department of Business and Management',
     'business and management' => 'Department of Business and Management',
+    'Department of Business and Management' => 'Department of Business and Management',
     
     'department of development studies' => 'Department of Development Studies',
     'development studies department' => 'Department of Development Studies',
     'development studies' => 'Department of Development Studies',
+    'Department of Development Studies' => 'Department of Development Studies',
     
     // CED Departments
     'department of science education' => 'Department of Science Education',
     'science education department' => 'Department of Science Education',
     'science education' => 'Department of Science Education',
+    'Department of Science Education' => 'Department of Science Education',
     
     'department of technology and livelihood education' => 'Department of Technology and Livelihood Education',
     'technology and livelihood education department' => 'Department of Technology and Livelihood Education',
     'technology and livelihood education' => 'Department of Technology and Livelihood Education',
+    'Department of Technology and Livelihood Education' => 'Department of Technology and Livelihood Education',
     
     'department of curriculum and instruction' => 'Department of Curriculum and Instruction',
     'curriculum and instruction department' => 'Department of Curriculum and Instruction',
     'curriculum and instruction' => 'Department of Curriculum and Instruction',
+    'Department of Curriculum and Instruction' => 'Department of Curriculum and Instruction',
     
     'department of human kinetics' => 'Department of Human Kinetics',
     'human kinetics department' => 'Department of Human Kinetics',
     'human kinetics' => 'Department of Human Kinetics',
+    'Department of Human Kinetics' => 'Department of Human Kinetics',
     
     // CON Departments
     'department of nursing' => 'Department of Nursing',
     'nursing department' => 'Department of Nursing',
     'nursing' => 'Department of Nursing',
+    'Department of Nursing' => 'Department of Nursing',
     
     // COM Departments
     'department of basic medical sciences' => 'Department of Basic Medical Sciences',
     'basic medical sciences department' => 'Department of Basic Medical Sciences',
     'basic medical sciences' => 'Department of Basic Medical Sciences',
+    'Department of Basic Medical Sciences' => 'Department of Basic Medical Sciences',
     
     'department of clinical sciences' => 'Department of Clinical Sciences',
     'clinical sciences department' => 'Department of Clinical Sciences',
     'clinical sciences' => 'Department of Clinical Sciences',
+    'Department of Clinical Sciences' => 'Department of Clinical Sciences',
     
     // CSPEAR Departments
     'department of physical education and recreation' => 'Department of Physical Education and Recreation',
     'physical education and recreation department' => 'Department of Physical Education and Recreation',
     'physical education and recreation' => 'Department of Physical Education and Recreation',
+    'Department of Physical Education and Recreation' => 'Department of Physical Education and Recreation',
     
     // CVMBS Departments
     'department of veterinary medicine' => 'Department of Veterinary Medicine',
     'veterinary medicine department' => 'Department of Veterinary Medicine',
     'veterinary medicine' => 'Department of Veterinary Medicine',
+    'Department of Veterinary Medicine' => 'Department of Veterinary Medicine',
     
     'department of biomedical sciences' => 'Department of Biomedical Sciences',
     'biomedical sciences department' => 'Department of Biomedical Sciences',
     'biomedical sciences' => 'Department of Biomedical Sciences',
+    'Department of Biomedical Sciences' => 'Department of Biomedical Sciences',
     
     // GS-OLC Departments
     'department of various graduate programs' => 'Department of Various Graduate Programs',
     'various graduate programs department' => 'Department of Various Graduate Programs',
     'various graduate programs' => 'Department of Various Graduate Programs',
+    'Department of Various Graduate Programs' => 'Department of Various Graduate Programs',
 ];
 
 // Department mapping for non-academic staff
@@ -511,7 +759,7 @@ switch ($adminType) {
 ];
 
 // Allowed values
- $allowedColleges = array_values($collegeMapping);
+ $allowedColleges = array_unique(array_values($collegeMapping));
  $allowedNonAcademicDepts = array_values($nonAcademicDepartmentMapping);
  $allowedStatuses = ['Regular', 'Part-time', 'Contractual'];
 
@@ -555,7 +803,6 @@ switch ($adminType) {
     'Department of Environmental Science' => 'CAFENR',
     'Department of Veterinary Medicine' => 'CVMBS',
     'Department of Animal Science' => 'CVMBS',
-    // Add more mappings as needed
 ];
 
 // Function to format names
@@ -628,7 +875,10 @@ while (($row = fgetcsv($file)) !== FALSE) {
             $college_lower = strtolower($college);
             if (isset($collegeMapping[$college_lower])) {
                 $college = $collegeMapping[$college_lower];
-            } elseif (!in_array($college, $allowedColleges)) {
+            } elseif (in_array(strtoupper($college), $allowedColleges)) {
+                // It's already a valid college code, so we can use it as is
+                $college = strtoupper($college);
+            } else {
                 $errors++;
                 $errorMessages[] = "Row $totalRows: Invalid college '$college'. College must be one of: " . implode(', ', $allowedColleges);
                 continue 2;

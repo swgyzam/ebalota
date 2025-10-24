@@ -64,7 +64,7 @@ switch ($scope) {
         break;
     default:
         // Check if it's a college admin
-        $validCollegeScopes = ['CEIT', 'CAS', 'CEMDS', 'CCJ', 'CAFENR', 'CON', 'COED', 'CVM', 'GRADUATE SCHOOL'];
+        $validCollegeScopes = ['CEIT', 'CAS', 'CEMDS', 'CCJ', 'CAFENR', 'CON', 'COED', 'CVM', 'GRADUATE SCHOOL', 'CSPEAR'];
         if (in_array($scope, $validCollegeScopes)) {
             $redirectUrl = "admin_analytics_college.php?id=$electionId";
         } else {

@@ -394,7 +394,7 @@ if ($role === 'admin') {
 const collegeChart = new Chart(document.getElementById('collegeChart'), {
   type: 'bar',
   data: {
-    labels: ['CAS', 'CCJ', 'CED', 'CEIT', 'CON', 'CEMDS', 'CTHM', 'CAFENR', 'CSPEAR', 'CVMBS'],
+    labels: ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC']
     datasets: [{
       data: [1517, 792, 770, 1213, 760, 1864, 819, 620, 397, 246],
       backgroundColor: ['#e62e00', '#003300','#0033cc', '#ff9933', '#b3b3b3', '#008000', '#ff6699', '#00b33c', '#993300', '#990099' ]

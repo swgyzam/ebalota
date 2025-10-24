@@ -92,6 +92,7 @@ if (!$election) {
     'bachelor of physical education' => 'bpe',
     'bachelor of technology and livelihood education' => 'btle',
     // CEMDS
+    'BS Business Administration' => 'BSBA',
     'bs business administration' => 'bsba',
     'bs accountancy' => 'bsacc',
     'bs economics' => 'bseco',
@@ -688,6 +689,107 @@ include 'sidebar.php';
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+    
+    /* No data message styles */
+    .no-data-message {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem;
+      text-align: center;
+      color: #6b7280;
+    }
+    
+    .no-data-message i {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      color: #d1d5db;
+    }
+    
+    .no-data-message p {
+      font-size: 1.125rem;
+      font-weight: 500;
+    }
+    
+    .no-data-message .hint {
+      font-size: 0.875rem;
+      color: #9ca3af;
+      margin-top: 0.5rem;
+    }
+    
+    /* Chart container with no data message */
+    .chart-wrapper {
+      position: relative;
+      height: 100%;
+      width: 100%;
+    }
+    
+    .chart-no-data {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: rgba(249, 250, 251, 0.9);
+      z-index: 10;
+    }
+    
+    /* Horizontal filter container */
+    .filter-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 2rem;
+      margin-bottom: 2rem;
+      padding: 1rem;
+      background-color: #f9fafb;
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    .filter-label {
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 0.5rem;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    
+    .filter-select {
+      min-width: 200px;
+      padding: 0.5rem 1rem;
+      border: 1px solid #d1d5db;
+      border-radius: 0.375rem;
+      background-color: white;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+    }
+    
+    .filter-select:focus {
+      outline: none;
+      ring: 2px solid var(--cvsu-green);
+      ring-offset: 2px;
+      border-color: var(--cvsu-green);
+    }
+    
+    .filter-select:disabled {
+      background-color: #f3f4f6;
+      color: #9ca3af;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body class="bg-gray-50">
@@ -787,9 +889,9 @@ include 'sidebar.php';
         
         <div class="p-6">
           <?php if (empty($winnersByPosition)): ?>
-            <div class="text-center py-8">
-              <i class="fas fa-users text-gray-400 text-4xl mb-3"></i>
-              <p class="text-gray-600">No winners data available.</p>
+            <div class="no-data-message">
+              <i class="fas fa-users"></i>
+              <p>No winners data available</p>
             </div>
           <?php else: ?>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -845,17 +947,18 @@ include 'sidebar.php';
         
         <div class="p-6">
           <?php if (empty($voterTurnoutData)): ?>
-            <div class="text-center py-8">
-              <i class="fas fa-chart-bar text-gray-400 text-5xl mb-4"></i>
+            <div class="no-data-message">
+              <i class="fas fa-chart-bar text-gray-400 text-5xl mb-3"></i>
               <p class="text-gray-600 text-lg">No voter turnout data available.</p>
+              <p class="hint">There might be no voters or votes recorded for this election.</p>
             </div>
           <?php else: ?>
-            <!-- Filter Section -->
-            <div class="mb-6">
+            <!-- Horizontal Filter Section -->
+            <div class="filter-container">
               <!-- College Selector -->
-              <div class="mb-4 flex items-center justify-center">
-                <label for="collegeSelect" class="mr-3 text-sm font-medium text-gray-700">Select College:</label>
-                <select id="collegeSelect" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+              <div class="filter-group">
+                <label for="collegeSelect" class="filter-label">Select College</label>
+                <select id="collegeSelect" class="filter-select">
                   <option value="all">All Colleges</option>
                   <?php foreach ($collegesList as $college): ?>
                     <option value="<?= htmlspecialchars($college) ?>"><?= htmlspecialchars($college) ?></option>
@@ -864,9 +967,9 @@ include 'sidebar.php';
               </div>
               
               <!-- Department Selector -->
-              <div class="mb-4 flex items-center justify-center">
-                <label for="departmentSelect" class="mr-3 text-sm font-medium text-gray-700">Select Department:</label>
-                <select id="departmentSelect" class="block w-64 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" disabled>
+              <div class="filter-group">
+                <label for="departmentSelect" class="filter-label">Select Department</label>
+                <select id="departmentSelect" class="filter-select" disabled>
                   <option value="all">All Departments</option>
                 </select>
               </div>
@@ -877,7 +980,14 @@ include 'sidebar.php';
               <h3 class="text-xl font-semibold text-gray-800 mb-6 text-center">Turnout Visualization</h3>
               <div class="bg-gray-50 p-6 rounded-xl shadow-sm">
                 <div class="h-96"> <!-- Increased height for larger chart -->
-                  <canvas id="turnoutChart"></canvas>
+                  <div class="chart-wrapper">
+                    <canvas id="turnoutChart"></canvas>
+                    <div id="chartNoData" class="chart-no-data" style="display: none;">
+                      <i class="fas fa-chart-bar text-gray-400 text-5xl mb-3"></i>
+                      <p class="text-gray-600 text-lg font-medium">No data available for the selected filters</p>
+                      <p class="hint">Try selecting different filters</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1103,6 +1213,11 @@ function getFilteredData() {
     data = data.filter(item => item.department1 === currentState.department);
   }
   
+  // Check if data is empty after filtering
+  if (!data || data.length === 0) {
+    return [];
+  }
+  
   return data;
 }
 
@@ -1116,21 +1231,32 @@ function getBreakdownType() {
 
 function updateChart(data, breakdownType) {
   const canvas = document.getElementById('turnoutChart');
-  if (!canvas) {
-    console.error('Canvas element not found!');
+  const noDataDiv = document.getElementById('chartNoData');
+  
+  // Check if data is empty
+  if (!data || data.length === 0) {
+    showNoDataMessage();
     return;
+  }
+  
+  // If we have data, make sure the canvas is visible and the no data message is hidden
+  if (canvas) {
+    canvas.style.display = 'block';
+  }
+  if (noDataDiv) {
+    noDataDiv.style.display = 'none';
   }
   
   const ctx = canvas.getContext('2d');
   
-  // Prepare labels
+  // Prepare labels - convert full names to abbreviations
   const labels = data.map(item => {
     if (breakdownType === 'college') {
-      return item.department;
+      return convertToAbbreviation(item.department);
     } else if (breakdownType === 'status') {
       return item.status;
     } else {
-      return item.department1;
+      return convertToAbbreviation(item.department1);
     }
   });
   
@@ -1230,6 +1356,7 @@ function updateChart(data, breakdownType) {
               bottom: 30
             }
           },
+          // In the updateChart function, modify the tooltip configuration
           tooltip: {
             backgroundColor: 'rgba(0, 0, 0, 0.8)',
             titleFont: {
@@ -1253,6 +1380,13 @@ function updateChart(data, breakdownType) {
                   }).format(context.parsed.y);
                 }
                 return label;
+              },
+              // Use the title callback to show the full name
+              title: function(context) {
+                // Get the abbreviation from the chart label
+                const abbreviation = context[0].label;
+                // Convert the abbreviation to the full name
+                return convertToFullName(abbreviation);
               }
             }
           }
@@ -1319,8 +1453,183 @@ function updateChart(data, breakdownType) {
     console.log('Chart updated successfully!');
   } catch (error) {
     console.error('Error updating chart:', error);
-    showNoDataMessage();
+    showNoDataMessage('Error loading chart data');
   }
+}
+
+// Function to convert full names to abbreviations
+function convertToAbbreviation(fullName) {
+  // Department/College abbreviation mapping
+  const departmentMap = {
+    // CEIT
+    'College of Engineering and Information Technology (CEIT)': 'CEIT',
+    'College of Engineering and Information Technology': 'CEIT',
+    'CEIT': 'CEIT',
+    'Department of Civil Engineering': 'DCE',
+    'Department of Computer and Electronics Engineering': 'DCEE',
+    'Department of Industrial Engineering and Technology': 'DIET',
+    'Department of Mechanical and Electronics Engineering': 'DMEE',
+    'Department of Information Technology': 'DIT',
+    
+    // CAS
+    'College of Arts and Sciences (CAS)': 'CAS',
+    'College of Arts and Sciences': 'CAS',
+    'CAS': 'CAS',
+    'Department of Biological Sciences': 'DBS',
+    'Department of Physical Sciences': 'DPS',
+    'Department of Languages and Mass Communication': 'DLMC',
+    'Department of Social Sciences': 'DSS',
+    'Department of Mathematics and Statistics': 'DMS',
+    
+    // CAFENR
+    'College of Agriculture, Food, Environment and Natural Resources (CAFENR)': 'CAFENR',
+    'College of Agriculture, Food, Environment and Natural Resources': 'CAFENR',
+    'CAFENR': 'CAFENR',
+    'Department of Animal Science': 'DAS',
+    'Department of Crop Science': 'DCS',
+    'Department of Food Science and Technology': 'DFST',
+    'Department of Forestry and Environmental Science': 'DFES',
+    'Department of Agricultural Economics and Development': 'DAED',
+    
+    // CCJ
+    'College of Criminal Justice (CCJ)': 'CCJ',
+    'College of Criminal Justice': 'CCJ',
+    'CCJ': 'CCJ',
+    'Department of Criminal Justice': 'DCJ',
+    
+    // CEMDS
+    'College of Economics, Management and Development Studies (CEMDS)': 'CEMDS',
+    'College of Economics, Management and Development Studies': 'CEMDS',
+    'CEMDS': 'CEMDS',
+    'Department of Economics': 'DE',
+    'Department of Business and Management': 'DBM',
+    'Department of Development Studies': 'DDS',
+    
+    // CED
+    'College of Education (CED)': 'CED',
+    'College of Education': 'CED',
+    'CED': 'CED',
+    'Department of Science Education': 'DSE',
+    'Department of Technology and Livelihood Education': 'DTLE',
+    'Department of Curriculum and Instruction': 'DCI',
+    'Department of Human Kinetics': 'DHK',
+    
+    // CEIT (additional)
+    'Department of Civil Engineering': 'DCE',
+    'Department of Computer and Electronics Engineering': 'DCEE',
+    'Department of Industrial Engineering and Technology': 'DIET',
+    'Department of Mechanical and Electronics Engineering': 'DMEE',
+    'Department of Information Technology': 'DIT',
+    
+    // CON
+    'College of Nursing (CON)': 'CON',
+    'College of Nursing': 'CON',
+    'CON': 'CON',
+    'Department of Nursing': 'DN',
+    
+    // COM
+    'College of Medicine (COM)': 'COM',
+    'College of Medicine': 'COM',
+    'COM': 'COM',
+    'Department of Basic Medical Sciences': 'DBMS',
+    'Department of Clinical Sciences': 'DCS',
+    
+    // CSPEAR
+    'College of Sports, Physical Education and Recreation (CSPEAR)': 'CSPEAR',
+    'College of Sports, Physical Education and Recreation': 'CSPEAR',
+    'CSPEAR': 'CSPEAR',
+    'Department of Physical Education and Recreation': 'DPER',
+    
+    // CVMBS
+    'College of Veterinary Medicine and Biomedical Sciences (CVMBS)': 'CVMBS',
+    'College of Veterinary Medicine and Biomedical Sciences': 'CVMBS',
+    'CVMBS': 'CVMBS',
+    'Department of Veterinary Medicine': 'DVM',
+    'Department of Biomedical Sciences': 'DBS',
+    
+    // GS-OLC
+    'Graduate School and Open Learning College (GS-OLC)': 'GS-OLC',
+    'Graduate School and Open Learning College': 'GS-OLC',
+    'GS-OLC': 'GS-OLC',
+    'Department of Various Graduate Programs': 'DVGP'
+  };
+  
+  // Return the abbreviation if found, otherwise return the original name
+  return departmentMap[fullName] || fullName;
+}
+
+// Function to convert abbreviations to full names
+function convertToFullName(abbreviation) {
+  // Complete mapping of abbreviations to full names
+  const fullNameMap = {
+    // Colleges
+    'CEIT': 'College of Engineering and Information Technology',
+    'CAS': 'College of Arts and Sciences',
+    'CAFENR': 'College of Agriculture, Food, Environment and Natural Resources',
+    'CCJ': 'College of Criminal Justice',
+    'CEMDS': 'College of Economics, Management and Development Studies',
+    'CED': 'College of Education',
+    'CON': 'College of Nursing',
+    'COM': 'College of Medicine',
+    'CSPEAR': 'College of Sports, Physical Education and Recreation',
+    'CVMBS': 'College of Veterinary Medicine and Biomedical Sciences',
+    'GS-OLC': 'Graduate School and Open Learning College',
+    
+    // Departments under CEIT
+    'DCE': 'Department of Civil Engineering',
+    'DCEE': 'Department of Computer and Electronics Engineering',
+    'DIET': 'Department of Industrial Engineering and Technology',
+    'DMEE': 'Department of Mechanical and Electronics Engineering',
+    'DIT': 'Department of Information Technology',
+    
+    // Departments under CAS
+    'DBS': 'Department of Biological Sciences',
+    'DPS': 'Department of Physical Sciences',
+    'DLMC': 'Department of Languages and Mass Communication',
+    'DSS': 'Department of Social Sciences',
+    'DMS': 'Department of Mathematics and Statistics',
+    
+    // Departments under CAFENR
+    'DAS': 'Department of Animal Science',
+    'DCS': 'Department of Crop Science',
+    'DFST': 'Department of Food Science and Technology',
+    'DFES': 'Department of Forestry and Environmental Science',
+    'DAED': 'Department of Agricultural Economics and Development',
+    
+    // Departments under CCJ
+    'DCJ': 'Department of Criminal Justice',
+    
+    // Departments under CEMDS
+    'DE': 'Department of Economics',
+    'DBM': 'Department of Business and Management',
+    'DDS': 'Department of Development Studies',
+    
+    // Departments under CED
+    'DSE': 'Department of Science Education',
+    'DTLE': 'Department of Technology and Livelihood Education',
+    'DCI': 'Department of Curriculum and Instruction',
+    'DHK': 'Department of Human Kinetics',
+    
+    // Departments under CON
+    'DN': 'Department of Nursing',
+    
+    // Departments under COM
+    'DBMS': 'Department of Basic Medical Sciences',
+    'DCS': 'Department of Clinical Sciences',
+    
+    // Departments under CSPEAR
+    'DPER': 'Department of Physical Education and Recreation',
+    
+    // Departments under CVMBS
+    'DVM': 'Department of Veterinary Medicine',
+    'DBS': 'Department of Biomedical Sciences',
+    
+    // Departments under GS-OLC
+    'DVGP': 'Department of Various Graduate Programs'
+  };
+  
+  // Return the full name if found, otherwise return the original abbreviation
+  return fullNameMap[abbreviation] || abbreviation;
 }
 
 function generateTable(data, breakdownType) {
@@ -1328,6 +1637,18 @@ function generateTable(data, breakdownType) {
   
   // Clear existing content
   tableContainer.innerHTML = '';
+  
+  // Check if data is empty
+  if (!data || data.length === 0) {
+    tableContainer.innerHTML = `
+      <div class="no-data-message">
+        <i class="fas fa-table text-gray-400 text-5xl mb-3"></i>
+        <p class="text-gray-600 text-lg font-medium">No data available for the selected filters</p>
+        <p class="hint">Try selecting different filters</p>
+      </div>
+    `;
+    return;
+  }
   
   // Create table element
   const table = document.createElement('table');
@@ -1371,21 +1692,21 @@ function generateTable(data, breakdownType) {
     
     if (breakdownType === 'college') {
       row.innerHTML = `
-        <td style="width: 40%">${item.department}</td>
+        <td style="width: 40%" title="${convertToFullName(item.department)}">${convertToFullName(item.department)}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
         <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
       `;
     } else if (breakdownType === 'status') {
       row.innerHTML = `
-        <td style="width: 40%">${item.status}</td>
+        <td style="width: 40%" title="${item.status}">${item.status}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
         <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
       `;
     } else {
       row.innerHTML = `
-        <td style="width: 40%">${item.department1}</td>
+        <td style="width: 40%" title="${convertToFullName(item.department1)}">${convertToFullName(item.department1)}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
         <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
@@ -1440,16 +1761,17 @@ function hideLoading() {
   document.getElementById('loadingOverlay').classList.remove('active');
 }
 
-function showNoDataMessage(message = 'No data available for chart') {
-  const chartContainer = document.querySelector('#turnoutChart').parentElement;
-  chartContainer.innerHTML = `
-    <div class="flex items-center justify-center h-64 bg-gray-50 rounded-lg border border-gray-200">
-      <div class="text-center">
-        <i class="fas fa-chart-bar text-gray-400 text-4xl mb-3"></i>
-        <p class="text-gray-600">${message}</p>
-      </div>
-    </div>
-  `;
+function showNoDataMessage(message = 'No data available for the selected filters') {
+  const canvas = document.getElementById('turnoutChart');
+  const noDataDiv = document.getElementById('chartNoData');
+  
+  if (canvas) {
+    canvas.style.display = 'none';
+  }
+  if (noDataDiv) {
+    noDataDiv.querySelector('p').textContent = message;
+    noDataDiv.style.display = 'flex';
+  }
 }
 </script>
 </body>
