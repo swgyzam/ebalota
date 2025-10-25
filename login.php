@@ -2,11 +2,11 @@
 session_start();
 date_default_timezone_set('Asia/Manila');
 
-$host = 'localhost';
-$db   = 'evoting_system';
-$user = 'root';
-$pass = '';
-$charset = 'utf8mb4';
+ $host = 'localhost';
+ $db   = 'evoting_system';
+ $user = 'root';
+ $pass = '';
+ $charset = 'utf8mb4';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -15,8 +15,8 @@ require 'phpmailer/src/PHPMailer.php';
 require 'phpmailer/src/SMTP.php';
 require 'phpmailer/src/Exception.php';
 
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
-$options = [
+ $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+ $options = [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
@@ -78,7 +78,7 @@ function sendSuperAdminVerificationEmail($email, $first_name, $last_name, $token
 
 // Function to send admin verification email
 function sendAdminVerificationEmail($email, $first_name, $last_name, $token) {
-    error_log("[EMAIL DEBUG] sendSuperAdminVerificationEmail() CALLED for $email at " . date('Y-m-d H:i:s'));
+    error_log("[EMAIL DEBUG] sendAdminVerificationEmail() CALLED for $email at " . date('Y-m-d H:i:s'));
     $mail = new PHPMailer(true);
     $verificationUrl = "http://localhost/ebalota/admin_verify_token.php?token=$token";
 
@@ -218,7 +218,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header("Location: super_admin/dashboard.php");
                 break;
             case 'admin':
-                header("Location: admin_dashboard.php");
+                // Redirect to admin dashboard redirect instead of specific dashboard
+                header("Location: admin_dashboard_redirect.php");
                 break;
             default:
                 header("Location: voters_dashboard.php");

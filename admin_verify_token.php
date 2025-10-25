@@ -4,15 +4,15 @@ session_start();
 
 date_default_timezone_set('Asia/Manila');
 
-$host = 'localhost';
-$db   = 'evoting_system';
-$user = 'root';
-$pass = '';
-$charset = 'utf8mb4';
+ $host = 'localhost';
+ $db   = 'evoting_system';
+ $user = 'root';
+ $pass = '';
+ $charset = 'utf8mb4';
 
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
-$options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+ $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+ $options = [
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
 
@@ -28,16 +28,16 @@ if (!isset($_GET['token'])) {
     exit;
 }
 
-$token = filter_input(INPUT_GET, 'token', FILTER_SANITIZE_STRING);
-$stmt = $pdo->prepare("
+ $token = filter_input(INPUT_GET, 'token', FILTER_SANITIZE_STRING);
+ $stmt = $pdo->prepare("
     SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, 
            u.is_verified, u.assigned_scope
     FROM admin_login_tokens alt
     JOIN users u ON alt.user_id = u.user_id
     WHERE alt.token = ? AND alt.expires_at > NOW()
 ");
-$stmt->execute([$token]);
-$user = $stmt->fetch();
+ $stmt->execute([$token]);
+ $user = $stmt->fetch();
 
 if (!$user || $user['role'] !== 'admin') {
     header("Location: login.html?error=" . urlencode("Token is invalid or has expired."));
@@ -45,30 +45,32 @@ if (!$user || $user['role'] !== 'admin') {
 }
 
 // Delete the token
-$stmt = $pdo->prepare("DELETE FROM admin_login_tokens WHERE token = ?");
-$stmt->execute([$token]);
+ $stmt = $pdo->prepare("DELETE FROM admin_login_tokens WHERE token = ?");
+ $stmt->execute([$token]);
 
 // Set all required session variables
-$_SESSION['user_id'] = $user['user_id'];
-$_SESSION['first_name'] = $user['first_name'];
-$_SESSION['last_name'] = $user['last_name'];
-$_SESSION['email'] = $user['email'];
-$_SESSION['role'] = 'admin';
-$_SESSION['is_verified'] = (bool)$user['is_verified']; // Ensure boolean value
-$_SESSION['CREATED'] = time();
-$_SESSION['LAST_ACTIVITY'] = time();
+ $_SESSION['user_id'] = $user['user_id'];
+ $_SESSION['first_name'] = $user['first_name'];
+ $_SESSION['last_name'] = $user['last_name'];
+ $_SESSION['email'] = $user['email'];
+ $_SESSION['role'] = 'admin';
+ $_SESSION['is_verified'] = (bool)$user['is_verified']; // Ensure boolean value
+ $_SESSION['CREATED'] = time();
+ $_SESSION['LAST_ACTIVITY'] = time();
 
 // ✅ Important: set assigned_scope for admins
-$_SESSION['assigned_scope'] = $user['assigned_scope'] ?? '';
+ $_SESSION['assigned_scope'] = $user['assigned_scope'] ?? '';
+
 // If user isn't verified in DB, update them
 if (!$user['is_verified']) {
     $pdo->prepare("UPDATE users SET is_verified = 1 WHERE user_id = ?")
        ->execute([$user['user_id']]);
     $_SESSION['is_verified'] = true;
 }
+
+// Debug output (remove after testing)
+ $debugInfo = "Role: " . $_SESSION['role'] . ", Scope: " . $_SESSION['assigned_scope'];
 ?>
-
-
 
 <!DOCTYPE html>
 <html lang="en">
@@ -137,6 +139,18 @@ if (!$user['is_verified']) {
     color: #333;
   }
 
+  .debug-info {
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    margin: 15px 0;
+    font-family: monospace;
+    font-size: 14px;
+    text-align: left;
+    color: #666;
+  }
+
   button {
     background-color: #0a5f2d;
     border: none;
@@ -152,6 +166,12 @@ if (!$user['is_verified']) {
   button:hover {
     background-color: #08491c;
   }
+
+  .countdown {
+    margin-top: 15px;
+    font-size: 14px;
+    color: #666;
+  }
 </style>
 </head>
 <body>
@@ -165,14 +185,34 @@ if (!$user['is_verified']) {
     </div>
     <h2>Welcome Admin!</h2>
     <p>Your email has been successfully verified. You will be redirected to the admin dashboard.</p>
-    <button onclick="window.location.href='admin_dashboard.php'">Go to Dashboard</button>
+    
+    <!-- Debug info (remove after testing) -->
+    <div class="debug-info">
+      Debug: <?php echo htmlspecialchars($debugInfo); ?>
+    </div>
+    
+    <button onclick="window.location.href='admin_dashboard_redirect.php'">Go to Dashboard</button>
+    
+    <div class="countdown" id="countdown">
+      Redirecting in <span id="timer">5</span> seconds...
+    </div>
   </div>
 </div>
 
 <script>
-  setTimeout(() => {
-    window.location.href = 'admin_dashboard.php';
-  }, 4000);
+  // Countdown timer
+  let seconds = 5;
+  const timerElement = document.getElementById('timer');
+  
+  const countdown = setInterval(() => {
+    seconds--;
+    timerElement.textContent = seconds;
+    
+    if (seconds <= 0) {
+      clearInterval(countdown);
+      window.location.href = 'admin_dashboard_redirect.php';
+    }
+  }, 1000);
 </script>
 
 </body>

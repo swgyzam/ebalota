@@ -3,16 +3,17 @@ session_start();
 date_default_timezone_set('Asia/Manila');
 
 // --- DB Connection ---
-$host = 'localhost';
-$db   = 'evoting_system';
-$user = 'root';
-$pass = '';
-$charset = 'utf8mb4';
+ $host = 'localhost';
+ $db   = 'evoting_system';
+ $user = 'root';
+ $pass = '';
+ $charset = 'utf8mb4';
 
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
-$options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+ $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+ $options = [
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES   => false,
 ];
 
 try {
@@ -21,21 +22,21 @@ try {
     die("Database connection failed: " . $e->getMessage());
 }
 
-// --- Auth check ---BYPASS for now ---------------------------
-if (!isset($_SESSION['user_id'])) {
+// --- Auth check ---
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin','super_admin'])) {
     header('Location: login.php');
     exit();
 }
 
-$userId = $_SESSION['user_id'];
+ $userId = $_SESSION['user_id'];
+ $currentRole = $_SESSION['role'];
+ $assignedScope = strtoupper(trim($_SESSION['assigned_scope'] ?? ''));
 
 // --- Fetch user info including scope ---
-// Change to:
-$stmt = $pdo->prepare("SELECT role, assigned_scope, force_password_change FROM users WHERE user_id = :userId");
-
-$stmt->execute([':userId' => $userId]);
-$user = $stmt->fetch();
-$forcePasswordChange = $user['force_password_change'] ?? 0;
+ $stmt = $pdo->prepare("SELECT role, assigned_scope, force_password_change FROM users WHERE user_id = :userId");
+ $stmt->execute([':userId' => $userId]);
+ $user = $stmt->fetch();
+ $forcePasswordChange = $user['force_password_change'] ?? 0;
 
 if (!$user) {
     // User not found in DB, force logout
@@ -44,26 +45,62 @@ if (!$user) {
     exit();
 }
 
-$role = $user['role'];
-$scope = $user['assigned_scope'] ?? null;
+ $role = $user['role'];
+ $scope = strtoupper(trim($user['assigned_scope'] ?? ''));
 
 // --- Fetch dashboard stats ---
 
-// Total Voters
-if ($role === 'admin') {
-    $stmt = $pdo->prepare("SELECT COUNT(*) AS total_voters 
-                           FROM users 
-                           WHERE is_verified = 1 
-                             AND is_admin = 0 
-                             AND assigned_scope = :scope");
-    $stmt->execute([':scope' => $scope]);
-} else {
-    $stmt = $pdo->query("SELECT COUNT(*) AS total_voters 
-                         FROM users 
-                         WHERE is_verified = 1 
-                           AND is_admin = 0");
+// Total Voters - based on scope (same logic as manage users page)
+ $conditions = ["role = 'voter'"];
+ $params = [];
+
+if ($role === 'super_admin') {
+    // Super Admin sees all voters
+    $stmt = $pdo->query("SELECT COUNT(*) AS total_voters FROM users WHERE role = 'voter'");
+} 
+// College Admin (CEIT, CAS, etc.) - only students from their college
+else if (in_array($scope, ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC'])) {
+    $conditions[] = "position = 'student'";
+    $conditions[] = "UPPER(TRIM(department)) = :scope";
+    $params[':scope'] = $scope;
+    $sql = "SELECT COUNT(*) AS total_voters FROM users WHERE " . implode(' AND ', $conditions);
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
 }
-$total_voters = $stmt->fetch()['total_voters'];
+// Faculty Association Admin - academic faculty
+else if ($scope === 'FACULTY ASSOCIATION') {
+    $conditions[] = "position = 'academic'";
+    $sql = "SELECT COUNT(*) AS total_voters FROM users WHERE " . implode(' AND ', $conditions);
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+}
+// Non-Academic Admin - non-academic staff
+else if ($scope === 'NON-ACADEMIC') {
+    $conditions[] = "position = 'non-academic'";
+    $sql = "SELECT COUNT(*) AS total_voters FROM users WHERE " . implode(' AND ', $conditions);
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+}
+// COOP Admin - COOP members
+else if ($scope === 'COOP') {
+    $conditions[] = "is_coop_member = 1";
+    $sql = "SELECT COUNT(*) AS total_voters FROM users WHERE " . implode(' AND ', $conditions);
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+}
+// CSG Admin - all students
+else if ($scope === 'CSG ADMIN') {
+    $conditions[] = "position = 'student'";
+    $sql = "SELECT COUNT(*) AS total_voters FROM users WHERE " . implode(' AND ', $conditions);
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+}
+// Default case for other admin types
+else {
+    $stmt = $pdo->query("SELECT COUNT(*) AS total_voters FROM users WHERE role = 'voter'");
+}
+
+ $total_voters = $stmt->fetch()['total_voters'];
 
 // Total Elections
 if ($role === 'admin') {
@@ -74,7 +111,7 @@ if ($role === 'admin') {
 } else {
     $stmt = $pdo->query("SELECT COUNT(*) AS total_elections FROM elections");
 }
-$total_elections = $stmt->fetch()['total_elections'];
+ $total_elections = $stmt->fetch()['total_elections'];
 
 // Ongoing Elections
 if ($role === 'admin') {
@@ -87,7 +124,7 @@ if ($role === 'admin') {
     $stmt = $pdo->query("SELECT COUNT(*) AS ongoing_elections 
                          FROM elections WHERE status = 'ongoing'");
 }
-$ongoing_elections = $stmt->fetch()['ongoing_elections'];
+ $ongoing_elections = $stmt->fetch()['ongoing_elections'];
 
 // --- Election status auto-update (only for super_admin) ---
 if ($role === 'super_admin') {
@@ -144,7 +181,21 @@ if ($role === 'admin') {
 <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:rgb(25, 72, 49);"> 
   <div class="flex items-center space-x-4">
     <h1 class="text-2xl font-bold">
-      <?php echo htmlspecialchars($scope) . " ADMIN DASHBOARD"; ?>
+      <?php 
+      if ($role === 'super_admin') {
+        echo "SUPER ADMIN DASHBOARD";
+      } else if ($scope === 'FACULTY ASSOCIATION') {
+        echo "FACULTY ASSOCIATION ADMIN DASHBOARD";
+      } else if ($scope === 'NON-ACADEMIC') {
+        echo "NON-ACADEMIC ADMIN DASHBOARD";
+      } else if ($scope === 'COOP') {
+        echo "COOP ADMIN DASHBOARD";
+      } else if ($scope === 'CSG ADMIN') {
+        echo "CSG ADMIN DASHBOARD";
+      } else {
+        echo htmlspecialchars($scope) . " ADMIN DASHBOARD";
+      }
+      ?>
     </h1>
   </div>
   <div class="text-white">
@@ -154,48 +205,38 @@ if ($role === 'admin') {
   </div>
 </header>
 
-
-
 <!-- Main Content Area -->
 <main class="flex-1 pt-20 px-8 ml-64">
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-    <!-- LEFT COLUMN: Statistics Cards -->
-    <div class="space-y-6">
-      <!-- Total Population -->
-      <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-[var(--cvsu-green)] hover:shadow-2xl transition-shadow duration-300">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Population</h2>
-            <p class="text-2xl md:text-4xl font-bold text-[var(--cvsu-green-dark)] mt-2 md:mt-3"><?= $total_voters ?></p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Total Elections -->
-      <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-yellow-400 hover:shadow-2xl transition-shadow duration-300">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Elections</h2>
-            <p class="text-2xl md:text-4xl font-bold text-yellow-600 mt-2 md:mt-3"><?= $total_elections ?></p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Ongoing Elections -->
-      <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-blue-500 hover:shadow-2xl transition-shadow duration-300">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-base md:text-lg font-semibold text-gray-700">Ongoing Elections</h2>
-            <p class="text-2xl md:text-4xl font-bold text-blue-600 mt-2 md:mt-3"><?= $ongoing_elections ?></p>
-          </div>
+  <!-- Statistics Cards in a single row -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+    <!-- Total Population -->
+    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-[var(--cvsu-green)] hover:shadow-2xl transition-shadow duration-300">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Population</h2>
+          <p class="text-2xl md:text-4xl font-bold text-[var(--cvsu-green-dark)] mt-2 md:mt-3"><?= $total_voters ?></p>
         </div>
       </div>
     </div>
 
-    <!-- RIGHT COLUMN: Bar Chart -->
-    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
-      <h2 class="text-base md:text-lg font-semibold text-gray-700 mb-4">Population of Voters per Colleges</h2>
-      <canvas id="collegeChart" class="w-full h-64"></canvas>
+    <!-- Total Elections -->
+    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-yellow-400 hover:shadow-2xl transition-shadow duration-300">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Elections</h2>
+          <p class="text-2xl md:text-4xl font-bold text-yellow-600 mt-2 md:mt-3"><?= $total_elections ?></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ongoing Elections -->
+    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-blue-500 hover:shadow-2xl transition-shadow duration-300">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base md:text-lg font-semibold text-gray-700">Ongoing Elections</h2>
+          <p class="text-2xl md:text-4xl font-bold text-blue-600 mt-2 md:mt-3"><?= $ongoing_elections ?></p>
+        </div>
+      </div>
     </div>
   </div>
   
@@ -267,7 +308,7 @@ if ($role === 'admin') {
                     <button type="button" id="togglePassword" class="absolute inset-y-0 right-0 pr-3 flex items-center">
                         <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5,12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
                     </button>
                 </div>
@@ -388,21 +429,6 @@ if ($role === 'admin') {
         </form>
     </div>
 </div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-const collegeChart = new Chart(document.getElementById('collegeChart'), {
-  type: 'bar',
-  data: {
-    labels: ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC']
-    datasets: [{
-      data: [1517, 792, 770, 1213, 760, 1864, 819, 620, 397, 246],
-      backgroundColor: ['#e62e00', '#003300','#0033cc', '#ff9933', '#b3b3b3', '#008000', '#ff6699', '#00b33c', '#993300', '#990099' ]
-    }]
-  },
-  options: { plugins: { legend: { display: false } } }
-});
-</script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
