@@ -117,19 +117,25 @@ if ($scope !== 'NON-ACADEMIC') {
  $result = $stmt->fetch();
  $lastMonthVoters = $result['last_month_voters'] ?? 0;
 
-// Calculate growth rate for summary card - FIXED
+// Calculate growth rate for summary card
 if ($lastMonthVoters > 0) {
     $growthRate = round((($newVoters - $lastMonthVoters) / $lastMonthVoters) * 100, 1);
 } else {
-    $growthRate = 0; // Set to 0 when previous month had 0 voters
+    $growthRate = 0;
 }
 
 // --- Fetch Historical Growth Rate Data (Last 12 Months) ---
  $historicalData = [];
-for ($i = 11; $i >= 0; $i--) {
-    $monthStart = date('Y-m-01', strtotime("-$i month"));
-    $monthEnd = date('Y-m-t', strtotime("-$i month"));
-    $monthLabel = date('M Y', strtotime("-$i month"));
+ $currentDate = new DateTime('first day of this month');
+
+for ($i = 0; $i < 12; $i++) {
+    // Clone the current date to avoid modifying it
+    $monthDate = clone $currentDate;
+    
+    // Get the exact start and end dates for this month
+    $monthStart = $monthDate->format('Y-m-01');
+    $monthEnd = $monthDate->format('Y-m-t');
+    $monthLabel = $monthDate->format('M Y');
     
     // Get voters count for this month
     $stmt = $pdo->prepare("SELECT COUNT(*) as count 
@@ -139,9 +145,13 @@ for ($i = 11; $i >= 0; $i--) {
     $stmt->execute([$monthStart, $monthEnd]);
     $currentCount = $stmt->fetch()['count'];
     
-    // Get voters count for previous month
-    $prevMonthStart = date('Y-m-01', strtotime("-".($i+1)." month"));
-    $prevMonthEnd = date('Y-m-t', strtotime("-".($i+1)." month"));
+    // Get voters count for the previous month
+    $prevMonthDate = clone $monthDate;
+    $prevMonthDate->modify('-1 month');
+    $prevMonthStart = $prevMonthDate->format('Y-m-01');
+    $prevMonthEnd = $prevMonthDate->format('Y-m-t');
+    $prevMonthLabel = $prevMonthDate->format('M Y');
+    
     $stmt = $pdo->prepare("SELECT COUNT(*) as count 
                            FROM users 
                            WHERE role = 'voter' AND position = 'non-academic'
@@ -153,23 +163,27 @@ for ($i = 11; $i >= 0; $i--) {
     if ($prevCount > 0) {
         $growthRateMonth = round((($currentCount - $prevCount) / $prevCount) * 100, 1);
     } else {
-        $growthRateMonth = 0; // Set to 0 when previous month had 0 voters
+        $growthRateMonth = 0;
     }
     
     $historicalData[] = [
         'month' => $monthLabel,
         'current' => $currentCount,
         'previous' => $prevCount,
+        'previous_month_label' => $prevMonthLabel,
         'growth' => $growthRateMonth
     ];
+    
+    // Move to previous month for next iteration
+    $currentDate->modify('-1 month');
 }
 
-// Extract arrays for charts
+// Extract arrays for charts (already in correct order - most recent first)
  $monthLabels = array_column($historicalData, 'month');
  $voterCounts = array_column($historicalData, 'current');
  $historicalGrowth = array_column($historicalData, 'growth');
 
-// For the table, reverse the order to show most recent first
+// For the table, reverse the order to show chronological (oldest first)
  $tableData = array_reverse($historicalData);
 
 // --- Fetch Year-over-Year Cumulative Comparison Data ---
@@ -216,7 +230,7 @@ for ($month = 1; $month <= 12; $month++) {
     $cumulativeSelected += $selectedYearCount;
     $cumulativePrevious += $previousYearCount;
     
-    // Calculate year-over-year growth for cumulative - FIXED
+    // Calculate year-over-year growth for cumulative
     if ($cumulativePrevious > 0) {
         $yearOverYearGrowth = round((($cumulativeSelected - $cumulativePrevious) / $cumulativePrevious) * 100, 1);
     } else {
@@ -238,7 +252,7 @@ for ($month = 1; $month <= 12; $month++) {
  $selectedYearTotal = $cumulativeSelected;
  $previousYearTotal = $cumulativePrevious;
 
-// Calculate yearly growth rate - FIXED
+// Calculate yearly growth rate
 if ($previousYearTotal > 0) {
     $yearlyGrowthRate = round((($selectedYearTotal - $previousYearTotal) / $previousYearTotal) * 100, 1);
 } else {
@@ -303,7 +317,7 @@ if (!isset($turnoutDataByYear[$prevYear])) {
     ];
 }
 
-// Calculate year-over-year growth for turnout - FIXED
+// Calculate year-over-year growth for turnout
  $years = array_keys($turnoutDataByYear);
 sort($years); // sort in ascending order
  $previousYear = null;
@@ -336,23 +350,23 @@ foreach ($years as $year) {
 // --- Compute department turnout data for the selected year ---
  $departmentTurnoutData = [];
  $stmt = $pdo->prepare("
-    SELECT 
-        u.department,
-        COUNT(DISTINCT u.user_id) as eligible_count,
-        COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) as voted_count
-    FROM users u
-    LEFT JOIN (
-        SELECT DISTINCT voter_id 
-        FROM votes 
-        WHERE election_id IN (
-            SELECT election_id FROM elections 
-            WHERE target_position = 'non-academic' 
-            AND YEAR(start_datetime) = ?
-        )
-    ) v ON u.user_id = v.voter_id
-    WHERE u.role = 'voter' AND u.position = 'non-academic'
-    GROUP BY u.department
-    ORDER BY u.department
+   SELECT 
+       u.department,
+       COUNT(DISTINCT u.user_id) as eligible_count,
+       COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) as voted_count
+   FROM users u
+   LEFT JOIN (
+       SELECT DISTINCT voter_id 
+       FROM votes 
+       WHERE election_id IN (
+           SELECT election_id FROM elections 
+           WHERE target_position = 'non-academic' 
+           AND YEAR(start_datetime) = ?
+       )
+   ) v ON u.user_id = v.voter_id
+   WHERE u.role = 'voter' AND u.position = 'non-academic'
+   GROUP BY u.department
+   ORDER BY u.department
 ");
  $stmt->execute([$selectedYear]);
  $deptResults = $stmt->fetchAll();
@@ -370,23 +384,23 @@ foreach ($deptResults as $row) {
 // --- Compute status turnout data for the selected year ---
  $statusTurnoutData = [];
  $stmt = $pdo->prepare("
-    SELECT 
-        u.status,
-        COUNT(DISTINCT u.user_id) as eligible_count,
-        COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) as voted_count
-    FROM users u
-    LEFT JOIN (
-        SELECT DISTINCT voter_id 
-        FROM votes 
-        WHERE election_id IN (
-            SELECT election_id FROM elections 
-            WHERE target_position = 'non-academic' 
-            AND YEAR(start_datetime) = ?
-        )
-    ) v ON u.user_id = v.voter_id
-    WHERE u.role = 'voter' AND u.position = 'non-academic'
-    GROUP BY u.status
-    ORDER BY u.status
+   SELECT 
+       u.status,
+       COUNT(DISTINCT u.user_id) as eligible_count,
+       COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) as voted_count
+   FROM users u
+   LEFT JOIN (
+       SELECT DISTINCT voter_id 
+       FROM votes 
+       WHERE election_id IN (
+           SELECT election_id FROM elections 
+           WHERE target_position = 'non-academic' 
+           AND YEAR(start_datetime) = ?
+       )
+   ) v ON u.user_id = v.voter_id
+   WHERE u.role = 'voter' AND u.position = 'non-academic'
+   GROUP BY u.status
+   ORDER BY u.status
 ");
  $stmt->execute([$selectedYear]);
  $statusResults = $stmt->fetchAll();
@@ -439,6 +453,8 @@ function getFullDepartmentName($abbr) {
       --cvsu-green: #1E6F46;
       --cvsu-green-light: #37A66B;
       --cvsu-yellow: #FFD166;
+      --cvsu-accent: #2D5F3F;
+      --cvsu-light-accent: #4A7C59;
     }
     ::-webkit-scrollbar {
       width: 6px;
@@ -505,6 +521,19 @@ function getFullDepartmentName($abbr) {
     .breakdown-section.active {
       display: block;
     }
+    .cvsu-gradient {
+      background: linear-gradient(135deg, var(--cvsu-green-dark) 0%, var(--cvsu-green) 100%);
+    }
+    .cvsu-card {
+      background-color: white;
+      border-left: 4px solid var(--cvsu-green);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      transition: all 0.3s;
+    }
+    .cvsu-card:hover {
+      box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+      transform: translateY(-2px);
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
@@ -514,7 +543,7 @@ function getFullDepartmentName($abbr) {
 <?php include 'sidebar.php'; ?>
 
 <!-- Top Bar -->
-<header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:rgb(25, 72, 49);"> 
+<header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color: var(--cvsu-green-dark);">
   <div class="flex items-center space-x-4">
     <h1 class="text-2xl font-bold text-white">
       NON-ACADEMIC ADMIN DASHBOARD
@@ -532,31 +561,40 @@ function getFullDepartmentName($abbr) {
   <!-- Statistics Cards -->
   <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
     <!-- Total Population -->
-    <div class="bg-white p-6 rounded-xl shadow-lg border-l-8 border-[var(--cvsu-green)] hover:shadow-2xl transition-shadow duration-300">
+    <div class="cvsu-card p-6 rounded-xl">
       <div class="flex items-center justify-between">
         <div>
           <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Voters</h2>
-          <p class="text-2xl md:text-4xl font-bold text-[var(--cvsu-green-dark)] mt-2 md:mt-3"><?= number_format($total_voters) ?></p>
+          <p class="text-2xl md:text-4xl font-bold" style="color: var(--cvsu-green-dark);"><?= number_format($total_voters) ?></p>
+        </div>
+        <div class="p-3 rounded-full" style="background-color: rgba(30, 111, 70, 0.1);">
+          <i class="fas fa-users text-2xl" style="color: var(--cvsu-green);"></i>
         </div>
       </div>
     </div>
 
     <!-- Total Elections -->
-    <div class="bg-white p-6 rounded-xl shadow-lg border-l-8 border-yellow-400 hover:shadow-2xl transition-shadow duration-300">
+    <div class="cvsu-card p-6 rounded-xl" style="border-left-color: var(--cvsu-yellow);">
       <div class="flex items-center justify-between">
         <div>
           <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Elections</h2>
-          <p class="text-2xl md:text-4xl font-bold text-yellow-600 mt-2 md:mt-3"><?= $total_elections ?></p>
+          <p class="text-2xl md:text-4xl font-bold" style="color: var(--cvsu-yellow);"><?= $total_elections ?></p>
+        </div>
+        <div class="p-3 rounded-full" style="background-color: rgba(255, 209, 102, 0.1);">
+          <i class="fas fa-vote-yea text-2xl" style="color: var(--cvsu-yellow);"></i>
         </div>
       </div>
     </div>
 
     <!-- Ongoing Elections -->
-    <div class="bg-white p-6 rounded-xl shadow-lg border-l-8 border-blue-500 hover:shadow-2xl transition-shadow duration-300">
+    <div class="cvsu-card p-6 rounded-xl" style="border-left-color: #3B82F6;">
       <div class="flex items-center justify-between">
         <div>
           <h2 class="text-base md:text-lg font-semibold text-gray-700">Ongoing Elections</h2>
-          <p class="text-2xl md:text-4xl font-bold text-blue-600 mt-2 md:mt-3"><?= $ongoing_elections ?></p>
+          <p class="text-2xl md:text-4xl font-bold text-blue-600"><?= $ongoing_elections ?></p>
+        </div>
+        <div class="p-3 rounded-full bg-blue-50">
+          <i class="fas fa-clock text-2xl text-blue-600"></i>
         </div>
       </div>
     </div>
@@ -564,7 +602,7 @@ function getFullDepartmentName($abbr) {
   
   <!-- Analytics Section -->
   <div class="analytics-section mb-8 bg-white rounded-xl shadow-lg overflow-hidden">
-    <div class="bg-gradient-to-r from-[var(--cvsu-green-dark)] to-[var(--cvsu-green)] p-6">
+    <div class="cvsu-gradient p-6">
       <div class="flex justify-between items-center">
         <div>
           <h2 class="text-2xl font-bold text-white">Non-Academic Voters Analytics</h2>
@@ -574,22 +612,22 @@ function getFullDepartmentName($abbr) {
     
     <!-- Summary Cards -->
     <div class="p-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-      <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+      <div class="p-4 rounded-lg border" style="background-color: rgba(30, 111, 70, 0.05); border-color: var(--cvsu-green-light);">
         <div class="flex items-center">
-          <div class="bg-green-100 p-3 rounded-lg mr-4">
-            <i class="fas fa-user-plus text-green-600 text-xl"></i>
+          <div class="p-3 rounded-lg mr-4" style="background-color: var(--cvsu-green-light);">
+            <i class="fas fa-user-plus text-white text-xl"></i>
           </div>
           <div>
-            <p class="text-sm text-green-600">New This Month</p>
-            <p class="text-2xl font-bold text-green-800"><?= number_format($newVoters) ?></p>
+            <p class="text-sm" style="color: var(--cvsu-green);">New This Month</p>
+            <p class="text-2xl font-bold" style="color: var(--cvsu-green-dark);"><?= number_format($newVoters) ?></p>
           </div>
         </div>
       </div>
       
-      <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+      <div class="p-4 rounded-lg border" style="background-color: rgba(59, 130, 246, 0.05); border-color: #3B82F6;">
         <div class="flex items-center">
-          <div class="bg-blue-100 p-3 rounded-lg mr-4">
-            <i class="fas fa-building text-blue-600 text-xl"></i>
+          <div class="p-3 rounded-lg mr-4 bg-blue-500">
+            <i class="fas fa-building text-white text-xl"></i>
           </div>
           <div>
             <p class="text-sm text-blue-600">Departments</p>
@@ -598,10 +636,10 @@ function getFullDepartmentName($abbr) {
         </div>
       </div>
       
-      <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+      <div class="p-4 rounded-lg border" style="background-color: rgba(139, 92, 246, 0.05); border-color: #8B5CF6;">
         <div class="flex items-center">
-          <div class="bg-purple-100 p-3 rounded-lg mr-4">
-            <i class="fas fa-id-badge text-purple-600 text-xl"></i>
+          <div class="p-3 rounded-lg mr-4 bg-purple-500">
+            <i class="fas fa-id-badge text-white text-xl"></i>
           </div>
           <div>
             <p class="text-sm text-purple-600">Status Types</p>
@@ -610,14 +648,14 @@ function getFullDepartmentName($abbr) {
         </div>
       </div>
       
-      <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+      <div class="p-4 rounded-lg border" style="background-color: rgba(245, 158, 11, 0.05); border-color: var(--cvsu-yellow);">
         <div class="flex items-center">
-          <div class="bg-yellow-100 p-3 rounded-lg mr-4">
-            <i class="fas fa-chart-line text-yellow-600 text-xl"></i>
+          <div class="p-3 rounded-lg mr-4" style="background-color: var(--cvsu-yellow);">
+            <i class="fas fa-chart-line text-white text-xl"></i>
           </div>
           <div>
-            <p class="text-sm text-yellow-600">Growth Rate</p>
-            <p class="text-2xl font-bold text-yellow-800">
+            <p class="text-sm" style="color: var(--cvsu-yellow);">Growth Rate</p>
+            <p class="text-2xl font-bold" style="color: #D97706;">
               <?php
               // Calculate growth rate directly in the HTML to ensure correct display
               if ($lastMonthVoters > 0) {
@@ -639,7 +677,7 @@ function getFullDepartmentName($abbr) {
         <!-- Charts Section -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <!-- Department Distribution Chart -->
-          <div class="bg-gray-50 p-4 rounded-lg">
+          <div class="p-4 rounded-lg" style="background-color: rgba(30, 111, 70, 0.03);">
             <h3 class="text-lg font-semibold text-gray-800 mb-4">Voters by Department</h3>
             <div class="chart-container">
               <canvas id="departmentChart"></canvas>
@@ -651,7 +689,7 @@ function getFullDepartmentName($abbr) {
           </div>
           
           <!-- Status Distribution Chart -->
-          <div class="bg-gray-50 p-4 rounded-lg">
+          <div class="p-4 rounded-lg" style="background-color: rgba(30, 111, 70, 0.03);">
             <h3 class="text-lg font-semibold text-gray-800 mb-4">Voters by Status</h3>
             <div class="chart-container">
               <canvas id="statusChart"></canvas>
@@ -694,7 +732,7 @@ function getFullDepartmentName($abbr) {
                         <td class="px-6 py-4 whitespace-nowrap">
                           <div class="flex items-center">
                             <div class="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                              <div class="bg-green-600 h-2 rounded-full" style="width: <?= $percentage ?>%"></div>
+                              <div class="h-2 rounded-full" style="width: <?= $percentage ?>%; background-color: var(--cvsu-green);"></div>
                             </div>
                             <span><?= $percentage ?>%</span>
                           </div>
@@ -752,7 +790,7 @@ function getFullDepartmentName($abbr) {
       <!-- Charts Section -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <!-- Growth Rate Trend Chart -->
-        <div class="bg-gray-50 p-4 rounded-lg">
+        <div class="p-4 rounded-lg" style="background-color: rgba(245, 158, 11, 0.05);">
           <h3 class="text-lg font-semibold text-gray-800 mb-4">Growth Rate Trend (Last 12 Months)</h3>
           <div class="chart-container">
             <canvas id="growthRateChart"></canvas>
@@ -760,7 +798,7 @@ function getFullDepartmentName($abbr) {
         </div>
         
         <!-- Voter Registration Trend -->
-        <div class="bg-gray-50 p-4 rounded-lg">
+        <div class="p-4 rounded-lg" style="background-color: rgba(59, 130, 246, 0.05);">
           <h3 class="text-lg font-semibold text-gray-800 mb-4">Voter Registration Trend</h3>
           <div class="chart-container">
             <canvas id="registrationTrendChart"></canvas>
@@ -774,10 +812,10 @@ function getFullDepartmentName($abbr) {
         
         <!-- Summary Statistics Cards -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+          <div class="p-4 rounded-lg border" style="background-color: rgba(59, 130, 246, 0.05); border-color: #3B82F6;">
             <div class="flex items-center">
-              <div class="bg-blue-100 p-3 rounded-lg mr-4">
-                <i class="fas fa-chart-line text-blue-600 text-xl"></i>
+              <div class="p-3 rounded-lg mr-4 bg-blue-500">
+                <i class="fas fa-chart-line text-white text-xl"></i>
               </div>
               <div>
                 <p class="text-sm text-blue-600">Average Growth</p>
@@ -788,10 +826,10 @@ function getFullDepartmentName($abbr) {
             </div>
           </div>
           
-          <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+          <div class="p-4 rounded-lg border" style="background-color: rgba(16, 185, 129, 0.05); border-color: #10B981;">
             <div class="flex items-center">
-              <div class="bg-green-100 p-3 rounded-lg mr-4">
-                <i class="fas fa-arrow-up text-green-600 text-xl"></i>
+              <div class="p-3 rounded-lg mr-4 bg-green-500">
+                <i class="fas fa-arrow-up text-white text-xl"></i>
               </div>
               <div>
                 <p class="text-sm text-green-600">Highest Growth</p>
@@ -802,10 +840,10 @@ function getFullDepartmentName($abbr) {
             </div>
           </div>
           
-          <div class="bg-red-50 p-4 rounded-lg border border-red-200">
+          <div class="p-4 rounded-lg border" style="background-color: rgba(239, 68, 68, 0.05); border-color: #EF4444;">
             <div class="flex items-center">
-              <div class="bg-red-100 p-3 rounded-lg mr-4">
-                <i class="fas fa-arrow-down text-red-600 text-xl"></i>
+              <div class="p-3 rounded-lg mr-4 bg-red-500">
+                <i class="fas fa-arrow-down text-white text-xl"></i>
               </div>
               <div>
                 <p class="text-sm text-red-600">Lowest Growth</p>
@@ -816,10 +854,10 @@ function getFullDepartmentName($abbr) {
             </div>
           </div>
           
-          <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+          <div class="p-4 rounded-lg border" style="background-color: rgba(139, 92, 246, 0.05); border-color: #8B5CF6;">
             <div class="flex items-center">
-              <div class="bg-purple-100 p-3 rounded-lg mr-4">
-                <i class="fas fa-calendar-check text-purple-600 text-xl"></i>
+              <div class="p-3 rounded-lg mr-4 bg-purple-500">
+                <i class="fas fa-calendar-check text-white text-xl"></i>
               </div>
               <div>
                 <p class="text-sm text-purple-600">Positive Months</p>
@@ -870,7 +908,7 @@ function getFullDepartmentName($abbr) {
         </div>
         
         <!-- Trend Analysis -->
-        <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+        <div class="mt-6 p-4 rounded-lg" style="background-color: rgba(30, 111, 70, 0.03);">
           <h5 class="font-semibold text-gray-800 mb-2">Growth Trend Analysis</h5>
           <p class="text-gray-600">
             <?php
@@ -913,10 +951,10 @@ function getFullDepartmentName($abbr) {
       
       <!-- Yearly Summary Cards -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+            <div class="p-4 rounded-lg border" style="background-color: rgba(99, 102, 241, 0.05); border-color: #6366F1;">
                 <div class="flex items-center">
-                    <div class="bg-indigo-100 p-3 rounded-lg mr-4">
-                        <i class="fas fa-calendar-alt text-indigo-600 text-xl"></i>
+                    <div class="p-3 rounded-lg mr-4 bg-indigo-500">
+                        <i class="fas fa-calendar-alt text-white text-xl"></i>
                     </div>
                     <div>
                         <p class="text-sm text-indigo-600"><?= $selectedYear ?> Total</p>
@@ -925,10 +963,10 @@ function getFullDepartmentName($abbr) {
                 </div>
             </div>
             
-            <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+            <div class="p-4 rounded-lg border" style="background-color: rgba(139, 92, 246, 0.05); border-color: #8B5CF6;">
                 <div class="flex items-center">
-                    <div class="bg-purple-100 p-3 rounded-lg mr-4">
-                        <i class="fas fa-calendar text-purple-600 text-xl"></i>
+                    <div class="p-3 rounded-lg mr-4 bg-purple-500">
+                        <i class="fas fa-calendar text-white text-xl"></i>
                     </div>
                     <div>
                         <p class="text-sm text-purple-600"><?= $selectedYear - 1 ?> Total</p>
@@ -937,10 +975,10 @@ function getFullDepartmentName($abbr) {
                 </div>
             </div>
             
-            <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+            <div class="p-4 rounded-lg border" style="background-color: rgba(16, 185, 129, 0.05); border-color: #10B981;">
                 <div class="flex items-center">
-                    <div class="bg-green-100 p-3 rounded-lg mr-4">
-                        <i class="fas fa-percentage text-green-600 text-xl"></i>
+                    <div class="p-3 rounded-lg mr-4 bg-green-500">
+                        <i class="fas fa-percentage text-white text-xl"></i>
                     </div>
                     <div>
                         <p class="text-sm text-green-600">Yearly Growth</p>
@@ -957,10 +995,10 @@ function getFullDepartmentName($abbr) {
                 </div>
             </div>
             
-            <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <div class="p-4 rounded-lg border" style="background-color: rgba(59, 130, 246, 0.05); border-color: #3B82F6;">
                 <div class="flex items-center">
-                    <div class="bg-blue-100 p-3 rounded-lg mr-4">
-                        <i class="fas fa-chart-bar text-blue-600 text-xl"></i>
+                    <div class="p-3 rounded-lg mr-4 bg-blue-500">
+                        <i class="fas fa-chart-bar text-white text-xl"></i>
                     </div>
                     <div>
                         <p class="text-sm text-blue-600">Avg Monthly</p>
@@ -975,7 +1013,7 @@ function getFullDepartmentName($abbr) {
       <!-- Year-over-Year Charts -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <!-- Year Comparison Chart -->
-        <div class="bg-gray-50 p-4 rounded-lg">
+        <div class="p-4 rounded-lg" style="background-color: rgba(99, 102, 241, 0.05);">
           <h3 class="text-lg font-semibold text-gray-800 mb-4">Cumulative Voter Growth: <?= $selectedYear ?> vs <?= $selectedYear - 1 ?></h3>
           <div class="chart-container">
             <canvas id="yearComparisonChart"></canvas>
@@ -983,7 +1021,7 @@ function getFullDepartmentName($abbr) {
         </div>
         
         <!-- Monthly Growth Rate Chart -->
-        <div class="bg-gray-50 p-4 rounded-lg">
+        <div class="p-4 rounded-lg" style="background-color: rgba(245, 158, 11, 0.05);">
           <h3 class="text-lg font-semibold text-gray-800 mb-4">Monthly Growth Rate (<?= $selectedYear ?> vs <?= $selectedYear - 1 ?>)</h3>
           <div class="chart-container">
             <canvas id="monthlyGrowthChart"></canvas>
@@ -1054,10 +1092,10 @@ function getFullDepartmentName($abbr) {
     
     <!-- Summary Cards -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+        <div class="p-4 rounded-lg border" style="background-color: rgba(99, 102, 241, 0.05); border-color: #6366F1;">
         <div class="flex items-center">
-            <div class="bg-indigo-100 p-3 rounded-lg mr-4">
-            <i class="fas fa-percentage text-indigo-600 text-xl"></i>
+            <div class="p-3 rounded-lg mr-4 bg-indigo-500">
+            <i class="fas fa-percentage text-white text-xl"></i>
             </div>
             <div>
             <p class="text-sm text-indigo-600"><?= $selectedYear ?> Turnout</p>
@@ -1068,10 +1106,10 @@ function getFullDepartmentName($abbr) {
         </div>
         </div>
         
-        <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+        <div class="p-4 rounded-lg border" style="background-color: rgba(139, 92, 246, 0.05); border-color: #8B5CF6;">
         <div class="flex items-center">
-            <div class="bg-purple-100 p-3 rounded-lg mr-4">
-            <i class="fas fa-percentage text-purple-600 text-xl"></i>
+            <div class="p-3 rounded-lg mr-4 bg-purple-500">
+            <i class="fas fa-percentage text-white text-xl"></i>
             </div>
             <div>
             <p class="text-sm text-purple-600"><?= $selectedYear - 1 ?> Turnout</p>
@@ -1082,10 +1120,10 @@ function getFullDepartmentName($abbr) {
         </div>
         </div>
         
-        <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+        <div class="p-4 rounded-lg border" style="background-color: rgba(16, 185, 129, 0.05); border-color: #10B981;">
         <div class="flex items-center">
-            <div class="bg-green-100 p-3 rounded-lg mr-4">
-            <i class="fas fa-chart-line text-green-600 text-xl"></i>
+            <div class="p-3 rounded-lg mr-4 bg-green-500">
+            <i class="fas fa-chart-line text-white text-xl"></i>
             </div>
             <div>
             <p class="text-sm text-green-600">Growth Rate</p>
@@ -1106,10 +1144,10 @@ function getFullDepartmentName($abbr) {
         </div>
         </div>
         
-        <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+        <div class="p-4 rounded-lg border" style="background-color: rgba(59, 130, 246, 0.05); border-color: #3B82F6;">
         <div class="flex items-center">
-            <div class="bg-blue-100 p-3 rounded-lg mr-4">
-            <i class="fas fa-vote-yea text-blue-600 text-xl"></i>
+            <div class="p-3 rounded-lg mr-4 bg-blue-500">
+            <i class="fas fa-vote-yea text-white text-xl"></i>
             </div>
             <div>
             <p class="text-sm text-blue-600">Elections</p>
@@ -1122,7 +1160,7 @@ function getFullDepartmentName($abbr) {
     </div>
     
     <!-- Turnout Trend Chart (Full Width) -->
-    <div class="bg-gray-50 p-4 rounded-lg mb-8">
+    <div class="p-4 rounded-lg mb-8" style="background-color: rgba(30, 111, 70, 0.05);">
         <h3 class="text-lg font-semibold text-gray-800 mb-4">Turnout Rate Trend</h3>
         <div class="chart-container" style="height: 400px;">
         <canvas id="turnoutTrendChart"></canvas>
@@ -1173,8 +1211,8 @@ function getFullDepartmentName($abbr) {
     </div>
     
     <!-- Elections vs Turnout Rate Section -->
-    <div class="bg-gray-50 p-4 rounded-lg">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">Elections/Voters vs Turnout Rate</h3>
+    <div class="p-4 rounded-lg" style="background-color: rgba(30, 111, 70, 0.05);">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Elections vs Turnout Rate</h3>
         
         <!-- Dropdown Options -->
         <div class="mb-4">
@@ -1324,7 +1362,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    cutout: '45%',
+                    cutout: '50%',
                     plugins: {
                         legend: {
                             position: 'right',
@@ -1512,10 +1550,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     datasets: [{
                         label: 'Growth Rate (%)',
                         data: growthRates,
-                        borderColor: '#F59E0B',
+                        borderColor: '#FFD166',
                         backgroundColor: 'rgba(245, 158, 11, 0.1)',
                         borderWidth: 3,
-                        pointBackgroundColor: '#F59E0B',
+                        pointBackgroundColor: '#FFD166',
                         pointBorderColor: '#fff',
                         pointBorderWidth: 2,
                         pointRadius: 5,
@@ -1669,10 +1707,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         {
                             label: '<?= $selectedYear ?>',
                             data: selectedYearData,
-                            borderColor: '#3B82F6',
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderColor: '#1E6F46',
+                            backgroundColor: 'rgba(30, 111, 70, 0.1)',
                             borderWidth: 3,
-                            pointBackgroundColor: '#3B82F6',
+                            pointBackgroundColor: '#1E6F46',
                             pointBorderColor: '#fff',
                             pointBorderWidth: 2,
                             pointRadius: 5,
@@ -1683,10 +1721,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         {
                             label: '<?= $selectedYear - 1 ?>',
                             data: previousYearData,
-                            borderColor: '#8B5CF6',
-                            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                            borderColor: '#37A66B',
+                            backgroundColor: 'rgba(55, 166, 107, 0.1)',
                             borderWidth: 3,
-                            pointBackgroundColor: '#8B5CF6',
+                            pointBackgroundColor: '#37A66B',
                             pointBorderColor: '#fff',
                             pointBorderWidth: 2,
                             pointRadius: 5,
@@ -1873,10 +1911,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     datasets: [{
                         label: 'Turnout Rate (%)',
                         data: turnoutRates,
-                        borderColor: '#3B82F6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderColor: '#1E6F46',
+                        backgroundColor: 'rgba(30, 111, 70, 0.1)',
                         borderWidth: 3,
-                        pointBackgroundColor: '#3B82F6',
+                        pointBackgroundColor: '#1E6F46',
                         pointBorderColor: '#fff',
                         pointBorderWidth: 2,
                         pointRadius: 5,
@@ -1966,8 +2004,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         {
                             label: 'Number of Elections',
                             data: chartData.elections.year.electionCounts,
-                            backgroundColor: '#10B981',
-                            borderColor: '#059669',
+                            backgroundColor: '#1E6F46',
+                            borderColor: '#154734',
                             borderWidth: 1,
                             borderRadius: 4,
                             yAxisID: 'y'
@@ -1975,7 +2013,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         {
                             label: 'Turnout Rate (%)',
                             data: chartData.elections.year.turnoutRates,
-                            backgroundColor: '#FBBF24',
+                            backgroundColor: '#FFD166',
                             borderColor: '#F59E0B',
                             borderWidth: 1,
                             borderRadius: 4,
@@ -2048,8 +2086,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             {
                                 label: 'Eligible Voters',
                                 data: chartData.voters.year.eligibleCounts,
-                                backgroundColor: '#10B981',
-                                borderColor: '#059669',
+                                backgroundColor: '#1E6F46',
+                                borderColor: '#154734',
                                 borderWidth: 1,
                                 borderRadius: 4,
                                 yAxisID: 'y'
@@ -2057,7 +2095,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             {
                                 label: 'Turnout Rate (%)',
                                 data: chartData.voters.year.turnoutRates,
-                                backgroundColor: '#FBBF24',
+                                backgroundColor: '#FFD166',
                                 borderColor: '#F59E0B',
                                 borderWidth: 1,
                                 borderRadius: 4,
@@ -2132,8 +2170,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             {
                                 label: 'Eligible Voters',
                                 data: eligibleCounts,
-                                backgroundColor: '#10B981',
-                                borderColor: '#059669',
+                                backgroundColor: '#1E6F46',
+                                borderColor: '#154734',
                                 borderWidth: 1,
                                 borderRadius: 4,
                                 yAxisID: 'y'
@@ -2141,7 +2179,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             {
                                 label: 'Turnout Rate (%)',
                                 data: turnoutRates,
-                                backgroundColor: '#FBBF24',
+                                backgroundColor: '#FFD166',
                                 borderColor: '#F59E0B',
                                 borderWidth: 1,
                                 borderRadius: 4,
@@ -2216,8 +2254,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             {
                                 label: 'Eligible Voters',
                                 data: eligibleCounts,
-                                backgroundColor: '#10B981',
-                                borderColor: '#059669',
+                                backgroundColor: '#1E6F46',
+                                borderColor: '#154734',
                                 borderWidth: 1,
                                 borderRadius: 4,
                                 yAxisID: 'y'
@@ -2225,7 +2263,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             {
                                 label: 'Turnout Rate (%)',
                                 data: turnoutRates,
-                                backgroundColor: '#FBBF24',
+                                backgroundColor: '#FFD166',
                                 borderColor: '#F59E0B',
                                 borderWidth: 1,
                                 borderRadius: 4,

@@ -4,7 +4,7 @@ date_default_timezone_set('Asia/Manila');
 
 // --- DB Connection ---
  $host = 'localhost';
- $db   = 'evoting_system';
+ $db = 'evoting_system';
  $user = 'root';
  $pass = '';
  $charset = 'utf8mb4';
@@ -38,8 +38,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
  $role = $userInfo['role'] ?? '';
  $scope = strtoupper(trim($userInfo['assigned_scope'] ?? ''));
 
-// Valid scopes - now includes CSG ADMIN
- $validScopes = ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC', 'CSG ADMIN'];
+// Valid scopes - now includes FACULTY ASSOCIATION
+ $validScopes = ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC', 'FACULTY ASSOCIATION'];
 
 // Verify this is the correct scope for this dashboard
 if (!in_array($scope, $validScopes)) {
@@ -47,11 +47,11 @@ if (!in_array($scope, $validScopes)) {
     exit();
 }
 
-// Check if this is CSG Admin
- $isCSGAdmin = ($scope === 'CSG ADMIN');
+// Check if this is Faculty Association Admin
+ $isFacultyAdmin = ($scope === 'FACULTY ASSOCIATION');
 
 // --- Get available years for dropdown ---
- $stmt = $pdo->query("SELECT DISTINCT YEAR(created_at) as year FROM users WHERE role = 'voter' AND position = 'student' ORDER BY year DESC");
+ $stmt = $pdo->query("SELECT DISTINCT YEAR(created_at) as year FROM users WHERE role = 'voter' AND position = 'academic' ORDER BY year DESC");
  $availableYears = $stmt->fetchAll(PDO::FETCH_COLUMN);
  $currentYear = date('Y');
  $selectedYear = isset($_GET['year']) ? $_GET['year'] : $currentYear;
@@ -59,16 +59,16 @@ if (!in_array($scope, $validScopes)) {
 
 // --- Fetch dashboard stats ---
 
-// Total Students (all colleges if CSG Admin)
-if ($isCSGAdmin) {
+// Total Voters (all colleges if Faculty Association Admin)
+if ($isFacultyAdmin) {
     $stmt = $pdo->prepare("SELECT COUNT(*) as total_voters
     FROM users
-    WHERE role = 'voter' AND position = 'student'");
+    WHERE role = 'voter' AND position = 'academic'");
     $stmt->execute();
 } else {
     $stmt = $pdo->prepare("SELECT COUNT(*) as total_voters
     FROM users
-    WHERE role = 'voter' AND position = 'student' AND UPPER(TRIM(department)) = ?");
+    WHERE role = 'voter' AND position = 'academic' AND UPPER(TRIM(department)) = ?");
     $stmt->execute([$scope]);
 }
  $total_voters = $stmt->fetch()['total_voters'];
@@ -96,8 +96,8 @@ ORDER BY start_datetime DESC");
 
 // --- Get all colleges for dropdown ---
  $allColleges = [];
-if ($isCSGAdmin) {
-    $stmt = $pdo->query("SELECT DISTINCT department as college_name FROM users WHERE role = 'voter' AND position = 'student' ORDER BY college_name");
+if ($isFacultyAdmin) {
+    $stmt = $pdo->query("SELECT DISTINCT department as college_name FROM users WHERE role = 'voter' AND position = 'academic' ORDER BY college_name");
     $allColleges = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } else {
     $allColleges = [$scope];
@@ -137,26 +137,36 @@ if ($isCSGAdmin) {
 
 // Department/Course abbreviation mapping
  $deptCourseAbbrevMap = [
+    'Department of Animal Science' => 'DAS',
+    'Department of Crop Science' => 'DCS',
+    'Department of Food Science and Technology' => 'DFST',
+    'Department of Forestry and Environmental Science' => 'DFES',
+    'Department of Agricultural Economics and Development' => 'DAED',
+    'Department of Biological Sciences' => 'DBS',
+    'Department of Physical Sciences' => 'DPS',
+    'Department of Languages and Mass Communication' => 'DLMC',
+    'Department of Social Sciences' => 'DSS',
+    'Department of Mathematics and Statistics' => 'DMS',
+    'Department of Criminal Justice' => 'DCJ',
+    'Department of Economics' => 'DEC',
+    'Department of Business and Management' => 'DBM',
+    'Department of Development Studies' => 'DDS',
+    'Department of Science Education' => 'DSE',
+    'Department of Technology and Livelihood Education' => 'DTLE',
+    'Department of Curriculum and Instruction' => 'DCI',
+    'Department of Human Kinetics' => 'DHK',
+    'Department of Civil Engineering' => 'DCE',
+    'Department of Computer and Electronics Engineering' => 'DCEE',
+    'Department of Industrial Engineering and Technology' => 'DIET',
+    'Department of Mechanical and Electronics Engineering' => 'DMEE',
     'Department of Information Technology' => 'DIT',
-    'Department of Engineering' => 'DE',
-    'Department of Computer Science' => 'DCS',
-    'BS in Information Technology' => 'BSIT',
-    'BS in Computer Science' => 'BSCS',
-    'BS in Engineering' => 'BSE',
-    'BS in Agriculture' => 'BSA',
-    'BS in Arts' => 'BSA',
-    'BS in Education' => 'BSED',
-    'BS in Nursing' => 'BSN',
-    'BS in Tourism' => 'BST',
-    'BS in Criminal Justice' => 'BSCRIM',
-    'BS in Veterinary Medicine' => 'BSVM',
-    'BS in Economics' => 'BSECON',
-    'BS in Management' => 'BSM',
-    'BS in Physical Education' => 'BSPE',
-    'BS in Medicine' => 'BSMED',
-    'BS in Development Studies' => 'BSDS',
-    'BS in Sports Science' => 'BSSS',
-    'BS in Open Learning' => 'BSOL',
+    'Department of Nursing' => 'DN',
+    'Department of Basic Medical Sciences' => 'DBMS',
+    'Department of Clinical Sciences' => 'DCS',
+    'Department of Physical Education and Recreation' => 'DPER',
+    'Department of Veterinary Medicine' => 'DVM',
+    'Department of Biomedical Sciences' => 'DBS',
+    'Department of Various Graduate Programs' => 'DVGP',
     'General' => 'GEN'
 ];
 
@@ -164,13 +174,13 @@ if ($isCSGAdmin) {
 // ANALYTICS DATA
 // =========================
 
-// Get voters distribution by college (for CSG Admin) or by department (for college admin)
-if ($isCSGAdmin) {
+// Get voters distribution by college (for Faculty Association Admin) or by department (for college admin)
+if ($isFacultyAdmin) {
     $stmt = $pdo->prepare("SELECT
     department as college_name,
     COUNT(*) as count
     FROM users
-    WHERE role = 'voter' AND position = 'student'
+    WHERE role = 'voter' AND position = 'academic'
     GROUP BY college_name
     ORDER BY count DESC");
     $stmt->execute();
@@ -180,7 +190,7 @@ if ($isCSGAdmin) {
     COALESCE(NULLIF(department1, ''), department) as department_name,
     COUNT(*) as count
     FROM users
-    WHERE role = 'voter' AND position = 'student' AND UPPER(TRIM(department)) = ?
+    WHERE role = 'voter' AND position = 'academic' AND UPPER(TRIM(department)) = ?
     GROUP BY department_name
     ORDER BY count DESC");
     $stmt->execute([$scope]);
@@ -193,15 +203,15 @@ if ($isCSGAdmin) {
 // - $collegeDepartmentBar: { college_name, department_name, count }
 // - $collegeCourseBar    : { college_name, course, count }
 // =========================
-if ($isCSGAdmin) {
+if ($isFacultyAdmin) {
     $stmt = $pdo->query("SELECT department AS college_name, COALESCE(NULLIF(department1,''),'General') AS department_name, COUNT(*) AS count
-                       FROM users WHERE role='voter' AND position='student'
+                       FROM users WHERE role='voter' AND position='academic'
                        GROUP BY college_name, department_name
                        ORDER BY college_name, count DESC");
     $collegeDepartmentBar = $stmt->fetchAll();
 } else {
     $stmt = $pdo->prepare("SELECT COALESCE(NULLIF(department1,''),department) AS department_name, COUNT(*) AS count
-                         FROM users WHERE role='voter' AND position='student' AND UPPER(TRIM(department))=?
+                         FROM users WHERE role='voter' AND position='academic' AND UPPER(TRIM(department))=?
                          GROUP BY department_name ORDER BY count DESC");
     $stmt->execute([$scope]);
     $rows = $stmt->fetchAll();
@@ -215,33 +225,33 @@ if ($isCSGAdmin) {
     }, $rows);
 }
 
-if ($isCSGAdmin) {
-    $stmt = $pdo->query("SELECT department AS college_name, course
+if ($isFacultyAdmin) {
+    $stmt = $pdo->query("SELECT department AS college_name, status
                        FROM users
-                       WHERE role='voter' AND position='student' AND course IS NOT NULL AND course<>''");
+                       WHERE role='voter' AND position='academic' AND status IS NOT NULL AND status<>''");
     $rows = $stmt->fetchAll();
     $agg = [];
     foreach ($rows as $r) {
-        $courseName = $r['course'];
-        $key  = $r['college_name'].'|'.$courseName;
-        if (!isset($agg[$key])) $agg[$key] = ['college_name'=>$r['college_name'],'course'=>$courseName,'count'=>0];
+        $statusName = $r['status'];
+        $key  = $r['college_name'].'|'.$statusName;
+        if (!isset($agg[$key])) $agg[$key] = ['college_name'=>$r['college_name'],'status'=>$statusName,'count'=>0];
         $agg[$key]['count']++;
     }
-    $collegeCourseBar = array_values($agg);
+    $collegeStatusBar = array_values($agg);
 } else {
-    $stmt = $pdo->prepare("SELECT course
+    $stmt = $pdo->prepare("SELECT status
                          FROM users
-                         WHERE role='voter' AND position='student'
-                           AND UPPER(TRIM(department))=? AND course IS NOT NULL AND course<>''");
+                         WHERE role='voter' AND position='academic'
+                           AND UPPER(TRIM(department))=? AND status IS NOT NULL AND status<>''");
     $stmt->execute([$scope]);
     $rows = $stmt->fetchAll();
     $agg = [];
     foreach ($rows as $r) {
-        $courseName = $r['course'];
-        if (!isset($agg[$courseName])) $agg[$courseName] = ['college_name'=>$scope,'course'=>$courseName,'count'=>0];
-        $agg[$courseName]['count']++;
+        $statusName = $r['status'];
+        if (!isset($agg[$statusName])) $agg[$statusName] = ['college_name'=>$scope,'status'=>$statusName,'count'=>0];
+        $agg[$statusName]['count']++;
     }
-    $collegeCourseBar = array_values($agg);
+    $collegeStatusBar = array_values($agg);
 }
 
 // --- Fetch Voter Turnout Analytics Data (UPDATED) ---
@@ -263,17 +273,17 @@ foreach ($turnoutYears as $year) {
     $stmt->execute([$userId, $year]);
     $totalVoted = $stmt->fetch()['total_voted'];
     
-    // Get total students as of December 31 of this year
-    if ($isCSGAdmin) {
+    // Get total voters as of December 31 of this year
+    if ($isFacultyAdmin) {
         $stmt = $pdo->prepare("SELECT COUNT(*) as total_eligible 
                                FROM users 
-                               WHERE role = 'voter' AND position = 'student' 
+                               WHERE role = 'voter' AND position = 'academic' 
                                AND created_at <= ?");
         $stmt->execute([$year . '-12-31 23:59:59']);
     } else {
         $stmt = $pdo->prepare("SELECT COUNT(*) as total_eligible 
                                FROM users 
-                               WHERE role = 'voter' AND position = 'student' AND UPPER(TRIM(department)) = ? 
+                               WHERE role = 'voter' AND position = 'academic' AND UPPER(TRIM(department)) = ? 
                                AND created_at <= ?");
         $stmt->execute([$scope, $year . '-12-31 23:59:59']);
     }
@@ -327,9 +337,9 @@ foreach ($years as $year) {
     $previousYear = $year;
 }
 
-// --- College Turnout Data (for CSG Admin) ---
+// --- College Turnout Data (for Faculty Association Admin) ---
  $collegeTurnoutData = [];
-if ($isCSGAdmin) {
+if ($isFacultyAdmin) {
     $stmt = $pdo->prepare("
         SELECT
         u.department as college_name,
@@ -344,7 +354,7 @@ if ($isCSGAdmin) {
                 WHERE assigned_admin_id = ? AND YEAR(start_datetime) = ?
             )
         ) v ON u.user_id = v.voter_id
-        WHERE u.role = 'voter' AND u.position = 'student'
+        WHERE u.role = 'voter' AND u.position = 'academic'
         GROUP BY college_name
         ORDER BY college_name
     ");
@@ -362,9 +372,9 @@ if ($isCSGAdmin) {
     }
 }
 
-// --- Department Turnout Data (for CSG Admin) ---
+// --- Department Turnout Data (for Faculty Association Admin) ---
  $departmentTurnoutData = [];
-if ($isCSGAdmin) {
+if ($isFacultyAdmin) {
     $stmt = $pdo->prepare("
         SELECT
         u.department as college_name,
@@ -380,7 +390,7 @@ if ($isCSGAdmin) {
                 WHERE assigned_admin_id = ? AND YEAR(start_datetime) = ?
             )
         ) v ON u.user_id = v.voter_id
-        WHERE u.role = 'voter' AND u.position = 'student'
+        WHERE u.role = 'voter' AND u.position = 'academic'
         GROUP BY college_name, department_name
         ORDER BY college_name, department_name
     ");
@@ -400,9 +410,9 @@ if ($isCSGAdmin) {
 }
 
 /* ==========================================================
-COURSE TURNOUT DATA (UPDATED)
+STATUS TURNOUT DATA (UPDATED)
 ========================================================== */
- $courseTurnoutData = [];
+ $statusTurnoutData = [];
 
 // First, get all distinct voters who voted in any elections assigned to this admin in this year
  $stmt = $pdo->prepare("
@@ -415,53 +425,53 @@ COURSE TURNOUT DATA (UPDATED)
  $votedIds = array_column($stmt->fetchAll(), 'voter_id');
  $votedSet = array_flip($votedIds);
 
-// Get all course data first without grouping
+// Get all status data first without grouping
  $stmt = $pdo->prepare("
    SELECT
    u.user_id,
    u.department as college_name,
    COALESCE(NULLIF(u.department1, ''), 'General') as department_name,
-   u.course
+   u.status
    FROM users u
-   WHERE u.role = 'voter' AND u.position = 'student'
-   AND u.course IS NOT NULL AND u.course <> ''");
+   WHERE u.role = 'voter' AND u.position = 'academic'
+   AND u.status IS NOT NULL AND u.status <> ''");
  $stmt->execute();
  $rows = $stmt->fetchAll();
 
-// Group by course names
- $courseGroups = [];
+// Group by status names
+ $statusGroups = [];
 foreach ($rows as $row) {
     $college = $row['college_name'] ?? 'UNKNOWN';
     $department = $row['department_name'];
-    $courseName = $row['course'];
+    $statusName = $row['status'];
     
-    $key = $college . '|' . $department . '|' . $courseName;
+    $key = $college . '|' . $department . '|' . $statusName;
     
-    if (!isset($courseGroups[$key])) {
-        $courseGroups[$key] = [
+    if (!isset($statusGroups[$key])) {
+        $statusGroups[$key] = [
             'college_name' => $college,
             'department_name' => $department,
-            'course' => $courseName,
+            'status' => $statusName,
             'eligible_count' => 0,
             'voted_count' => 0
         ];
     }
-    $courseGroups[$key]['eligible_count']++;
+    $statusGroups[$key]['eligible_count']++;
     if (isset($votedSet[$row['user_id']])) {
-        $courseGroups[$key]['voted_count']++;
+        $statusGroups[$key]['voted_count']++;
     }
 }
 
 // Convert to array and calculate turnout rates
-foreach ($courseGroups as $key => $data) {
+foreach ($statusGroups as $key => $data) {
     $turnoutRate = ($data['eligible_count'] > 0)
         ? round(($data['voted_count'] / $data['eligible_count']) * 100, 1)
         : 0.0;
     
-    $courseTurnoutData[] = [
+    $statusTurnoutData[] = [
         'college_name' => $data['college_name'],
         'department_name' => $data['department_name'],
-        'course' => $data['course'],
+        'status' => $data['status'],
         'eligible_count' => (int)$data['eligible_count'],
         'voted_count' => (int)$data['voted_count'],
         'turnout_rate' => (float)$turnoutRate,
@@ -469,14 +479,14 @@ foreach ($courseGroups as $key => $data) {
 }
 
 // Sort by eligible count DESC
-usort($courseTurnoutData, function($a, $b) {
+usort($statusTurnoutData, function($a, $b) {
     return $b['eligible_count'] <=> $a['eligible_count'];
 });
 
 // Set page title based on scope
-if ($isCSGAdmin) {
-    $pageTitle = "CSG ADMIN DASHBOARD";
-    $pageSubtitle = "Central Student Government - All Colleges";
+if ($isFacultyAdmin) {
+    $pageTitle = "FACULTY ASSOCIATION ADMIN DASHBOARD";
+    $pageSubtitle = "Faculty Association - All Colleges";
     $collegeFullName = "All Colleges";
 } else {
     $pageTitle = htmlspecialchars($collegeFullNameMap[$scope] ?? $scope) . " ADMIN DASHBOARD";
@@ -622,15 +632,15 @@ if ($isCSGAdmin) {
 
   <!-- Statistics Cards (MOVED TO TOP) -->
   <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-    <!-- Total Students -->
+    <!-- Total Voters -->
     <div class="cvsu-card p-6 rounded-xl">
       <div class="flex items-center justify-between">
         <div>
-          <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Students</h2>
+          <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Voters</h2>
           <p class="text-2xl md:text-4xl font-bold" style="color: var(--cvsu-green-dark);"><?= number_format($total_voters) ?></p>
         </div>
         <div class="p-3 rounded-full" style="background-color: rgba(30, 111, 70, 0.1);">
-          <i class="fas fa-user-graduate text-2xl" style="color: var(--cvsu-green);"></i>
+          <i class="fas fa-users text-2xl" style="color: var(--cvsu-green);"></i>
         </div>
       </div>
     </div>
@@ -666,14 +676,14 @@ if ($isCSGAdmin) {
   <div class="analytics-section mb-8 bg-white rounded-xl shadow-lg overflow-hidden">
     <div class="cvsu-gradient p-6">
       <div class="flex justify-between items-center">
-        <h2 class="text-2xl font-bold text-white">CSG Admin Analytics</h2>
+        <h2 class="text-2xl font-bold text-white">Faculty Association Admin Analytics</h2>
         <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
           <div class="flex items-center">
             <label for="detailedBreakdownSelect" class="mr-3 text-sm font-medium text-white">Breakdown by:</label>
             <select id="detailedBreakdownSelect" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
               <option value="all">All Colleges</option>
               <option value="department">College and Department</option>
-              <option value="course">College and Courses</option>
+              <option value="status">College and Status</option>
             </select>
           </div>
           <div id="detailedCollegeSelector" class="flex items-center">
@@ -700,20 +710,20 @@ if ($isCSGAdmin) {
               <p class="text-sm" style="color: var(--cvsu-green);">New This Month</p>
               <p class="text-2xl font-bold" style="color: var(--cvsu-green-dark);">
                 <?php
-                // Calculate new students this month
+                // Calculate new voters this month
                 $currentMonthStart = date('Y-m-01');
                 $currentMonthEnd = date('Y-m-t');
                 
-                if ($isCSGAdmin) {
+                if ($isFacultyAdmin) {
                     $stmt = $pdo->prepare("SELECT COUNT(*) as new_voters 
                                           FROM users 
-                                          WHERE role = 'voter' AND position = 'student'
+                                          WHERE role = 'voter' AND position = 'academic'
                                             AND created_at BETWEEN ? AND ?");
                     $stmt->execute([$currentMonthStart, $currentMonthEnd]);
                 } else {
                     $stmt = $pdo->prepare("SELECT COUNT(*) as new_voters 
                                           FROM users 
-                                          WHERE role = 'voter' AND position = 'student' AND UPPER(TRIM(department)) = ?
+                                          WHERE role = 'voter' AND position = 'academic' AND UPPER(TRIM(department)) = ?
                                             AND created_at BETWEEN ? AND ?");
                     $stmt->execute([$scope, $currentMonthStart, $currentMonthEnd]);
                 }
@@ -732,7 +742,7 @@ if ($isCSGAdmin) {
             </div>
             <div>
               <p class="text-sm text-blue-600">Departments</p>
-              <p class="text-2xl font-bold text-blue-800"><?= count($isCSGAdmin ? $votersByCollege : $votersByDepartment) ?></p>
+              <p class="text-2xl font-bold text-blue-800"><?= count($isFacultyAdmin ? $votersByCollege : $votersByDepartment) ?></p>
             </div>
           </div>
         </div>
@@ -740,11 +750,11 @@ if ($isCSGAdmin) {
         <div class="p-4 rounded-lg border" style="background-color: rgba(139,92,246,0.05); border-color: #8B5CF6;">
           <div class="flex items-center">
             <div class="p-3 rounded-lg mr-4 bg-purple-500">
-              <i class="fas fa-graduation-cap text-white text-xl"></i>
+              <i class="fas fa-id-badge text-white text-xl"></i>
             </div>
             <div>
-              <p class="text-sm text-purple-600">Courses</p>
-              <p class="text-2xl font-bold text-purple-800"><?= count($collegeCourseBar) ?></p>
+              <p class="text-sm text-purple-600">Status Types</p>
+              <p class="text-2xl font-bold text-purple-800"><?= count($collegeStatusBar) ?></p>
             </div>
           </div>
         </div>
@@ -762,17 +772,17 @@ if ($isCSGAdmin) {
                 $lastMonthStart = date('Y-m-01', strtotime('-1 month'));
                 $lastMonthEnd = date('Y-m-t', strtotime('-1 month'));
                 
-                if ($isCSGAdmin) {
+                if ($isFacultyAdmin) {
                     $stmt = $pdo->prepare("SELECT COUNT(*) as last_month_voters 
                                           FROM users 
-                                          WHERE role = 'voter' AND position = 'student'
+                                          WHERE role = 'voter' AND position = 'academic'
                                             AND created_at BETWEEN ? AND ?");
                     $stmt->execute([$lastMonthStart, $lastMonthEnd]);
                     $lastMonthVoters = $stmt->fetch()['last_month_voters'];
                 } else {
                     $stmt = $pdo->prepare("SELECT COUNT(*) as last_month_voters 
                                           FROM users 
-                                          WHERE role = 'voter' AND position = 'student' AND UPPER(TRIM(department)) = ?
+                                          WHERE role = 'voter' AND position = 'academic' AND UPPER(TRIM(department)) = ?
                                             AND created_at BETWEEN ? AND ?");
                     $stmt->execute([$scope, $lastMonthStart, $lastMonthEnd]);
                     $lastMonthVoters = $stmt->fetch()['last_month_voters'];
@@ -794,7 +804,7 @@ if ($isCSGAdmin) {
         <!-- Donut Chart -->
         <div class="p-4 rounded-lg border" style="background-color: rgba(30,111,70,0.05);">
           <h3 class="text-lg font-semibold text-gray-800 mb-4">
-            <?php if ($isCSGAdmin): ?>Voters by College<?php else: ?>Voters by Department<?php endif; ?>
+            <?php if ($isFacultyAdmin): ?>Voters by College<?php else: ?>Voters by Department<?php endif; ?>
           </h3>
           <div class="chart-container">
             <canvas id="donutChart"></canvas>
@@ -818,7 +828,7 @@ if ($isCSGAdmin) {
               <tr id="detailedTableHeader">
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">College</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Course</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Voters</th>
               </tr>
             </thead>
@@ -919,8 +929,8 @@ if ($isCSGAdmin) {
               <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Year</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Elections</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Eligible Students</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Students Participated</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Eligible Voters</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Voters Participated</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Turnout Rate</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Growth</th>
               </tr>
@@ -961,18 +971,18 @@ if ($isCSGAdmin) {
               <label for="dataSeriesSelect" class="mr-3 text-sm font-medium text-gray-700">Data Series:</label>
               <select id="dataSeriesSelect" class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm">
                 <option value="elections">Elections vs Turnout</option>
-                <option value="voters">Students vs Turnout</option>
+                <option value="voters">Voters vs Turnout</option>
               </select>
             </div>
             <div class="flex items-center">
               <label for="breakdownSelect" class="mr-3 text-sm font-medium text-gray-700">Breakdown by:</label>
               <select id="breakdownSelect" class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm">
                 <option value="year">Year</option>
-                <?php if ($isCSGAdmin): ?>
+                <?php if ($isFacultyAdmin): ?>
                 <option value="college">College</option>
                 <option value="department">Department</option>
                 <?php endif; ?>
-                <option value="course">Course</option>
+                <option value="status">Status</option>
               </select>
             </div>
             <div id="turnoutCollegeSelector" class="flex items-center" style="display: none;">
@@ -1009,11 +1019,11 @@ document.addEventListener('DOMContentLoaded', function() {
   // Data from PHP
   const turnoutYears = <?= json_encode(array_keys($turnoutDataByYear)) ?>;
   const turnoutRates = <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?>;
-  const courseTurnoutData = <?= json_encode($courseTurnoutData) ?>;
+  const statusTurnoutData = <?= json_encode($statusTurnoutData) ?>;
   
   // College and department data for filtering
   const collegeDepartmentData = <?= json_encode($collegeDepartmentBar) ?>;
-  const collegeCourseData = <?= json_encode($collegeCourseBar) ?>;
+  const collegeStatusData = <?= json_encode($collegeStatusBar) ?>;
   
   // Department abbreviation map
   const departmentAbbrevMap = {
@@ -1047,28 +1057,43 @@ document.addEventListener('DOMContentLoaded', function() {
     'GS-OLC': 'Graduate School and Open Learning College',
   };
   
-  // Department/Course abbreviation map
-  const deptCourseAbbrevMap = {
+  // Department/Status abbreviation map
+  const deptStatusAbbrevMap = {
+    'Department of Animal Science': 'DAS',
+    'Department of Crop Science': 'DCS',
+    'Department of Food Science and Technology': 'DFST',
+    'Department of Forestry and Environmental Science': 'DFES',
+    'Department of Agricultural Economics and Development': 'DAED',
+    'Department of Biological Sciences': 'DBS',
+    'Department of Physical Sciences': 'DPS',
+    'Department of Languages and Mass Communication': 'DLMC',
+    'Department of Social Sciences': 'DSS',
+    'Department of Mathematics and Statistics': 'DMS',
+    'Department of Criminal Justice': 'DCJ',
+    'Department of Economics': 'DEC',
+    'Department of Business and Management': 'DBM',
+    'Department of Development Studies': 'DDS',
+    'Department of Science Education': 'DSE',
+    'Department of Technology and Livelihood Education': 'DTLE',
+    'Department of Curriculum and Instruction': 'DCI',
+    'Department of Human Kinetics': 'DHK',
+    'Department of Civil Engineering': 'DCE',
+    'Department of Computer and Electronics Engineering': 'DCEE',
+    'Department of Industrial Engineering and Technology': 'DIET',
+    'Department of Mechanical and Electronics Engineering': 'DMEE',
     'Department of Information Technology': 'DIT',
-    'Department of Engineering': 'DE',
-    'Department of Computer Science': 'DCS',
-    'BS in Information Technology': 'BSIT',
-    'BS in Computer Science': 'BSCS',
-    'BS in Engineering': 'BSE',
-    'BS in Agriculture': 'BSA',
-    'BS in Arts': 'BSA',
-    'BS in Education': 'BSED',
-    'BS in Nursing': 'BSN',
-    'BS in Tourism': 'BST',
-    'BS in Criminal Justice': 'BSCRIM',
-    'BS in Veterinary Medicine': 'BSVM',
-    'BS in Economics': 'BSECON',
-    'BS in Management': 'BSM',
-    'BS in Physical Education': 'BSPE',
-    'BS in Medicine': 'BSMED',
-    'BS in Development Studies': 'BSDS',
-    'BS in Sports Science': 'BSSS',
-    'BS in Open Learning': 'BSOL',
+    'Department of Nursing': 'DN',
+    'Department of Basic Medical Sciences': 'DBMS',
+    'Department of Clinical Sciences': 'DCS',
+    'Department of Physical Education and Recreation': 'DPER',
+    'Department of Veterinary Medicine': 'DVM',
+    'Department of Biomedical Sciences': 'DBS',
+    'Department of Various Graduate Programs': 'DVGP',
+    'Full-time': 'FT',
+    'Part-time': 'PT',
+    'Regular': 'REG',
+    'Probationary': 'PROB',
+    'Contractual': 'CON',
     'General': 'GEN'
   };
   
@@ -1082,9 +1107,9 @@ document.addEventListener('DOMContentLoaded', function() {
       return departmentAbbrevMap[name];
     }
     
-    // Then check if it's a department/course name
-    if (deptCourseAbbrevMap[name]) {
-      return deptCourseAbbrevMap[name];
+    // Then check if it's a department/status name
+    if (deptStatusAbbrevMap[name]) {
+      return deptStatusAbbrevMap[name];
     }
     
     // Words to exclude from abbreviations
@@ -1122,21 +1147,10 @@ document.addEventListener('DOMContentLoaded', function() {
       return "D" + abbr;
     }
     
-    // For courses that start with "BS in "
-    if (name.startsWith("BS in ")) {
-      let rest = name.substring(6).trim();
-      let words = rest.split(' ');
-      let abbr = words
-        .filter(word => !excludeWords.includes(word.toLowerCase()))
-        .map(word => word.charAt(0))
-        .join('')
-        .toUpperCase();
-      return "BS" + abbr;
-    }
-    
     // Handle special cases not covered above
-    if (name === "General") {
-      return "GEN";
+    if (name === "General" || name === "Full-time" || name === "Part-time" || 
+        name === "Regular" || name === "Probationary" || name === "Contractual") {
+      return deptStatusAbbrevMap[name] || name;
     }
     
     // Default: return the full name
@@ -1164,11 +1178,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }},
     voters:{
       year:{ labels: <?= json_encode(array_keys($turnoutDataByYear)) ?>, eligibleCounts: <?= json_encode(array_column($turnoutDataByYear, 'total_eligible')) ?>, turnoutRates: <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?> },
-      <?php if ($isCSGAdmin): ?>
+      <?php if ($isFacultyAdmin): ?>
       college: <?= json_encode($collegeTurnoutData) ?>,
       department: <?= json_encode($departmentTurnoutData) ?>,
       <?php endif; ?>
-      course: <?= json_encode($courseTurnoutData) ?>
+      status: <?= json_encode($statusTurnoutData) ?>
     }
   };
   let currentDataSeries = 'elections';
@@ -1193,7 +1207,7 @@ document.addEventListener('DOMContentLoaded', function() {
       select.appendChild(allOption);
       
       // Add individual colleges
-      <?php if ($isCSGAdmin): ?>
+      <?php if ($isFacultyAdmin): ?>
       const colleges = <?= json_encode($allColleges) ?>;
       colleges.forEach(college => {
         const option = document.createElement('option');
@@ -1208,8 +1222,8 @@ document.addEventListener('DOMContentLoaded', function() {
       select.appendChild(option);
       <?php endif; ?>
     } else {
-      // For department and course, only show specific colleges
-      <?php if ($isCSGAdmin): ?>
+      // For department and status, only show specific colleges
+      <?php if ($isFacultyAdmin): ?>
       const colleges = <?= json_encode($allColleges) ?>;
       colleges.forEach(college => {
         const option = document.createElement('option');
@@ -1230,7 +1244,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateCollegeSelectorVisibility() {
     const breakdownValue = breakdownSelect.value;
     
-    if (breakdownValue === 'college' || breakdownValue === 'department' || breakdownValue === 'course') {
+    if (breakdownValue === 'college' || breakdownValue === 'department' || breakdownValue === 'status') {
       turnoutCollegeSelector.style.display = 'flex';
       updateCollegeSelectorOptions(breakdownValue);
     } else {
@@ -1300,19 +1314,19 @@ document.addEventListener('DOMContentLoaded', function() {
         data = {
           labels: chartData.voters.year.labels,
           datasets:[
-            { label:'Eligible Students', data: chartData.voters.year.eligibleCounts, backgroundColor:'#1E6F46', borderColor:'#154734', borderWidth:1, borderRadius:4, yAxisID:'y' },
+            { label:'Eligible Voters', data: chartData.voters.year.eligibleCounts, backgroundColor:'#1E6F46', borderColor:'#154734', borderWidth:1, borderRadius:4, yAxisID:'y' },
             { label:'Turnout Rate (%)', data: chartData.voters.year.turnoutRates, backgroundColor:'#FFD166', borderColor:'#F59E0B', borderWidth:1, borderRadius:4, yAxisID:'y1' }
           ]
         };
         options = {
           responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{ position:'top', labels:{ font:{size:12}, padding:15 }}, title:{ display:true, text:'Eligible Students vs Turnout Rate by Year', font:{ size:16, weight:'bold' }, padding:{top:10,bottom:20}}},
-          scales:{ y:{ beginAtZero:true, position:'left', title:{display:true, text:'Number of Students', font:{size:14, weight:'bold'}}},
+          plugins:{ legend:{ position:'top', labels:{ font:{size:12}, padding:15 }}, title:{ display:true, text:'Eligible Voters vs Turnout Rate by Year', font:{ size:16, weight:'bold' }, padding:{top:10,bottom:20}}},
+          scales:{ y:{ beginAtZero:true, position:'left', title:{display:true, text:'Number of Voters', font:{size:14, weight:'bold'}}},
                    y1:{ beginAtZero:true, max:100, position:'right', title:{display:true, text:'Turnout Rate (%)', font:{size:14, weight:'bold'}}, ticks:{ callback:(v)=> v+'%' }, grid:{ drawOnChartArea:false }},
                    x:{ grid:{display:false}}}
         };
       } 
-      <?php if ($isCSGAdmin): ?>
+      <?php if ($isFacultyAdmin): ?>
       else if (currentBreakdown === 'college') {
         let filteredData, labels, eligible, tr;
         
@@ -1333,14 +1347,14 @@ document.addEventListener('DOMContentLoaded', function() {
         data = {
           labels,
           datasets:[
-            { label:'Eligible Students', data: eligible, backgroundColor:'#1E6F46', borderColor:'#154734', borderWidth:1, borderRadius:4, yAxisID:'y' },
+            { label:'Eligible Voters', data: eligible, backgroundColor:'#1E6F46', borderColor:'#154734', borderWidth:1, borderRadius:4, yAxisID:'y' },
             { label:'Turnout Rate (%)', data: tr, backgroundColor:'#FFD166', borderColor:'#F59E0B', borderWidth:1, borderRadius:4, yAxisID:'y1' }
           ]
         };
         options = {
           responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{ position:'top', labels:{ font:{size:12}, padding:15 }}, title:{ display:true, text:`Eligible Students vs Turnout Rate by College (${selectedCollege === 'all' ? 'All Colleges' : selectedCollege})`, font:{ size:16, weight:'bold' }, padding:{top:10,bottom:20}}},
-          scales:{ y:{ beginAtZero:true, position:'left', title:{display:true, text:'Number of Students', font:{size:14, weight:'bold'}}},
+          plugins:{ legend:{ position:'top', labels:{ font:{size:12}, padding:15 }}, title:{ display:true, text:`Eligible Voters vs Turnout Rate by College (${selectedCollege === 'all' ? 'All Colleges' : selectedCollege})`, font:{ size:16, weight:'bold' }, padding:{top:10,bottom:20}}},
+          scales:{ y:{ beginAtZero:true, position:'left', title:{display:true, text:'Number of Voters', font:{size:14, weight:'bold'}}},
                    y1:{ beginAtZero:true, max:100, position:'right', title:{display:true, text:'Turnout Rate (%)', font:{size:14, weight:'bold'}}, ticks:{ callback:(v)=> v+'%' }, grid:{ drawOnChartArea:false }},
                    x:{ grid:{display:false}}}
         };
@@ -1354,39 +1368,40 @@ document.addEventListener('DOMContentLoaded', function() {
         data = {
           labels,
           datasets:[
-            { label:'Eligible Students', data: eligible, backgroundColor:'#1E6F46', borderColor:'#154734', borderWidth:1, borderRadius:4, yAxisID:'y' },
+            { label:'Eligible Voters', data: eligible, backgroundColor:'#1E6F46', borderColor:'#154734', borderWidth:1, borderRadius:4, yAxisID:'y' },
             { label:'Turnout Rate (%)', data: tr, backgroundColor:'#FFD166', borderColor:'#F59E0B', borderWidth:1, borderRadius:4, yAxisID:'y1' }
           ]
         };
         options = {
           responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{ position:'top', labels:{ font:{size:12}, padding:15 }}, title:{ display:true, text:`Eligible Students vs Turnout Rate by Department (${selectedCollege})`, font:{ size:16, weight:'bold' }, padding:{top:10,bottom:20}}},
-          scales:{ y:{ beginAtZero:true, position:'left', title:{display:true, text:'Number of Students', font:{size:14, weight:'bold'}}},
+          plugins:{ legend:{ position:'top', labels:{ font:{size:12}, padding:15 }}, title:{ display:true, text:`Eligible Voters vs Turnout Rate by Department (${selectedCollege})`, font:{ size:16, weight:'bold' }, padding:{top:10,bottom:20}}},
+          scales:{ y:{ beginAtZero:true, position:'left', title:{display:true, text:'Number of Voters', font:{size:14, weight:'bold'}}},
                    y1:{ beginAtZero:true, max:100, position:'right', title:{display:true, text:'Turnout Rate (%)', font:{size:14, weight:'bold'}}, ticks:{ callback:(v)=> v+'%' }, grid:{ drawOnChartArea:false }},
                    x:{ grid:{display:false}}}
         };
       }
       <?php endif; ?>
-      else if (currentBreakdown === 'course') {
+      else if (currentBreakdown === 'status') {
         // Filter data by selected college
-        const filteredData = chartData.voters.course.filter(item => item.college_name === selectedCollege);
-        const labels = filteredData.map(item => getDepartmentAbbrevJS(item.course));
+        const filteredData = chartData.voters.status.filter(item => item.college_name === selectedCollege);
+        // Use full status names instead of abbreviations
+        const labels = filteredData.map(item => item.status);
         const eligible = filteredData.map(item => item.eligible_count);
         const tr = filteredData.map(item => item.turnout_rate);
         
         data = {
           labels,
           datasets:[
-            { label:'Eligible Students', data: eligible, backgroundColor:'#1E6F46', borderColor:'#154734', borderWidth:1, borderRadius:4, yAxisID:'y' },
+            { label:'Eligible Voters', data: eligible, backgroundColor:'#1E6F46', borderColor:'#154734', borderWidth:1, borderRadius:4, yAxisID:'y' },
             { label:'Turnout Rate (%)', data: tr, backgroundColor:'#FFD166', borderColor:'#F59E0B', borderWidth:1, borderRadius:4, yAxisID:'y1' }
           ]
         };
         options = {
           responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{ position:'top', labels:{ font:{size:12}, padding:15 }}, title:{ display:true, text:`Eligible Students vs Turnout Rate by Course (${selectedCollege})`, font:{ size:16, weight:'bold' }, padding:{top:10,bottom:20}}},
-          scales:{ y:{ beginAtZero:true, position:'left', title:{display:true, text:'Number of Students', font:{size:14, weight:'bold'}}},
+          plugins:{ legend:{ position:'top', labels:{ font:{size:12}, padding:15 }}, title:{ display:true, text:`Eligible Voters vs Turnout Rate by Status (${selectedCollege})`, font:{ size:16, weight:'bold' }, padding:{top:10,bottom:20}}},
+          scales:{ y:{ beginAtZero:true, position:'left', title:{display:true, text:'Number of Voters', font:{size:14, weight:'bold'}}},
                    y1:{ beginAtZero:true, max:100, position:'right', title:{display:true, text:'Turnout Rate (%)', font:{size:14, weight:'bold'}}, ticks:{ callback:(v)=> v+'%' }, grid:{ drawOnChartArea:false }},
-                   x:{ grid:{display:false}, ticks:{ callback:(v)=> labels[v] }}}
+                   x:{ grid:{display:false}}}
         };
       }
     }
@@ -1406,7 +1421,7 @@ document.addEventListener('DOMContentLoaded', function() {
       rows = chartData.elections.year.labels.map((label,i)=> [label, chartData.elections.year.electionCounts[i].toLocaleString(), chartData.elections.year.turnoutRates[i] + '%']);
     } else {
       if (currentBreakdown === 'year') {
-        headers = ['Year','Eligible Students','Voted','Turnout Rate'];
+        headers = ['Year','Eligible Voters','Voted','Turnout Rate'];
         // Calculate voted count from eligible count and turnout rate
         rows = chartData.voters.year.labels.map((label,i)=> {
           const eligible = chartData.voters.year.eligibleCounts[i];
@@ -1415,10 +1430,10 @@ document.addEventListener('DOMContentLoaded', function() {
           return [label, eligible.toLocaleString(), voted.toLocaleString(), turnoutRate + '%'];
         });
       } 
-      <?php if ($isCSGAdmin): ?>
+      <?php if ($isFacultyAdmin): ?>
       else if (currentBreakdown === 'college') {
         if (selectedCollege === 'all') {
-          headers = ['College','Eligible Students','Voted','Turnout Rate'];
+          headers = ['College','Eligible Voters','Voted','Turnout Rate'];
           rows = chartData.voters.college.map(row => [
             collegeFullNameMap[row.college] || row.college, 
             row.eligible_count.toLocaleString(), 
@@ -1426,7 +1441,7 @@ document.addEventListener('DOMContentLoaded', function() {
             row.turnout_rate + '%'
           ]);
         } else {
-          headers = ['College','Eligible Students','Voted','Turnout Rate'];
+          headers = ['College','Eligible Voters','Voted','Turnout Rate'];
           const filteredData = chartData.voters.college.filter(item => item.college === selectedCollege);
           rows = filteredData.map(row => [
             collegeFullNameMap[row.college] || row.college, 
@@ -1438,7 +1453,7 @@ document.addEventListener('DOMContentLoaded', function() {
       } else if (currentBreakdown === 'department') {
         // Filter data by selected college
         const filteredData = chartData.voters.department.filter(item => item.college === selectedCollege);
-        headers = ['Department','Eligible Students','Voted','Turnout Rate'];
+        headers = ['Department','Eligible Voters','Voted','Turnout Rate'];
         rows = filteredData.map(row => [
             row.department, 
             row.eligible_count.toLocaleString(), 
@@ -1447,12 +1462,12 @@ document.addEventListener('DOMContentLoaded', function() {
         ]);
       }
       <?php endif; ?>
-      else if (currentBreakdown === 'course') {
+      else if (currentBreakdown === 'status') {
         // Filter data by selected college
-        const filteredData = chartData.voters.course.filter(item => item.college_name === selectedCollege);
-        headers = ['Course','Eligible Students','Voted','Turnout Rate'];
+        const filteredData = chartData.voters.status.filter(item => item.college_name === selectedCollege);
+        headers = ['Status','Eligible Voters','Voted','Turnout Rate'];
         rows = filteredData.map(row => [
-            row.course, 
+            row.status, 
             row.eligible_count.toLocaleString(), 
             row.voted_count.toLocaleString(), 
             row.turnout_rate + '%'
@@ -1503,14 +1518,14 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Data for donut chart
   const donutData = {
-    labels: <?= json_encode($isCSGAdmin ? array_column($votersByCollege, 'college_name') : array_column($votersByDepartment, 'department_name')) ?>,
-    counts: <?= json_encode($isCSGAdmin ? array_column($votersByCollege, 'count') : array_column($votersByDepartment, 'count')) ?>
+    labels: <?= json_encode($isFacultyAdmin ? array_column($votersByCollege, 'college_name') : array_column($votersByDepartment, 'department_name')) ?>,
+    counts: <?= json_encode($isFacultyAdmin ? array_column($votersByCollege, 'count') : array_column($votersByDepartment, 'count')) ?>
   };
 
   // Data for bar chart
   const barData = {
     department: <?= json_encode($collegeDepartmentBar) ?>,
-    course: <?= json_encode($collegeCourseBar) ?>
+    status: <?= json_encode($collegeStatusBar) ?>
   };
 
   // Create donut chart
@@ -1577,15 +1592,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // Filter the data by college
         data = barData[breakdownType].filter(item => item.college_name === college);
         
-        // For department breakdown, we use department_name as label
-        // For course breakdown, we use course as label
-        labels = data.map(item => {
-          if (breakdownType === 'department') {
-            return getDepartmentAbbrevJS(item.department_name);
-          } else {
-            return getDepartmentAbbrevJS(item.course);
-          }
-        });
+        if (breakdownType === 'status') {
+          // For status breakdown, use full status names
+          labels = data.map(item => item.status);
+        } else if (breakdownType === 'department') {
+          // For department breakdown, use abbreviations
+          labels = data.map(item => getDepartmentAbbrevJS(item.department_name));
+        }
       }
       
       const counts = data.map(item => item.count);
@@ -1620,7 +1633,7 @@ document.addEventListener('DOMContentLoaded', function() {
           },
           title: {
             display: true,
-            text: initialBreakdown === 'all' ? 'All Colleges' : (initialBreakdown === 'department' ? 'Departments' : 'Courses'),
+            text: initialBreakdown === 'all' ? 'All Colleges' : (initialBreakdown === 'department' ? 'Departments' : 'Status'),
             font: {
               size: 16,
               weight: 'bold'
@@ -1638,7 +1651,7 @@ document.addEventListener('DOMContentLoaded', function() {
           x: {
             title: {
               display: true,
-              text: initialBreakdown === 'all' ? 'College' : (initialBreakdown === 'department' ? 'Department' : 'Course')
+              text: initialBreakdown === 'all' ? 'College' : (initialBreakdown === 'department' ? 'Department' : 'Status')
             },
             ticks: {
               maxRotation: 0,
@@ -1660,7 +1673,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const value = detailedBreakdownSelect.value;
       
       // Enable/disable the college selector based on breakdown type
-      if (value === 'department' || value === 'course') {
+      if (value === 'department' || value === 'status') {
         detailedCollegeSelect.disabled = false;
         detailedCollegeLabel.classList.remove('label-disabled');
       } else {
@@ -1688,8 +1701,8 @@ document.addEventListener('DOMContentLoaded', function() {
       
       barChart.data.labels = barData.labels;
       barChart.data.datasets[0].data = barData.counts;
-      barChart.options.plugins.title.text = breakdownType === 'all' ? 'All Colleges' : (breakdownType === 'department' ? 'Departments' : 'Courses');
-      barChart.options.scales.x.title.text = breakdownType === 'all' ? 'College' : (breakdownType === 'department' ? 'Department' : 'Course');
+      barChart.options.plugins.title.text = breakdownType === 'all' ? 'All Colleges' : (breakdownType === 'department' ? 'Departments' : 'Status');
+      barChart.options.scales.x.title.text = breakdownType === 'all' ? 'College' : (breakdownType === 'department' ? 'Department' : 'Status');
       barChart.update();
       
       // Update detailed table
@@ -1712,7 +1725,7 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         
         // Add all colleges data
-        <?php if ($isCSGAdmin): ?>
+        <?php if ($isFacultyAdmin): ?>
         const allCollegesData = <?= json_encode($votersByCollege) ?>;
         allCollegesData.forEach(item => {
           const row = document.createElement('tr');
@@ -1754,21 +1767,21 @@ document.addEventListener('DOMContentLoaded', function() {
           `;
           tableBody.appendChild(row);
         });
-      } else if (breakdownType === 'course') {
+      } else if (breakdownType === 'status') {
         tableHeader.innerHTML = `
           <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">College</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Course</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
           <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Voters</th>
         `;
         
-        // Add course data
-        const courseData = barData.course.filter(item => item.college_name === college);
-        courseData.forEach(item => {
+        // Add status data - using full status names
+        const statusData = barData.status.filter(item => item.college_name === college);
+        statusData.forEach(item => {
           const row = document.createElement('tr');
           row.className = 'hover:bg-gray-50';
           row.innerHTML = `
             <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">${collegeFullNameMap[item.college_name] || item.college_name}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-gray-700">${item.course}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-gray-700">${item.status}</td>
             <td class="px-6 py-4 whitespace-nowrap text-gray-700">${item.count.toLocaleString()}</td>
           `;
           tableBody.appendChild(row);
@@ -1781,7 +1794,7 @@ document.addEventListener('DOMContentLoaded', function() {
     handleDetailedBreakdownChange();
     
     // If the user is a college admin, disable the college selector
-    <?php if (!$isCSGAdmin): ?>
+    <?php if (!$isFacultyAdmin): ?>
       detailedCollegeSelect.disabled = true;
       detailedCollegeLabel.classList.add('label-disabled');
     <?php endif; ?>

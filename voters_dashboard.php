@@ -301,7 +301,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'voter') {
 // Add migs_status to session
  $_SESSION['migs_status'] = $voter_data['migs_status'] ?? 0;
  $is_coop_member = ($_SESSION['migs_status'] ?? 0) == 1; // Only MIGS members are COOP members for voting
- $forcePasswordChange = $voter_data['force_password_change'] ?? 0;
+ $forcePasswordChange = $voter_data['force_password_change'] ?? 0; // FIXED: Only check force_password_change value
 
 // Get voter's position, department, status, and course directly from the database
  $voter_position = $voter_data['position'] ?? '';
@@ -1186,10 +1186,10 @@ include 'voters_sidebar.php';
     
     // Set default view to ongoing elections
     document.addEventListener('DOMContentLoaded', () => {
-      // Check if password change is required
+      // Check if password change is required - FIXED: Only check forcePasswordChange value
       const forcePasswordChange = <?= $forcePasswordChange ?>;
       
-      if (forcePasswordChange) {
+      if (forcePasswordChange === 1) {
         document.getElementById('forcePasswordChangeModal').classList.remove('hidden');
         // Prevent interaction with the rest of the page
         document.body.style.pointerEvents = 'none';
@@ -1487,7 +1487,7 @@ include 'voters_sidebar.php';
     function closePasswordModal() {
       // Prevent closing if password change is required
       const forcePasswordChange = <?= $forcePasswordChange ?>;
-      if (forcePasswordChange) {
+      if (forcePasswordChange === 1) {
         return;
       }
       document.getElementById('forcePasswordChangeModal').classList.add('hidden');

@@ -25,6 +25,23 @@ try {
     die("Database connection failed: " . $e->getMessage());
 }
 
+// Status mapping and validation - same as in CSV upload
+ $statusMapping = [
+    'full-time' => 'Regular',
+    'part-time' => 'Part-time',
+    'contractual' => 'Contractual',
+    'regular' => 'Regular',
+    'full time' => 'Regular',
+    'part time' => 'Part-time',
+    'permanent' => 'Regular',
+    'temporary' => 'Contractual',
+    'probationary' => 'Contractual',
+    'casual' => 'Contractual',
+];
+
+// Allowed statuses
+ $allowedStatuses = ['Regular', 'Part-time', 'Contractual'];
+
  $errors = [];
  $success = false;
 
@@ -81,7 +98,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($position === 'academic') {
         $department = $_POST['academicCollege'] ?? '';
         $department1 = $_POST['academicDepartment'] ?? '';
-        $status = $_POST['academicStatus'] ?? '';
+        $raw_status = $_POST['academicStatus'] ?? '';
+        
+        // Normalize the status
+        $status_lower = strtolower($raw_status);
+        if (isset($statusMapping[$status_lower])) {
+            $status = $statusMapping[$status_lower];
+        } else {
+            $status = $raw_status; // Keep original if not in mapping
+        }
         
         // COOP membership is now allowed for any status
         if (isset($_POST['academicIsCoop'])) {
@@ -92,7 +117,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $employee_number = trim($_POST['employee_number'] ?? '');
     } elseif ($position === 'non-academic') {
         $department = $_POST['nonAcademicDept'] ?? '';
-        $status = $_POST['nonAcademicStatus'] ?? '';
+        $raw_status = $_POST['nonAcademicStatus'] ?? '';
+        
+        // Normalize the status
+        $status_lower = strtolower($raw_status);
+        if (isset($statusMapping[$status_lower])) {
+            $status = $statusMapping[$status_lower];
+        } else {
+            $status = $raw_status; // Keep original if not in mapping
+        }
         
         // COOP membership is now allowed for any status
         if (isset($_POST['nonAcademicIsCoop'])) {
@@ -128,9 +161,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($department)) $errors[] = "College is required for academic.";
         if (empty($department1)) $errors[] = "Department is required for academic.";
         if (empty($status)) $errors[] = "Status is required for academic.";
+        elseif (!in_array($status, $allowedStatuses)) $errors[] = "Status must be one of: " . implode(', ', $allowedStatuses);
     } elseif ($position === 'non-academic') {
         if (empty($department)) $errors[] = "Department is required for non-academic.";
         if (empty($status)) $errors[] = "Status is required for non-academic.";
+        elseif (!in_array($status, $allowedStatuses)) $errors[] = "Status must be one of: " . implode(', ', $allowedStatuses);
     }
     
     if (strlen($password) < 8) $errors[] = "Password must be at least 8 characters.";
@@ -201,7 +236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $department,
                 $department1,
                 $course,
-                $status,
+                $status,        // Now normalized
                 $hashed_password,
                 $token,
                 $expiresAt,
@@ -216,8 +251,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mail->isSMTP();
             $mail->Host = 'smtp.gmail.com';
             $mail->SMTPAuth = true;
-            $mail->Username = 'ebalota9@gmail.com';
-            $mail->Password = 'qxdqbjttedtqkujz';
+            $mail->Username = 'krpmab@gmail.com';
+            $mail->Password = 'ghdumnwrjbphujbs';
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port = 587;
             

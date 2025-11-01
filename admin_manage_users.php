@@ -556,9 +556,13 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
                     else if ($user['position'] === 'academic' && !empty($user['department'])) {
                         echo htmlspecialchars($user['department']);
                     }
-                    // For COOP members, college is in 'department' field
-                    else if ($user['is_coop_member'] == 1 && !empty($user['department'])) {
+                    // For COOP members who are academic, college is in 'department' field
+                    else if ($user['is_coop_member'] == 1 && $user['position'] === 'academic' && !empty($user['department'])) {
                         echo htmlspecialchars($user['department']);
+                    }
+                    // FIXED: For non-academic staff (whether COOP members or not), college should be N/A
+                    else if ($user['position'] === 'non-academic') {
+                        echo '<span class="text-gray-400">N/A</span>';
                     }
                     else {
                         echo '<span class="text-gray-400">N/A</span>';

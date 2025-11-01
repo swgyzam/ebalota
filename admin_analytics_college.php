@@ -4,7 +4,7 @@ date_default_timezone_set('Asia/Manila');
 
 // --- DB Connection ---
  $host = 'localhost';
- $db = 'evoting_system';
+ $db   = 'evoting_system';
  $user = 'root';
  $pass = '';
  $charset = 'utf8mb4';
@@ -70,7 +70,7 @@ if (!empty($allowed_colleges) && !in_array('ALL', $allowed_colleges) && !in_arra
 }
 
 // UPDATED COURSE MAPPINGS - Match election creation format exactly
-$course_map = [
+ $course_map = [
   // CEIT Courses
   'BS Computer Science' => 'BSCS',
   'Bachelor of Science in Computer Science' => 'BSCS',
@@ -291,6 +291,138 @@ $course_map = [
   'Master of Arts' => 'MA',
 ];
 
+// COURSE NORMALIZATION FUNCTION
+function normalizeCourseName($course) {
+    if (empty($course)) return 'UNSPECIFIED';
+    
+    global $course_map;
+    
+    $course = strtoupper(trim($course));
+    
+    // Check if it's already a standard code
+    if (isset($course_map[$course])) {
+        return $course;
+    }
+    
+    // Check if it's a full name that maps to a code
+    foreach ($course_map as $fullName => $code) {
+        if (strtoupper($fullName) === $course) {
+            return $code;
+        }
+    }
+    
+    // Handle common variations
+    $patterns = [
+        '/^BACHELOR OF SCIENCE IN /i' => 'BS ',
+        '/^BACHELOR OF ARTS IN /i' => 'BA ',
+        '/^DOCTOR OF /i' => '',
+        '/^MASTER OF /i' => '',
+        '/^BS /i' => '',
+        '/^BA /i' => '',
+        '/^BSCS$/i' => 'BS COMPUTER SCIENCE',
+        '/^BSIT$/i' => 'BS INFORMATION TECHNOLOGY',
+        '/^BSCPE$/i' => 'BS COMPUTER ENGINEERING',
+        '/^BSECE$/i' => 'BS ELECTRONICS ENGINEERING',
+        '/^BSCE$/i' => 'BS CIVIL ENGINEERING',
+        '/^BSME$/i' => 'BS MECHANICAL ENGINEERING',
+        '/^BSEE$/i' => 'BS ELECTRICAL ENGINEERING',
+        '/^BSIE$/i' => 'BS INDUSTRIAL ENGINEERING',
+        '/^BSAGRI$/i' => 'BS AGRICULTURE',
+        '/^BSAB$/i' => 'BS AGRIBUSINESS',
+        '/^BSES$/i' => 'BS ENVIRONMENTAL SCIENCE',
+        '/^BSFT$/i' => 'BS FOOD TECHNOLOGY',
+        '/^BSFOR$/i' => 'BS FORESTRY',
+        '/^BSABE$/i' => 'BS AGRICULTURAL AND BIOSYSTEMS ENGINEERING',
+        '/^BSBIO$/i' => 'BS BIOLOGY',
+        '/^BSCHEM$/i' => 'BS CHEMISTRY',
+        '/^BSMATH$/i' => 'BS MATHEMATICS',
+        '/^BSPHYSICS$/i' => 'BS PHYSICS',
+        '/^BSPSYCH$/i' => 'BS PSYCHOLOGY',
+        '/^BSSTAT$/i' => 'BS STATISTICS',
+        '/^DVM$/i' => 'DOCTOR OF VETERINARY MEDICINE',
+        '/^BSPV$/i' => 'BS BIOLOGY (PRE-VETERINARY)',
+        '/^BEED$/i' => 'BACHELOR OF ELEMENTARY EDUCATION',
+        '/^BSED$/i' => 'BACHELOR OF SECONDARY EDUCATION',
+        '/^BPE$/i' => 'BACHELOR OF PHYSICAL EDUCATION',
+        '/^BTLE$/i' => 'BACHELOR OF TECHNOLOGY AND LIVELIHOOD EDUCATION',
+        '/^BSBA$/i' => 'BS BUSINESS ADMINISTRATION',
+        '/^BSACC$/i' => 'BS ACCOUNTANCY',
+        '/^BSECO$/i' => 'BS ECONOMICS',
+        '/^BSENT$/i' => 'BS ENTREPRENEURSHIP',
+        '/^BSOA$/i' => 'BS OFFICE ADMINISTRATION',
+        '/^BSESS$/i' => 'BS EXERCISE AND SPORTS SCIENCES',
+        '/^BSCRIM$/i' => 'BS CRIMINOLOGY',
+        '/^BSN$/i' => 'BS NURSING',
+        '/^BSHM$/i' => 'BS HOSPITALITY MANAGEMENT',
+        '/^BSTM$/i' => 'BS TOURISM MANAGEMENT',
+        '/^BLIS$/i' => 'BACHELOR OF LIBRARY AND INFORMATION SCIENCE',
+        '/^PHD$/i' => 'DOCTOR OF PHILOSOPHY',
+        '/^MS$/i' => 'MASTER OF SCIENCE',
+        '/^MA$/i' => 'MASTER OF ARTS'
+    ];
+    
+    foreach ($patterns as $pattern => $replacement) {
+        if (preg_match($pattern, $course)) {
+            $normalized = preg_replace($pattern, $replacement, $course);
+            return strtoupper(trim($normalized));
+        }
+    }
+    
+    // Handle specific keyword matches
+    $keywords = [
+        'COMPUTER SCIENCE' => 'BS COMPUTER SCIENCE',
+        'INFORMATION TECHNOLOGY' => 'BS INFORMATION TECHNOLOGY',
+        'COMPUTER ENGINEERING' => 'BS COMPUTER ENGINEERING',
+        'ELECTRONICS ENGINEERING' => 'BS ELECTRONICS ENGINEERING',
+        'CIVIL ENGINEERING' => 'BS CIVIL ENGINEERING',
+        'MECHANICAL ENGINEERING' => 'BS MECHANICAL ENGINEERING',
+        'ELECTRICAL ENGINEERING' => 'BS ELECTRICAL ENGINEERING',
+        'INDUSTRIAL ENGINEERING' => 'BS INDUSTRIAL ENGINEERING',
+        'AGRICULTURE' => 'BS AGRICULTURE',
+        'AGRIBUSINESS' => 'BS AGRIBUSINESS',
+        'ENVIRONMENTAL SCIENCE' => 'BS ENVIRONMENTAL SCIENCE',
+        'FOOD TECHNOLOGY' => 'BS FOOD TECHNOLOGY',
+        'FORESTRY' => 'BS FORESTRY',
+        'AGRICULTURAL AND BIOSYSTEMS ENGINEERING' => 'BS AGRICULTURAL AND BIOSYSTEMS ENGINEERING',
+        'AGRICULTURAL ENTREPRENEURSHIP' => 'BACHELOR OF AGRICULTURAL ENTREPRENEURSHIP',
+        'LAND USE DESIGN AND MANAGEMENT' => 'BS LAND USE DESIGN AND MANAGEMENT',
+        'BIOLOGY' => 'BS BIOLOGY',
+        'CHEMISTRY' => 'BS CHEMISTRY',
+        'MATHEMATICS' => 'BS MATHEMATICS',
+        'PHYSICS' => 'BS PHYSICS',
+        'PSYCHOLOGY' => 'BS PSYCHOLOGY',
+        'ENGLISH LANGUAGE STUDIES' => 'BA ENGLISH LANGUAGE STUDIES',
+        'COMMUNICATION' => 'BA COMMUNICATION',
+        'STATISTICS' => 'BS STATISTICS',
+        'VETERINARY MEDICINE' => 'DOCTOR OF VETERINARY MEDICINE',
+        'PRE-VETERINARY' => 'BS BIOLOGY (PRE-VETERINARY)',
+        'ELEMENTARY EDUCATION' => 'BACHELOR OF ELEMENTARY EDUCATION',
+        'SECONDARY EDUCATION' => 'BACHELOR OF SECONDARY EDUCATION',
+        'PHYSICAL EDUCATION' => 'BACHELOR OF PHYSICAL EDUCATION',
+        'TECHNOLOGY AND LIVELIHOOD EDUCATION' => 'BACHELOR OF TECHNOLOGY AND LIVELIHOOD EDUCATION',
+        'BUSINESS ADMINISTRATION' => 'BS BUSINESS ADMINISTRATION',
+        'ACCOUNTANCY' => 'BS ACCOUNTANCY',
+        'ECONOMICS' => 'BS ECONOMICS',
+        'ENTREPRENEURSHIP' => 'BS ENTREPRENEURSHIP',
+        'OFFICE ADMINISTRATION' => 'BS OFFICE ADMINISTRATION',
+        'EXERCISE AND SPORTS SCIENCES' => 'BS EXERCISE AND SPORTS SCIENCES',
+        'CRIMINOLOGY' => 'BS CRIMINOLOGY',
+        'NURSING' => 'BS NURSING',
+        'HOSPITALITY MANAGEMENT' => 'BS HOSPITALITY MANAGEMENT',
+        'TOURISM MANAGEMENT' => 'BS TOURISM MANAGEMENT',
+        'LIBRARY AND INFORMATION SCIENCE' => 'BACHELOR OF LIBRARY AND INFORMATION SCIENCE'
+    ];
+    
+    foreach ($keywords as $keyword => $standard) {
+        if (strpos($course, $keyword) !== false) {
+            return $standard;
+        }
+    }
+    
+    // Return original if no match found
+    return $course;
+}
+
 // Department abbreviation mapping
  $department_abbr_map = [
     // CEIT
@@ -508,18 +640,18 @@ if (!empty($allowed_courses) && !in_array('ALL', $allowed_courses)) {
 
 // ===== GET WINNERS BY POSITION =====
  $sql = "
-    SELECT 
-        ec.position,
-        c.id as candidate_id,
-        CONCAT(c.first_name, ' ', c.last_name) as candidate_name,
-        COUNT(v.vote_id) as vote_count
-    FROM election_candidates ec
-    JOIN candidates c ON ec.candidate_id = c.id
-    LEFT JOIN votes v ON ec.election_id = v.election_id 
-                   AND ec.candidate_id = v.candidate_id
-    WHERE ec.election_id = ?
-    GROUP BY ec.position, c.id, c.first_name, c.last_name
-    ORDER BY ec.position, vote_count DESC
+   SELECT 
+       ec.position,
+       c.id as candidate_id,
+       CONCAT(c.first_name, ' ', c.last_name) as candidate_name,
+       COUNT(v.vote_id) as vote_count
+   FROM election_candidates ec
+   JOIN candidates c ON ec.candidate_id = c.id
+   LEFT JOIN votes v ON ec.election_id = v.election_id 
+                  AND ec.candidate_id = v.candidate_id
+   WHERE ec.election_id = ?
+   GROUP BY ec.position, c.id, c.first_name, c.last_name
+   ORDER BY ec.position, vote_count DESC
 ";
 
  $stmt = $pdo->prepare($sql);
@@ -556,15 +688,15 @@ foreach ($winnersByPosition as $position => &$candidates) {
 
 // ===== GET VOTER TURNOUT BREAKDOWN =====
  $sql = "
-    SELECT 
-        u.department,
-        u.department1,
-        u.course,
-        COUNT(DISTINCT u.user_id) as eligible_count,
-        COUNT(DISTINCT v.voter_id) as voted_count
-    FROM users u
-    LEFT JOIN votes v ON u.user_id = v.voter_id AND v.election_id = ?
-    WHERE u.role = 'voter' AND u.position = 'student' AND UPPER(TRIM(u.department)) = ?
+   SELECT 
+       u.department,
+       u.department1,
+       u.course,
+       COUNT(DISTINCT u.user_id) as eligible_count,
+       COUNT(DISTINCT v.voter_id) as voted_count
+   FROM users u
+   LEFT JOIN votes v ON u.user_id = v.voter_id AND v.election_id = ?
+   WHERE u.role = 'voter' AND u.position = 'student' AND UPPER(TRIM(u.department)) = ?
 ";
 
  $params = [$electionId, $scope];
@@ -630,19 +762,19 @@ foreach ($departmentMap as &$data) {
 }
  $departmentData = array_values($departmentMap);
 
-// Group by course only
+// Group by course only - WITH NORMALIZATION
  $courseMap = [];
 foreach ($voterTurnoutData as $item) {
-    $course = $item['course'];
-    if (!isset($courseMap[$course])) {
-        $courseMap[$course] = [
-            'course' => $course,
+    $normalizedCourse = normalizeCourseName($item['course']);
+    if (!isset($courseMap[$normalizedCourse])) {
+        $courseMap[$normalizedCourse] = [
+            'course' => $normalizedCourse,
             'eligible_count' => 0,
             'voted_count' => 0
         ];
     }
-    $courseMap[$course]['eligible_count'] += $item['eligible_count'];
-    $courseMap[$course]['voted_count'] += $item['voted_count'];
+    $courseMap[$normalizedCourse]['eligible_count'] += $item['eligible_count'];
+    $courseMap[$normalizedCourse]['voted_count'] += $item['voted_count'];
 }
 
 foreach ($courseMap as &$data) {
@@ -878,7 +1010,7 @@ include 'sidebar.php';
       visibility: visible;
       opacity: 1;
     }
-      </style>
+  </style>
 </head>
 <body class="bg-gray-50">
 <div class="flex min-h-screen">
@@ -1293,9 +1425,9 @@ function getFilteredData() {
       if (currentState.breakdownType === 'department') {
         return item.department1 === currentState.filterValue;
       } else {
-        // For courses, map the selected full name to abbreviation
-        const abbr = fullNameToAbbrMap[currentState.filterValue] || currentState.filterValue;
-        return item.course === abbr;
+        // For courses, we need to normalize the selected course name
+        const normalizedFilter = normalizeCourseNameInJS(currentState.filterValue);
+        return item.course === normalizedFilter;
       }
     });
   }
@@ -1331,7 +1463,7 @@ function updateChart(data) {
   // Prepare labels - use abbreviations for display
   const labels = data.map(item => {
     if (currentState.breakdownType === 'course') {
-      // Show the abbreviation for courses
+      // Show the normalized course name
       return item.course;
     } else {
       // For departments, convert full name to abbreviation
@@ -1631,121 +1763,289 @@ function createTurnoutBar(percentage) {
   `;
 }
 
+// JavaScript course normalization function
+function normalizeCourseNameInJS(course) {
+    if (!course) return 'UNSPECIFIED';
+    
+    course = course.toUpperCase().trim();
+    
+    // Check if it's already a standard code
+    if (fullNameToAbbrMap[course]) {
+        return course;
+    }
+    
+    // Handle common patterns
+    const patterns = [
+        /^BACHELOR OF SCIENCE IN /i,
+        /^BACHELOR OF ARTS IN /i,
+        /^DOCTOR OF /i,
+        /^MASTER OF /i,
+        /^BS /i,
+        /^BA /i
+    ];
+    
+    let normalized = course;
+    patterns.forEach(pattern => {
+        normalized = normalized.replace(pattern, '');
+    });
+    
+    // Handle specific abbreviations
+    const abbrMap = {
+        'BSCS': 'BS COMPUTER SCIENCE',
+        'BSIT': 'BS INFORMATION TECHNOLOGY',
+        'BSCPE': 'BS COMPUTER ENGINEERING',
+        'BSECE': 'BS ELECTRONICS ENGINEERING',
+        'BSCE': 'BS CIVIL ENGINEERING',
+        'BSME': 'BS MECHANICAL ENGINEERING',
+        'BSEE': 'BS ELECTRICAL ENGINEERING',
+        'BSIE': 'BS INDUSTRIAL ENGINEERING',
+        'BSAGRI': 'BS AGRICULTURE',
+        'BSAB': 'BS AGRIBUSINESS',
+        'BSES': 'BS ENVIRONMENTAL SCIENCE',
+        'BSFT': 'BS FOOD TECHNOLOGY',
+        'BSFOR': 'BS FORESTRY',
+        'BSABE': 'BS AGRICULTURAL AND BIOSYSTEMS ENGINEERING',
+        'BSBIO': 'BS BIOLOGY',
+        'BSCHEM': 'BS CHEMISTRY',
+        'BSMATH': 'BS MATHEMATICS',
+        'BSPHYSICS': 'BS PHYSICS',
+        'BSPSYCH': 'BS PSYCHOLOGY',
+        'BSSTAT': 'BS STATISTICS',
+        'DVM': 'DOCTOR OF VETERINARY MEDICINE',
+        'BSPV': 'BS BIOLOGY (PRE-VETERINARY)',
+        'BEED': 'BACHELOR OF ELEMENTARY EDUCATION',
+        'BSED': 'BACHELOR OF SECONDARY EDUCATION',
+        'BPE': 'BACHELOR OF PHYSICAL EDUCATION',
+        'BTLE': 'BACHELOR OF TECHNOLOGY AND LIVELIHOOD EDUCATION',
+        'BSBA': 'BS BUSINESS ADMINISTRATION',
+        'BSACC': 'BS ACCOUNTANCY',
+        'BSECO': 'BS ECONOMICS',
+        'BSENT': 'BS ENTREPRENEURSHIP',
+        'BSOA': 'BS OFFICE ADMINISTRATION',
+        'BSESS': 'BS EXERCISE AND SPORTS SCIENCES',
+        'BSCRIM': 'BS CRIMINOLOGY',
+        'BSN': 'BS NURSING',
+        'BSHM': 'BS HOSPITALITY MANAGEMENT',
+        'BSTM': 'BS TOURISM MANAGEMENT',
+        'BLIS': 'BACHELOR OF LIBRARY AND INFORMATION SCIENCE'
+    };
+    
+    // Check if normalized matches an abbreviation
+    if (abbrMap[normalized]) {
+        return abbrMap[normalized];
+    }
+    
+    // Handle keyword matches
+    const keywords = [
+        'COMPUTER SCIENCE',
+        'INFORMATION TECHNOLOGY',
+        'COMPUTER ENGINEERING',
+        'ELECTRONICS ENGINEERING',
+        'CIVIL ENGINEERING',
+        'MECHANICAL ENGINEERING',
+        'ELECTRICAL ENGINEERING',
+        'INDUSTRIAL ENGINEERING',
+        'AGRICULTURE',
+        'AGRIBUSINESS',
+        'ENVIRONMENTAL SCIENCE',
+        'FOOD TECHNOLOGY',
+        'FORESTRY',
+        'AGRICULTURAL AND BIOSYSTEMS ENGINEERING',
+        'AGRICULTURAL ENTREPRENEURSHIP',
+        'LAND USE DESIGN AND MANAGEMENT',
+        'BIOLOGY',
+        'CHEMISTRY',
+        'MATHEMATICS',
+        'PHYSICS',
+        'PSYCHOLOGY',
+        'ENGLISH LANGUAGE STUDIES',
+        'COMMUNICATION',
+        'STATISTICS',
+        'VETERINARY MEDICINE',
+        'PRE-VETERINARY',
+        'ELEMENTARY EDUCATION',
+        'SECONDARY EDUCATION',
+        'PHYSICAL EDUCATION',
+        'TECHNOLOGY AND LIVELIHOOD EDUCATION',
+        'BUSINESS ADMINISTRATION',
+        'ACCOUNTANCY',
+        'ECONOMICS',
+        'ENTREPRENEURSHIP',
+        'OFFICE ADMINISTRATION',
+        'EXERCISE AND SPORTS SCIENCES',
+        'CRIMINOLOGY',
+        'NURSING',
+        'HOSPITALITY MANAGEMENT',
+        'TOURISM MANAGEMENT',
+        'LIBRARY AND INFORMATION SCIENCE'
+    ];
+    
+    for (const keyword of keywords) {
+        if (course.includes(keyword)) {
+            // Convert keyword to standard format
+            if (keyword.includes('COMPUTER SCIENCE')) return 'BS COMPUTER SCIENCE';
+            if (keyword.includes('INFORMATION TECHNOLOGY')) return 'BS INFORMATION TECHNOLOGY';
+            if (keyword.includes('COMPUTER ENGINEERING')) return 'BS COMPUTER ENGINEERING';
+            if (keyword.includes('ELECTRONICS ENGINEERING')) return 'BS ELECTRONICS ENGINEERING';
+            if (keyword.includes('CIVIL ENGINEERING')) return 'BS CIVIL ENGINEERING';
+            if (keyword.includes('MECHANICAL ENGINEERING')) return 'BS MECHANICAL ENGINEERING';
+            if (keyword.includes('ELECTRICAL ENGINEERING')) return 'BS ELECTRICAL ENGINEERING';
+            if (keyword.includes('INDUSTRIAL ENGINEERING')) return 'BS INDUSTRIAL ENGINEERING';
+            if (keyword.includes('AGRICULTURE')) return 'BS AGRICULTURE';
+            if (keyword.includes('AGRIBUSINESS')) return 'BS AGRIBUSINESS';
+            if (keyword.includes('ENVIRONMENTAL SCIENCE')) return 'BS ENVIRONMENTAL SCIENCE';
+            if (keyword.includes('FOOD TECHNOLOGY')) return 'BS FOOD TECHNOLOGY';
+            if (keyword.includes('FORESTRY')) return 'BS FORESTRY';
+            if (keyword.includes('AGRICULTURAL AND BIOSYSTEMS ENGINEERING')) return 'BS AGRICULTURAL AND BIOSYSTEMS ENGINEERING';
+            if (keyword.includes('AGRICULTURAL ENTREPRENEURSHIP')) return 'BACHELOR OF AGRICULTURAL ENTREPRENEURSHIP';
+            if (keyword.includes('LAND USE DESIGN AND MANAGEMENT')) return 'BS LAND USE DESIGN AND MANAGEMENT';
+            if (keyword.includes('BIOLOGY')) return 'BS BIOLOGY';
+            if (keyword.includes('CHEMISTRY')) return 'BS CHEMISTRY';
+            if (keyword.includes('MATHEMATICS')) return 'BS MATHEMATICS';
+            if (keyword.includes('PHYSICS')) return 'BS PHYSICS';
+            if (keyword.includes('PSYCHOLOGY')) return 'BS PSYCHOLOGY';
+            if (keyword.includes('ENGLISH LANGUAGE STUDIES')) return 'BA ENGLISH LANGUAGE STUDIES';
+            if (keyword.includes('COMMUNICATION')) return 'BA COMMUNICATION';
+            if (keyword.includes('STATISTICS')) return 'BS STATISTICS';
+            if (keyword.includes('VETERINARY MEDICINE')) return 'DOCTOR OF VETERINARY MEDICINE';
+            if (keyword.includes('PRE-VETERINARY')) return 'BS BIOLOGY (PRE-VETERINARY)';
+            if (keyword.includes('ELEMENTARY EDUCATION')) return 'BACHELOR OF ELEMENTARY EDUCATION';
+            if (keyword.includes('SECONDARY EDUCATION')) return 'BACHELOR OF SECONDARY EDUCATION';
+            if (keyword.includes('PHYSICAL EDUCATION')) return 'BACHELOR OF PHYSICAL EDUCATION';
+            if (keyword.includes('TECHNOLOGY AND LIVELIHOOD EDUCATION')) return 'BACHELOR OF TECHNOLOGY AND LIVELIHOOD EDUCATION';
+            if (keyword.includes('BUSINESS ADMINISTRATION')) return 'BS BUSINESS ADMINISTRATION';
+            if (keyword.includes('ACCOUNTANCY')) return 'BS ACCOUNTANCY';
+            if (keyword.includes('ECONOMICS')) return 'BS ECONOMICS';
+            if (keyword.includes('ENTREPRENEURSHIP')) return 'BS ENTREPRENEURSHIP';
+            if (keyword.includes('OFFICE ADMINISTRATION')) return 'BS OFFICE ADMINISTRATION';
+            if (keyword.includes('EXERCISE AND SPORTS SCIENCES')) return 'BS EXERCISE AND SPORTS SCIENCES';
+            if (keyword.includes('CRIMINOLOGY')) return 'BS CRIMINOLOGY';
+            if (keyword.includes('NURSING')) return 'BS NURSING';
+            if (keyword.includes('HOSPITALITY MANAGEMENT')) return 'BS HOSPITALITY MANAGEMENT';
+            if (keyword.includes('TOURISM MANAGEMENT')) return 'BS TOURISM MANAGEMENT';
+            if (keyword.includes('LIBRARY AND INFORMATION SCIENCE')) return 'BACHELOR OF LIBRARY AND INFORMATION SCIENCE';
+        }
+    }
+    
+    // Return original if no match found
+    return course;
+}
+
 // Function to convert abbreviations to full names
 function convertToFullName(abbreviation) {
-  // Complete mapping of abbreviations to full names
-  const fullNameMap = {
-    // Colleges
-    'CEIT': 'College of Engineering and Information Technology',
-    'CAS': 'College of Arts and Sciences',
-    'CAFENR': 'College of Agriculture, Food, Environment and Natural Resources',
-    'CCJ': 'College of Criminal Justice',
-    'CEMDS': 'College of Economics, Management and Development Studies',
-    'CED': 'College of Education',
-    'CON': 'College of Nursing',
-    'COM': 'College of Medicine',
-    'CSPEAR': 'College of Sports, Physical Education and Recreation',
-    'CVMBS': 'College of Veterinary Medicine and Biomedical Sciences',
-    'GS-OLC': 'Graduate School and Open Learning College',
+    // Complete mapping of abbreviations to full names
+    const fullNameMap = {
+        // Colleges
+        'CEIT': 'College of Engineering and Information Technology',
+        'CAS': 'College of Arts and Sciences',
+        'CAFENR': 'College of Agriculture, Food, Environment and Natural Resources',
+        'CCJ': 'College of Criminal Justice',
+        'CEMDS': 'College of Economics, Management and Development Studies',
+        'CED': 'College of Education',
+        'CON': 'College of Nursing',
+        'COM': 'College of Medicine',
+        'CSPEAR': 'College of Sports, Physical Education and Recreation',
+        'CVMBS': 'College of Veterinary Medicine and Biomedical Sciences',
+        'GS-OLC': 'Graduate School and Open Learning College',
+        
+        // Departments under CEIT
+        'DCE': 'Department of Civil Engineering',
+        'DCEE': 'Department of Computer and Electronics Engineering',
+        'DIET': 'Department of Industrial Engineering and Technology',
+        'DMEE': 'Department of Mechanical and Electronics Engineering',
+        'DIT': 'Department of Information Technology',
+        
+        // Departments under CAS
+        'DBS': 'Department of Biological Sciences',
+        'DPS': 'Department of Physical Sciences',
+        'DLMC': 'Department of Languages and Mass Communication',
+        'DSS': 'Department of Social Sciences',
+        'DMS': 'Department of Mathematics and Statistics',
+        
+        // Departments under CAFENR
+        'DAS': 'Department of Animal Science',
+        'DCS': 'Department of Crop Science',
+        'DFST': 'Department of Food Science and Technology',
+        'DFES': 'Department of Forestry and Environmental Science',
+        'DAED': 'Department of Agricultural Economics and Development',
+        
+        // Departments under CCJ
+        'DCJ': 'Department of Criminal Justice',
+        
+        // Departments under CEMDS
+        'DE': 'Department of Economics',
+        'DBM': 'Department of Business and Management',
+        'DDS': 'Department of Development Studies',
+        
+        // Departments under CED
+        'DSE': 'Department of Science Education',
+        'DTLE': 'Department of Technology and Livelihood Education',
+        'DCI': 'Department of Curriculum and Instruction',
+        'DHK': 'Department of Human Kinetics',
+        
+        // Departments under CON
+        'DN': 'Department of Nursing',
+        
+        // Departments under COM
+        'DBMS': 'Department of Basic Medical Sciences',
+        'DCS': 'Department of Clinical Sciences',
+        
+        // Departments under CSPEAR
+        'DPER': 'Department of Physical Education and Recreation',
+        
+        // Departments under CVMBS
+        'DVM': 'Department of Veterinary Medicine',
+        'DBS': 'Department of Biomedical Sciences',
+        
+        // Departments under GS-OLC
+        'DVGP': 'Department of Various Graduate Programs',
+        
+        // Courses
+        'BS COMPUTER SCIENCE': 'Bachelor of Science in Computer Science',
+        'BS INFORMATION TECHNOLOGY': 'Bachelor of Science in Information Technology',
+        'BS COMPUTER ENGINEERING': 'Bachelor of Science in Computer Engineering',
+        'BS ELECTRONICS ENGINEERING': 'Bachelor of Science in Electronics Engineering',
+        'BS CIVIL ENGINEERING': 'Bachelor of Science in Civil Engineering',
+        'BS MECHANICAL ENGINEERING': 'Bachelor of Science in Mechanical Engineering',
+        'BS ELECTRICAL ENGINEERING': 'Bachelor of Science in Electrical Engineering',
+        'BS INDUSTRIAL ENGINEERING': 'Bachelor of Science in Industrial Engineering',
+        'BS AGRICULTURE': 'Bachelor of Science in Agriculture',
+        'BS AGRIBUSINESS': 'Bachelor of Science in Agribusiness',
+        'BS ENVIRONMENTAL SCIENCE': 'Bachelor of Science in Environmental Science',
+        'BS FOOD TECHNOLOGY': 'Bachelor of Science in Food Technology',
+        'BS FORESTRY': 'Bachelor of Science in Forestry',
+        'BS AGRICULTURAL AND BIOSYSTEMS ENGINEERING': 'Bachelor of Science in Agricultural and Biosystems Engineering',
+        'BACHELOR OF AGRICULTURAL ENTREPRENEURSHIP': 'Bachelor of Agricultural Entrepreneurship',
+        'BS LAND USE DESIGN AND MANAGEMENT': 'Bachelor of Science in Land Use Design and Management',
+        'BS BIOLOGY': 'Bachelor of Science in Biology',
+        'BS CHEMISTRY': 'Bachelor of Science in Chemistry',
+        'BS MATHEMATICS': 'Bachelor of Science in Mathematics',
+        'BS PHYSICS': 'Bachelor of Science in Physics',
+        'BS PSYCHOLOGY': 'Bachelor of Science in Psychology',
+        'BA ENGLISH LANGUAGE STUDIES': 'Bachelor of Arts in English Language Studies',
+        'BA COMMUNICATION': 'Bachelor of Arts in Communication',
+        'BS STATISTICS': 'Bachelor of Science in Statistics',
+        'DOCTOR OF VETERINARY MEDICINE': 'Doctor of Veterinary Medicine',
+        'BS BIOLOGY (PRE-VETERINARY)': 'Bachelor of Science in Biology (Pre-Veterinary)',
+        'BACHELOR OF ELEMENTARY EDUCATION': 'Bachelor of Elementary Education',
+        'BACHELOR OF SECONDARY EDUCATION': 'Bachelor of Secondary Education',
+        'BACHELOR OF PHYSICAL EDUCATION': 'Bachelor of Physical Education',
+        'BACHELOR OF TECHNOLOGY AND LIVELIHOOD EDUCATION': 'Bachelor of Technology and Livelihood Education',
+        'BS BUSINESS ADMINISTRATION': 'Bachelor of Science in Business Administration',
+        'BS ACCOUNTANCY': 'Bachelor of Science in Accountancy',
+        'BS ECONOMICS': 'Bachelor of Science in Economics',
+        'BS ENTREPRENEURSHIP': 'Bachelor of Science in Entrepreneurship',
+        'BS OFFICE ADMINISTRATION': 'Bachelor of Science in Office Administration',
+        'BS EXERCISE AND SPORTS SCIENCES': 'Bachelor of Science in Exercise and Sports Sciences',
+        'BS CRIMINOLOGY': 'Bachelor of Science in Criminology',
+        'BS NURSING': 'Bachelor of Science in Nursing',
+        'BS HOSPITALITY MANAGEMENT': 'Bachelor of Science in Hospitality Management',
+        'BS TOURISM MANAGEMENT': 'Bachelor of Science in Tourism Management',
+        'BACHELOR OF LIBRARY AND INFORMATION SCIENCE': 'Bachelor of Library and Information Science'
+    };
     
-    // Departments under CEIT
-    'DCE': 'Department of Civil Engineering',
-    'DCEE': 'Department of Computer and Electronics Engineering',
-    'DIET': 'Department of Industrial Engineering and Technology',
-    'DMEE': 'Department of Mechanical and Electronics Engineering',
-    'DIT': 'Department of Information Technology',
-    
-    // Departments under CAS
-    'DBS': 'Department of Biological Sciences',
-    'DPS': 'Department of Physical Sciences',
-    'DLMC': 'Department of Languages and Mass Communication',
-    'DSS': 'Department of Social Sciences',
-    'DMS': 'Department of Mathematics and Statistics',
-    
-    // Departments under CAFENR
-    'DAS': 'Department of Animal Science',
-    'DCS': 'Department of Crop Science',
-    'DFST': 'Department of Food Science and Technology',
-    'DFES': 'Department of Forestry and Environmental Science',
-    'DAED': 'Department of Agricultural Economics and Development',
-    
-    // Departments under CCJ
-    'DCJ': 'Department of Criminal Justice',
-    
-    // Departments under CEMDS
-    'DE': 'Department of Economics',
-    'DBM': 'Department of Business and Management',
-    'DDS': 'Department of Development Studies',
-    
-    // Departments under CED
-    'DSE': 'Department of Science Education',
-    'DTLE': 'Department of Technology and Livelihood Education',
-    'DCI': 'Department of Curriculum and Instruction',
-    'DHK': 'Department of Human Kinetics',
-    
-    // Departments under CON
-    'DN': 'Department of Nursing',
-    
-    // Departments under COM
-    'DBMS': 'Department of Basic Medical Sciences',
-    'DCS': 'Department of Clinical Sciences',
-    
-    // Departments under CSPEAR
-    'DPER': 'Department of Physical Education and Recreation',
-    
-    // Departments under CVMBS
-    'DVM': 'Department of Veterinary Medicine',
-    'DBS': 'Department of Biomedical Sciences',
-    
-    // Departments under GS-OLC
-    'DVGP': 'Department of Various Graduate Programs',
-    
-    // Courses
-    'BSCS': 'Bachelor of Science in Computer Science',
-    'BSIT': 'Bachelor of Science in Information Technology',
-    'BSCpE': 'Bachelor of Science in Computer Engineering',
-    'BSECE': 'Bachelor of Science in Electronics Engineering',
-    'BSCE': 'Bachelor of Science in Civil Engineering',
-    'BSME': 'Bachelor of Science in Mechanical Engineering',
-    'BSEE': 'Bachelor of Science in Electrical Engineering',
-    'BSIE': 'Bachelor of Science in Industrial Engineering',
-    'BSAgri': 'Bachelor of Science in Agriculture',
-    'BSAB': 'Bachelor of Science in Agribusiness',
-    'BSES': 'Bachelor of Science in Environmental Science',
-    'BSFT': 'Bachelor of Science in Food Technology',
-    'BSFor': 'Bachelor of Science in Forestry',
-    'BSABE': 'Bachelor of Science in Agricultural and Biosystems Engineering',
-    'BAE': 'Bachelor of Agricultural Entrepreneurship',
-    'BSLDM': 'Bachelor of Science in Land Use Design and Management',
-    'BSBio': 'Bachelor of Science in Biology',
-    'BSChem': 'Bachelor of Science in Chemistry',
-    'BSMath': 'Bachelor of Science in Mathematics',
-    'BSPhysics': 'Bachelor of Science in Physics',
-    'BSPsych': 'Bachelor of Science in Psychology',
-    'BAELS': 'Bachelor of Arts in English Language Studies',
-    'BAComm': 'Bachelor of Arts in Communication',
-    'BSStat': 'Bachelor of Science in Statistics',
-    'DVM': 'Doctor of Veterinary Medicine',
-    'BSPV': 'Bachelor of Science in Biology (Pre-Veterinary)',
-    'BEEd': 'Bachelor of Elementary Education',
-    'BSEd': 'Bachelor of Secondary Education',
-    'BPE': 'Bachelor of Physical Education',
-    'BTLE': 'Bachelor of Technology and Livelihood Education',
-    'BSBA': 'Bachelor of Science in Business Administration',
-    'BSAcc': 'Bachelor of Science in Accountancy',
-    'BSEco': 'Bachelor of Science in Economics',
-    'BSEnt': 'Bachelor of Science in Entrepreneurship',
-    'BSOA': 'Bachelor of Science in Office Administration',
-    'BSESS': 'Bachelor of Science in Exercise and Sports Sciences',
-    'BSCrim': 'Bachelor of Science in Criminology',
-    'BSN': 'Bachelor of Science in Nursing',
-    'BSHM': 'Bachelor of Science in Hospitality Management',
-    'BSTM': 'Bachelor of Science in Tourism Management',
-    'BLIS': 'Bachelor of Library and Information Science'
-  };
-  
-  // Return the full name if found, otherwise return the original abbreviation
-  return fullNameMap[abbreviation] || abbreviation;
+    // Return the full name if found, otherwise return the original abbreviation
+    return fullNameMap[abbreviation] || abbreviation;
 }
 
 function numberFormat(num) {

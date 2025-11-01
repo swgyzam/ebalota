@@ -25,7 +25,7 @@ if (!$token) {
  $user = $stmt->fetch();
 if (!$user) {
     header("Location: login.html?error=" . urlencode("Token is invalid or has expired."));
-    exit;
+    exit();
 }
  $message = '';
  $success = false;
@@ -39,8 +39,8 @@ try {
     
     // Insert into users table with all fields including department1 for students
     $insertStmt = $pdo->prepare("INSERT INTO users 
-        (first_name, last_name, email, position, is_coop_member, department, department1, course, status, password, is_verified, student_number, employee_number) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        (first_name, last_name, email, position, is_coop_member, department, department1, course, status, password, is_verified, student_number, employee_number, force_password_change) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     $insertStmt->execute([
         $user['first_name'],
         $user['last_name'],
@@ -54,7 +54,8 @@ try {
         $user['password'],
         true,
         $user['student_number'],
-        $user['employee_number']
+        $user['employee_number'],
+        0  // Set force_password_change = 0 for users from registration
     ]);
     
     // Delete from pending_users table
