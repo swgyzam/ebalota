@@ -45,6 +45,11 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
  $password = $_POST['password'] ?? '';
  $admin_status = isset($_POST['admin_status']) ? trim($_POST['admin_status']) : 'inactive'; // Default to inactive
 
+// Calculate current academic year
+ $currentYear = date('Y');
+ $nextYear = $currentYear + 1;
+ $academicYear = "$currentYear-$nextYear";
+
 // Validate required fields
 if (!$admin_title || !$first_name || !$last_name || !$email || !$scope_category || !$password) {
     sendJsonResponse('error', 'All fields are required.');
@@ -253,8 +258,8 @@ try {
     
     // Insert into users table
     $stmt = $pdo->prepare("INSERT INTO users 
-        (admin_title, first_name, last_name, email, password, role, is_verified, is_admin, force_password_change, assigned_scope, scope_category, assigned_scope_1, admin_status)
-        VALUES (:admin_title, :first, :last, :email, :pw, 'admin', 1, 1, 1, :assigned_scope, :scope_category, :assigned_scope_1, :admin_status)");
+        (admin_title, first_name, last_name, email, password, role, is_verified, is_admin, force_password_change, assigned_scope, scope_category, assigned_scope_1, admin_status, academic_year)
+        VALUES (:admin_title, :first, :last, :email, :pw, 'admin', 1, 1, 1, :assigned_scope, :scope_category, :assigned_scope_1, :admin_status, :academic_year)");
     
     $stmt->execute([
         ':admin_title' => $admin_title,
@@ -265,7 +270,8 @@ try {
         ':assigned_scope' => $assigned_scope,
         ':scope_category' => $scope_category,
         ':assigned_scope_1' => $assigned_scope_1,
-        ':admin_status' => $admin_status
+        ':admin_status' => $admin_status,
+        ':academic_year' => $academicYear
     ]);
     
     $user_id = $pdo->lastInsertId();
@@ -472,6 +478,7 @@ try {
                         <p><strong>Scope Category:</strong> " . getScopeCategoryLabel($scope_category) . "</p>
                         <p><strong>Scope Details:</strong> $scope_description</p>
                         <p><strong>Status:</strong> " . ucfirst($admin_status) . "</p>
+                        <p><strong>Academic Year:</strong> $academicYear</p>
                     </div>
                     
                     <div class='credentials-box'>
@@ -519,7 +526,8 @@ try {
         'admin_title' => $admin_title,
         'scope_category' => $scope_category,
         'scope_description' => $scope_description,
-        'admin_status' => $admin_status
+        'admin_status' => $admin_status,
+        'academic_year' => $academicYear
     ]);
 
 } catch (Exception $e) {
@@ -530,7 +538,8 @@ try {
         'admin_title' => $admin_title,
         'scope_category' => $scope_category,
         'scope_description' => $scope_description,
-        'admin_status' => $admin_status
+        'admin_status' => $admin_status,
+        'academic_year' => $academicYear
     ]);
 }
 

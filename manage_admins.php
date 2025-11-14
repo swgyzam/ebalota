@@ -113,23 +113,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $response['success'] = true;
             $response['message'] = 'Admin status updated successfully';
         }
-
-        elseif ($action === 'advance_year') {
-            $newYear = trim($_POST['academic_year'] ?? '');
-            if (!preg_match('/^\d{4}-\d{4}$/', $newYear)) {
-                throw new Exception('Academic year must be in the format YYYY-YYYY');
-            }
-            [$start, $end] = explode('-', $newYear);
-            if ((int)$end !== (int)$start + 1) {
-                throw new Exception('Academic year end must be start + 1');
-            }
-
-            $stmt = $pdo->prepare("UPDATE users SET academic_year = ? WHERE role = 'admin'");
-            $stmt->execute([$newYear]);
-            $response['success'] = true;
-            $response['message'] = 'Academic year advanced successfully';
-        }
-
         else {
             throw new Exception('Unknown action');
         }
@@ -148,6 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
  $filterCollege = $_GET['college'] ?? '';
  $filterCourse = $_GET['course'] ?? '';
  $filterDepartment = $_GET['department'] ?? '';
+ $filterYear = $_GET['year'] ?? '';
 
  $scopeQuery = '';
  $params = [];
@@ -173,8 +157,21 @@ if (!empty($filterDepartment)) {
     if ($filterScope === 'Academic-Faculty') {
         $scopeQuery .= " AND u.assigned_scope_1 LIKE :department";
         $params[':department'] = '%' . $filterDepartment . '%';
+    } elseif ($filterScope === 'Non-Academic-Employee') {
+        $scopeQuery .= " AND (u.assigned_scope LIKE :department OR u.assigned_scope_1 LIKE :department)";
+        $params[':department'] = '%' . $filterDepartment . '%';
     }
 }
+
+if (!empty($filterYear)) {
+    $scopeQuery .= " AND u.academic_year = :year";
+    $params[':year'] = $filterYear;
+}
+
+// Get distinct academic years for filter
+ $yearStmt = $pdo->prepare("SELECT DISTINCT academic_year FROM users WHERE role = 'admin' ORDER BY academic_year DESC");
+ $yearStmt->execute();
+ $academicYears = $yearStmt->fetchAll(PDO::FETCH_COLUMN);
 
 // --- Fetch admins (with scope_details) ---
  $stmt = $pdo->prepare("
@@ -354,8 +351,9 @@ function summarizeAssignedScopeShort(array $admin): string {
       border-radius: 0.5rem;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
       padding: 1.5rem;
+      max-width: 90%;
+      width: 100%;
       max-width: 500px;
-      width: 90%;
       transform: translateY(20px);
       transition: transform 0.3s;
     }
@@ -383,35 +381,72 @@ function summarizeAssignedScopeShort(array $admin): string {
       background-color: #dbeafe;
       color: #1e40af;
     }
+    
+    /* Responsive adjustments */
+    @media (min-width: 1024px) {
+      .admin-container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+    }
+    
+    @media (max-width: 1279px) {
+      .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    
+    @media (max-width: 767px) {
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .filter-form {
+        flex-direction: column;
+      }
+      
+      .filter-container {
+        width: 100%;
+      }
+      
+      .admin-actions {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      
+      .admin-actions button {
+        width: 100%;
+      }
+    }
   </style>
 </head>
 
 <body class="bg-white font-sans text-gray-900">
   <div class="flex min-h-screen">
     <?php include 'super_admin_sidebar.php'; ?>
-    <main class="flex-1 p-8 ml-64">
+    <main class="flex-1 p-4 md:p-6 lg:p-8 ml-64 admin-container">
       <!-- Header -->
-      <header class="gradient-bg text-white p-6 flex justify-between items-center shadow-xl rounded-xl mb-8">
-        <div class="flex items-center space-x-4">
+      <header class="gradient-bg text-white p-4 md:p-6 flex flex-col md:flex-row justify-between items-center shadow-xl rounded-xl mb-6 md:mb-8">
+        <div class="flex items-center space-x-4 mb-4 md:mb-0">
           <div class="w-14 h-14 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
             <i class="fas fa-user-shield text-2xl"></i>
           </div>
           <div>
-            <h1 class="text-3xl font-extrabold">Manage Admins</h1>
+            <h1 class="text-2xl md:text-3xl font-extrabold">Manage Admins</h1>
             <p class="text-green-100 mt-1">Administer admin accounts and permissions</p>
           </div>
         </div>
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-4 w-full md:w-auto">
           <button id="openModalBtn"
                   onclick="document.getElementById('createModal').classList.remove('hidden')"
-                  class="btn-warning text-white px-5 py-2.5 rounded-lg font-semibold transition flex items-center">
+                  class="btn-warning text-white px-5 py-2.5 rounded-lg font-semibold transition flex items-center justify-center w-full md:w-auto">
             <i class="fas fa-plus-circle mr-2"></i>Add Admin
           </button>
         </div>
       </header>
 
       <!-- Stats Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 md:mb-8 stats-grid">
         <div class="bg-white rounded-xl shadow-md p-6 card border border-gray-100">
           <div class="flex items-center">
             <div class="p-3 rounded-full bg-blue-100 text-blue-600"><i class="fas fa-users text-xl"></i></div>
@@ -442,7 +477,7 @@ function summarizeAssignedScopeShort(array $admin): string {
       </div>
 
       <!-- Filter Card -->
-      <div class="bg-white rounded-xl shadow-md p-6 mb-8 card border border-gray-100">
+      <div class="bg-white rounded-xl shadow-md p-6 mb-6 md:mb-8 card border border-gray-100">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h2 class="text-xl font-bold text-gray-800 mb-1">Filter Admins</h2>
@@ -509,21 +544,33 @@ function summarizeAssignedScopeShort(array $admin): string {
               </div>
             </div>
 
-            <div id="departmentFilterContainer" class="relative <?= ($filterScope === 'Academic-Faculty' && !empty($filterCollege)) ? '' : 'hidden' ?>">
-              <label for="department" class="block text-sm font-medium text-gray-700 mb-1">Department</label>
+            <div id="departmentFilterContainer" class="relative <?= (($filterScope === 'Academic-Faculty' && !empty($filterCollege)) || $filterScope === 'Non-Academic-Employee') ? '' : 'hidden' ?>">
+              <label for="department" class="block text-sm font-medium text-gray-700 mb-1">
+                <?= $filterScope === 'Non-Academic-Employee' ? 'Department (Non-Academic)' : 'Department' ?>
+              </label>
               <div class="relative">
                 <select name="department" id="department"
                         class="appearance-none block w-full pl-3 pr-10 py-2.5 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm rounded-lg">
                   <option value="">All Departments</option>
                   <?php
-                  if (!empty($filterCollege)) {
-                      $departments = getAcademicDepartments()[$filterCollege] ?? [];
-                      foreach ($departments as $code => $name): ?>
-                        <option value="<?= htmlspecialchars($code) ?>" <?= $filterDepartment === $code ? 'selected' : '' ?>>
-                          <?= htmlspecialchars($code . ' - ' . $name) ?>
-                        </option>
-                      <?php endforeach;
-                  } ?>
+                  if ($filterScope === 'Non-Academic-Employee') {
+                    // Show non-academic departments
+                    $nonAcademicDepts = getNonAcademicDepartments();
+                    foreach ($nonAcademicDepts as $code => $name): ?>
+                      <option value="<?= htmlspecialchars($code) ?>" <?= $filterDepartment === $code ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($code . ' - ' . $name) ?>
+                      </option>
+                    <?php endforeach;
+                  } elseif ($filterScope === 'Academic-Faculty' && !empty($filterCollege)) {
+                    // Show academic departments for the selected college
+                    $departments = getAcademicDepartments()[$filterCollege] ?? [];
+                    foreach ($departments as $code => $name): ?>
+                      <option value="<?= htmlspecialchars($code) ?>" <?= $filterDepartment === $code ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($code . ' - ' . $name) ?>
+                      </option>
+                    <?php endforeach;
+                  }
+                  ?>
                 </select>
                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
                   <i class="fas fa-chevron-down"></i>
@@ -543,13 +590,24 @@ function summarizeAssignedScopeShort(array $admin): string {
 
       <!-- Admins Table -->
       <div class="bg-white rounded-xl shadow-md overflow-hidden card border border-gray-100">
-        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <div class="px-4 md:px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
           <h2 class="text-xl font-bold text-gray-800">Admin Accounts</h2>
-          <div class="flex items-center gap-4">
+          <div class="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
             <div class="text-sm text-gray-500">Showing <?= (int)count($admins) ?> admin accounts</div>
-            <button onclick="showAdvanceYearModal()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center">
-              <i class="fas fa-calendar-plus mr-2"></i>Advance Year
-            </button>
+            <div class="relative w-full sm:w-auto">
+              <select id="tableYearFilter" name="year" onchange="filterByYear(this.value)"
+                      class="appearance-none block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm rounded-lg">
+                <option value="">All Years</option>
+                <?php foreach ($academicYears as $year): ?>
+                  <option value="<?= htmlspecialchars($year) ?>" <?= $filterYear === $year ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($year) ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                <i class="fas fa-chevron-down"></i>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -557,12 +615,12 @@ function summarizeAssignedScopeShort(array $admin): string {
           <table class="min-w-full divide-y divide-gray-200 table-hover admin-table">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Scope</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Academic Year</th>
-                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th class="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin</th>
+                <th class="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                <th class="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Scope</th>
+                <th class="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Academic Year</th>
+                <th class="px-4 md:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -604,7 +662,7 @@ function summarizeAssignedScopeShort(array $admin): string {
                   }
                 ?>
                 <tr>
-                  <td class="px-6 py-4 whitespace-nowrap">
+                  <td class="px-4 md:px-6 py-4 whitespace-nowrap">
                     <div class="admin-info">
                       <div class="admin-avatar">
                         <div class="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
@@ -620,11 +678,11 @@ function summarizeAssignedScopeShort(array $admin): string {
                     </div>
                   </td>
 
-                  <td class="px-6 py-4 whitespace-nowrap">
+                  <td class="px-4 md:px-6 py-4 whitespace-nowrap">
                     <div class="text-sm text-gray-900"><?= $email ?></div>
                   </td>
 
-                  <td class="px-6 py-4 whitespace-nowrap scope-cell">
+                  <td class="px-4 md:px-6 py-4 whitespace-nowrap scope-cell">
                     <?php if ($scopeLabel !== 'No Scope'): ?>
                       <span class="scope-badge scope-primary"><?= $scopeLabel ?></span>
                       <div class="mt-1">
@@ -637,38 +695,40 @@ function summarizeAssignedScopeShort(array $admin): string {
                     <?php endif; ?>
                   </td>
 
-                  <td class="px-6 py-4 whitespace-nowrap">
+                  <td class="px-4 md:px-6 py-4 whitespace-nowrap">
                     <span class="status-badge <?= $statusClass ?>">
                       <i class="fas fa-circle mr-1 text-xs"></i><?= ucfirst($status) ?>
                     </span>
                   </td>
 
-                  <td class="px-6 py-4 whitespace-nowrap">
+                  <td class="px-4 md:px-6 py-4 whitespace-nowrap">
                     <div class="text-sm text-gray-900">
                       <?= htmlspecialchars($admin['academic_year'] ?? '') ?>
                     </div>
                   </td>
 
-                  <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                    <button
-                      onclick="toggleAdminStatus(<?= (int)$admin['user_id'] ?>, '<?= $status === 'active' ? 'inactive' : 'active' ?>')"
-                      class="<?= $status === 'active' ? 'btn-danger' : 'btn-success' ?> text-white px-3 py-1 rounded-lg mr-2 inline-flex items-center">
-                      <i class="fas fa-<?= $status === 'active' ? 'ban' : 'check' ?> mr-1"></i>
-                      <?= $status === 'active' ? 'Deactivate' : 'Activate' ?>
-                    </button>
-
-                    <button onclick="handleEditClick(<?= (int)$admin['user_id'] ?>)"
-                            class="btn-warning text-white px-3 py-1 rounded-lg mr-2 inline-flex items-center">
-                      <i class="fas fa-edit mr-1"></i>Edit
-                    </button>
-
-                    <form action="delete_admin.php" method="POST" class="inline delete-form" id="delete-form-<?= (int)$admin['user_id'] ?>">
-                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($PAGE_CSRF) ?>">
-                      <input type="hidden" name="user_id" value="<?= (int)$admin['user_id'] ?>">
-                      <button type="submit" class="btn-danger text-white px-3 py-1 rounded-lg inline-flex items-center">
-                        <i class="fas fa-trash-alt mr-1"></i>Delete
+                  <td class="px-4 md:px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                    <div class="flex flex-col sm:flex-row gap-2 justify-center admin-actions">
+                      <button
+                        onclick="toggleAdminStatus(<?= (int)$admin['user_id'] ?>, '<?= $status === 'active' ? 'inactive' : 'active' ?>')"
+                        class="<?= $status === 'active' ? 'btn-danger' : 'btn-success' ?> text-white px-3 py-1 rounded-lg inline-flex items-center justify-center">
+                        <i class="fas fa-<?= $status === 'active' ? 'ban' : 'check' ?> mr-1"></i>
+                        <?= $status === 'active' ? 'Deactivate' : 'Activate' ?>
                       </button>
-                    </form>
+
+                      <button onclick="handleEditClick(<?= (int)$admin['user_id'] ?>)"
+                              class="btn-warning text-white px-3 py-1 rounded-lg inline-flex items-center justify-center">
+                        <i class="fas fa-edit mr-1"></i>Edit
+                      </button>
+
+                      <form action="delete_admin.php" method="POST" class="inline delete-form" id="delete-form-<?= (int)$admin['user_id'] ?>">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($PAGE_CSRF) ?>">
+                        <input type="hidden" name="user_id" value="<?= (int)$admin['user_id'] ?>">
+                        <button type="submit" class="btn-danger text-white px-3 py-1 rounded-lg inline-flex items-center justify-center">
+                          <i class="fas fa-trash-alt mr-1"></i>Delete
+                        </button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -688,26 +748,6 @@ function summarizeAssignedScopeShort(array $admin): string {
     <div class="bg-white p-6 rounded-lg shadow-xl flex flex-col items-center">
       <div class="loading-spinner mb-4"></div>
       <p class="text-gray-700">Processing, please wait...</p>
-    </div>
-  </div>
-
-  <!-- Advance Year Modal -->
-  <div id="advanceYearModal" class="fixed inset-0 bg-black bg-opacity-40 z-50 flex justify-center items-center hidden">
-    <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
-      <h3 class="text-lg font-bold text-gray-900 mb-4">Advance Academic Year</h3>
-      <form id="advanceYearForm" onsubmit="advanceAcademicYear(event)">
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-1">New Academic Year</label>
-          <input type="text" id="newAcademicYear" class="w-full p-2 border rounded" placeholder="e.g., 2025-2026" required>
-        </div>
-        <div class="mb-4">
-          <p class="text-sm text-gray-600">This will update the academic year for all admin accounts.</p>
-        </div>
-        <div class="flex justify-end gap-3">
-          <button type="button" onclick="closeAdvanceYearModal()" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded font-medium">Cancel</button>
-          <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium">Advance Year</button>
-        </div>
-      </form>
     </div>
   </div>
 
@@ -732,7 +772,7 @@ function summarizeAssignedScopeShort(array $admin): string {
 
   <!-- Confirmation Modal -->
   <div id="confirmationModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
-    <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
       <h3 id="confirmationTitle" class="text-lg font-semibold text-gray-900 mb-2"></h3>
       <p id="confirmationMessage" class="text-gray-600 mb-6"></p>
       <div class="flex justify-end space-x-3">
@@ -820,6 +860,17 @@ document.getElementById('confirmButton').addEventListener('click', function(){
   cancelConfirmation();
 });
 
+// === Filter by year from table header ===
+function filterByYear(year) {
+  const url = new URL(window.location);
+  if (year) {
+    url.searchParams.set('year', year);
+  } else {
+    url.searchParams.delete('year');
+  }
+  window.location.href = url.toString();
+}
+
 // === Filter autosubmit ===
 function updateCollegeFilter(){
   const scope = document.getElementById('scope');
@@ -846,8 +897,12 @@ function updateCourseDepartmentFilter(){
   if (scope === 'Academic-Student' && college) courseContainer.classList.remove('hidden');
   else courseContainer.classList.add('hidden');
 
-  if (scope === 'Academic-Faculty' && college) deptContainer.classList.remove('hidden');
-  else deptContainer.classList.add('hidden');
+  // Show department container for Academic-Faculty (with college) OR Non-Academic-Employee
+  if ((scope === 'Academic-Faculty' && college) || scope === 'Non-Academic-Employee') {
+    deptContainer.classList.remove('hidden');
+  } else {
+    deptContainer.classList.add('hidden');
+  }
 }
 function submitFilterForm(){ document.getElementById('filterForm').submit(); }
 
@@ -876,42 +931,6 @@ function toggleAdminStatus(adminId, newStatus){
         action: 'toggle_status',
         admin_id: adminId,
         status: newStatus,
-        csrf_token: document.getElementById('pageCsrf').value
-      })
-    }).then(r=>r.json()).then(data=>{
-      overlay?.classList.add('hidden');
-      if (data.success) {
-        showNotification('Success', data.message, 'success');
-        setTimeout(()=>window.location.reload(), 900);
-      } else {
-        showNotification('Error', data.message, 'error');
-      }
-    }).catch(err=>{
-      overlay?.classList.add('hidden');
-      showNotification('Request Failed', err.message, 'error');
-    });
-  });
-}
-
-// === Advance Academic Year (with CSRF) ===
-function showAdvanceYearModal(){
-  const modal = document.getElementById('advanceYearModal');
-  const cur = new Date().getFullYear();
-  document.getElementById('newAcademicYear').value = `${cur}-${cur+1}`;
-  modal.classList.remove('hidden');
-}
-function closeAdvanceYearModal(){ document.getElementById('advanceYearModal').classList.add('hidden'); }
-function advanceAcademicYear(e){
-  e.preventDefault();
-  const newYear = document.getElementById('newAcademicYear').value.trim();
-  showConfirmation('Confirm Academic Year Advance', `Advance the academic year to ${newYear}?`, function(){
-    const overlay = document.getElementById('loadingOverlay'); overlay?.classList.remove('hidden');
-    fetch('manage_admins.php', {
-      method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body:new URLSearchParams({
-        action:'advance_year',
-        academic_year:newYear,
         csrf_token: document.getElementById('pageCsrf').value
       })
     }).then(r=>r.json()).then(data=>{
