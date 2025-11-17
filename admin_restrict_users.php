@@ -62,7 +62,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Get restricted users (those added via CSV)
-$stmt = $pdo->prepare("SELECT * FROM pending_users WHERE source = 'csv' ORDER BY created_at DESC");
+$stmt = $pdo->prepare("
+    SELECT * 
+    FROM pending_users 
+    WHERE source = 'csv'
+      AND is_restricted = 1
+    ORDER BY created_at DESC
+");
 $stmt->execute();
 $restrictedUsers = $stmt->fetchAll();
 ?>

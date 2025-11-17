@@ -5789,3 +5789,69 @@ Array
 )
 
 Update successful for election 222
+Executing with params:
+Array
+(
+    [:title] => woops
+    [:description] => sasas
+    [:start_datetime] => 2025-11-17 15:01:00
+    [:end_datetime] => 2025-11-18 11:11:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Non-Academic-Student
+    [:owner_scope_id] => 86
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => 
+    [:assigned_admin_id] => 350
+    [:election_id] => 218
+)
+
+Update successful for election 218
+Executing with params:
+Array
+(
+    [:title] => woops
+    [:description] => sasas
+    [:start_datetime] => 2025-11-17 15:00:00
+    [:end_datetime] => 2025-11-18 11:11:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Non-Academic-Student
+    [:owner_scope_id] => 86
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => 
+    [:assigned_admin_id] => 350
+    [:election_id] => 218
+)
+
+Update successful for election 218
+Executing with params:
+Array
+(
+    [:title] => Alumni Election
+    [:description] => none
+    [:start_datetime] => 2025-11-17 17:13:00
+    [:end_datetime] => 2025-11-19 11:11:00
+    [:target_position] => others
+    [:target_department] => Employees
+    [:election_scope_type] => Others-Default
+    [:owner_scope_id] => 95
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => All
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1763225259_s-l1600.jpg
+    [:assigned_admin_id] => 361
+    [:election_id] => 220
+)
+
+Update successful for election 220

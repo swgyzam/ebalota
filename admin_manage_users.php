@@ -1,4 +1,4 @@
-//<?php
+<?php
 session_start();
 date_default_timezone_set('Asia/Manila');
 
@@ -590,11 +590,12 @@ else if ($scopeCategory === 'Non-Academic-Student' && $myScopeId !== null) {
 }
 
 // 3) OTHERS - DEFAULT ADMIN (scope_category = Others-Default)
-//    Manages faculty + non-academic employees tied to their scope seat via users.owner_scope_id.
+//    Manages ONLY its own "Others" members (faculty + non-academic) via owner_scope_id + is_other_member.
 else if ($scopeCategory === 'Others-Default' && $myScopeId !== null) {
 
-    $conditions[] = "(position = 'academic' OR position = 'non-academic')";
-    $conditions[] = "owner_scope_id = :ownerScopeId";
+    $conditions[]            = "(position = 'academic' OR position = 'non-academic')";
+    $conditions[]            = "owner_scope_id = :ownerScopeId";
+    $conditions[]            = "is_other_member = 1";   // NEW: only rows explicitly marked as Others members
     $params[':ownerScopeId'] = $myScopeId;
 
     // Show both College (for academic) and Department (for non-ac)
@@ -607,6 +608,7 @@ else if ($scopeCategory === 'Others-Default' && $myScopeId !== null) {
         WHERE role = 'voter'
           AND position = 'academic'
           AND owner_scope_id = :sid
+          AND is_other_member = 1
           AND department IS NOT NULL
           AND department != ''
         ORDER BY department ASC
@@ -626,6 +628,7 @@ else if ($scopeCategory === 'Others-Default' && $myScopeId !== null) {
         WHERE role = 'voter' 
           AND (position = 'academic' OR position = 'non-academic')
           AND owner_scope_id = :sid
+          AND is_other_member = 1
         ORDER BY status ASC
     ");
     $stmtStatus->execute([':sid' => $myScopeId]);
@@ -645,6 +648,7 @@ else if ($scopeCategory === 'Others-Default' && $myScopeId !== null) {
         WHERE role = 'voter' 
           AND (position = 'academic' OR position = 'non-academic')
           AND owner_scope_id = :sid
+          AND is_other_member = 1
           AND (
                (position = 'academic'     AND department1 IS NOT NULL AND department1 != '')
             OR (position = 'non-academic' AND department  IS NOT NULL AND department  != '')
@@ -653,8 +657,7 @@ else if ($scopeCategory === 'Others-Default' && $myScopeId !== null) {
     ");
     $stmtDept->execute([':sid' => $myScopeId]);
     $filterOptions['departments'] = $stmtDept->fetchAll(PDO::FETCH_COLUMN);
-    // NOTE: For Others-Default, we keep raw values (full dept name or code)
-    // so the filter will match them exactly.
+    // For Others-Default, we keep raw values (full dept name or code)
 }
 
 // 3b) COLLEGE FACULTY ADMINS (Academic-Faculty) – CEIT, CAS, etc.
@@ -882,7 +885,6 @@ else if ($scopeCategory === 'Non-Academic-Employee' || $assignedScope === 'NON-A
 
     // If may specific departments, limit filterOptions to those department codes
     if (!empty($allowedDeptCodes)) {
-        // For statuses, we still want all statuses within those departments only
         $inPh = [];
         $statusParams = [];
         $deptParams   = [];
@@ -963,18 +965,22 @@ else if ($assignedScope === 'COOP') {
     }, $filterOptions['departments']);
 }
 
-// 8) CSG Admin - all students
+// 8) CSG Admin - all students (GLOBAL ONLY: exclude org-specific Non-Academic-Student uploads)
 else if ($assignedScope === 'CSG ADMIN') {
 
     $conditions[] = "position = 'student'";
+    // EXCLUDE org-owned student voters (Non-Academic-Student CSV uploads)
+    $conditions[] = "owner_scope_id IS NULL";
 
     $columns = ['Photo', 'Name', 'Student Number', 'College', 'Department', 'Course', 'Actions'];
 
+    // Colleges filter: only from global students (no owner_scope_id)
     $filterOptions['colleges'] = $pdo->query("
         SELECT DISTINCT department 
         FROM users 
         WHERE role = 'voter' 
-          AND position = 'student' 
+          AND position = 'student'
+          AND owner_scope_id IS NULL
           AND department IS NOT NULL 
           AND department != '' 
         ORDER BY department ASC
@@ -985,11 +991,13 @@ else if ($assignedScope === 'CSG ADMIN') {
         return getMappedCode($mappingSystem['colleges'], $college, $college);
     }, $filterOptions['colleges']);
 
+    // Departments filter: from global students only
     $filterOptions['departments'] = $pdo->query("
         SELECT DISTINCT department1 
         FROM users 
         WHERE role = 'voter' 
-          AND position = 'student' 
+          AND position = 'student'
+          AND owner_scope_id IS NULL
           AND department1 IS NOT NULL 
           AND department1 != '' 
         ORDER BY department1 ASC
@@ -999,11 +1007,13 @@ else if ($assignedScope === 'CSG ADMIN') {
         return getMappedValue($mappingSystem['departments'], $dept, $dept);
     }, $filterOptions['departments']);
 
+    // Courses filter: from global students only
     $filterOptions['courses'] = $pdo->query("
         SELECT DISTINCT course 
         FROM users 
         WHERE role = 'voter' 
-          AND position = 'student' 
+          AND position = 'student'
+          AND owner_scope_id IS NULL
           AND course IS NOT NULL 
           AND course != '' 
         ORDER BY course ASC
@@ -1247,7 +1257,7 @@ if (
               } else if ($assignedScope === 'COOP') {
                 echo "COOP members";
               } else if ($assignedScope === 'CSG ADMIN') {
-                echo "All student voters";
+                echo "All student voters (Global only)";
               } else {
                 if ($scopeCategory === 'Academic-Faculty' && in_array($assignedScope, [
                     'CAFENR','CEIT','CAS','CVMBS','CED','CEMDS',

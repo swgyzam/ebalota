@@ -43,11 +43,12 @@ if ($filter_status === 'all') {
     'SECURITY','LIBRARY','NAES','NAEM','NAEH','NAEIT'
 ];
 
-// Fetch all admins once for dropdowns
+// Fetch all ACTIVE admins once for dropdowns
  $adminStmt = $pdo->query("
   SELECT user_id, first_name, last_name, assigned_scope, scope_category, assigned_scope_1, admin_title
   FROM users
   WHERE role = 'admin'
+    AND admin_status = 'active'
   ORDER BY scope_category, user_id DESC
 ");
  $allAdmins = $adminStmt->fetchAll();

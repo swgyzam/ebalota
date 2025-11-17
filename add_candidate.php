@@ -47,18 +47,49 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin'])) {
   exit();
 }
 
-// --- Get current admin info ---
+// --- Get current admin info (+ scope category) ---
  $userId = $_SESSION['user_id'];
- $stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = :userId");
+ $stmt = $pdo->prepare("
+    SELECT role, assigned_scope, scope_category
+    FROM users 
+    WHERE user_id = :userId
+");
  $stmt->execute([':userId' => $userId]);
  $user = $stmt->fetch();
+
 if (!$user) {
     session_destroy();
     header('Location: login.php');
     exit();
 }
- $role = $user['role'];
+
+ $role          = $user['role'];
  $assignedScope = $user['assigned_scope'];
+ $scopeCategory = $user['scope_category'] ?? '';
+
+// --- Resolve this admin's scope seat (admin_scopes) ---
+ $myScopeId = null;
+
+if (!empty($scopeCategory)) {
+    $scopeStmt = $pdo->prepare("
+        SELECT scope_id, scope_type, scope_details
+        FROM admin_scopes
+        WHERE user_id   = :uid
+          AND scope_type = :stype
+        LIMIT 1
+    ");
+    $scopeStmt->execute([
+        ':uid'   => $userId,
+        ':stype' => $scopeCategory,
+    ]);
+    $scopeRow = $scopeStmt->fetch();
+
+    if ($scopeRow) {
+        $myScopeId = (int)$scopeRow['scope_id'];
+        // If you ever need scope_details in this file, you can decode here:
+        // $myScopeDetails = json_decode($scopeRow['scope_details'] ?? '[]', true) ?: [];
+    }
+}
 
 // --- Create upload directories if they don't exist ---
 if (!file_exists(PROFILE_PIC_DIR)) mkdir(PROFILE_PIC_DIR, 0755, true);
@@ -222,11 +253,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
-// --- Fetch elections for dropdown (ONLY elections assigned to this admin) ---
- $electionStmt = $pdo->prepare("SELECT election_id, title FROM elections 
-                               WHERE assigned_admin_id = :adminId
-                               ORDER BY title ASC");
- $electionStmt->execute([':adminId' => $userId]);
+
+// --- Fetch elections for dropdown (seat-aware) ---
+if ($myScopeId !== null && !empty($scopeCategory)) {
+    // New behavior: elections tied to this admin's seat OR explicitly assigned to this admin
+    $electionStmt = $pdo->prepare("
+        SELECT election_id, title
+        FROM elections
+        WHERE (assigned_admin_id = :adminId)
+           OR (owner_scope_id = :scopeId AND election_scope_type = :scopeCategory)
+        ORDER BY title ASC
+    ");
+    $electionStmt->execute([
+        ':adminId'       => $userId,
+        ':scopeId'       => $myScopeId,
+        ':scopeCategory' => $scopeCategory,
+    ]);
+} else {
+    // Fallback for legacy/edge cases (no seat found): old behavior
+    $electionStmt = $pdo->prepare("
+        SELECT election_id, title
+        FROM elections
+        WHERE assigned_admin_id = :adminId
+        ORDER BY title ASC
+    ");
+    $electionStmt->execute([':adminId' => $userId]);
+}
+
  $elections = $electionStmt->fetchAll();
 
 // --- Fetch custom positions for dropdown ---

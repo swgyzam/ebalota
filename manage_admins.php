@@ -9,17 +9,17 @@ include_once 'admin_functions.php'; // taxonomy & helpers
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
-$PAGE_CSRF = $_SESSION['csrf_token'];
+ $PAGE_CSRF = $_SESSION['csrf_token'];
 
 // --- DB Connection ---
-$host    = 'localhost';
-$db      = 'evoting_system';
-$user    = 'root';
-$pass    = '';
-$charset = 'utf8mb4';
+ $host    = 'localhost';
+ $db      = 'evoting_system';
+ $user    = 'root';
+ $pass    = '';
+ $charset = 'utf8mb4';
 
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
-$options = [
+ $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+ $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
@@ -62,8 +62,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
 
             $pdo->beginTransaction();
+            
+            // Updated SELECT to include admin_title
             $stmt = $pdo->prepare("
-                SELECT user_id, role, admin_status, scope_category, assigned_scope, assigned_scope_1 
+                SELECT user_id, role, admin_status, scope_category, assigned_scope, assigned_scope_1, admin_title 
                 FROM users 
                 WHERE user_id = ? AND role = 'admin' 
                 FOR UPDATE
@@ -90,6 +92,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 if (!empty($admin['assigned_scope_1'])) {
                     $conditions[]               = "assigned_scope_1 = :assigned_scope_1";
                     $params[':assigned_scope_1']= $admin['assigned_scope_1'];
+                }
+
+                /**
+                 * SPECIAL CASE:
+                 * For Non-Academic-Student and Others-Default,
+                 * uniqueness should be per SEAT:
+                 *   (scope_category, assigned_scope, assigned_scope_1, admin_title)
+                 *
+                 * This means:
+                 *  - Music Org admin & Esports Org admin can both be active
+                 *    (different admin_title → different seat)
+                 *  - But two "Music Org" admins in the same scope → only 1 active.
+                 */
+                if (
+                    in_array($admin['scope_category'], ['Non-Academic-Student', 'Others-Default'], true) &&
+                    !empty($admin['admin_title'])
+                ) {
+                    $conditions[]              = "admin_title = :admin_title";
+                    $params[':admin_title']    = $admin['admin_title'];
                 }
 
                 if ($conditions) {
@@ -181,7 +202,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $params[':admin_title'] = $adminTitle;
             }
 
-            $sql .= " ORDER BY user_id ASC LIMIT 1";
+            // pick the most recent previous admin (highest user_id) as source
+            $sql .= " ORDER BY user_id DESC LIMIT 1";
 
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
@@ -241,15 +263,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // --- Filtering ---
-$filterScope      = $_GET['scope']       ?? '';
-$filterCollege    = $_GET['college']     ?? '';
-$filterCourse     = $_GET['course']      ?? '';
-$filterDepartment = $_GET['department']  ?? '';
-$filterYear       = $_GET['year']        ?? '';
-$filterAdminTitle = $_GET['admin_title'] ?? '';
+ $filterScope      = $_GET['scope']       ?? '';
+ $filterCollege    = $_GET['college']     ?? '';
+ $filterCourse     = $_GET['course']      ?? '';
+ $filterDepartment = $_GET['department']  ?? '';
+ $filterYear       = $_GET['year']        ?? '';
+ $filterAdminTitle = $_GET['admin_title'] ?? '';
 
-$scopeQuery = '';
-$params     = [];
+ $scopeQuery = '';
+ $params     = [];
 
 if (!empty($filterScope)) {
     $scopeQuery         .= " AND u.scope_category = :scope";
@@ -282,18 +304,18 @@ if (!empty($filterYear)) {
 }
 
 // Fetch admins for this scope/college/course/department/year
-$stmt = $pdo->prepare("
+ $stmt = $pdo->prepare("
     SELECT u.*, asd.scope_details 
     FROM users u 
     LEFT JOIN admin_scopes asd ON u.user_id = asd.user_id 
     WHERE u.role = 'admin' $scopeQuery 
     ORDER BY FIELD(u.admin_status, 'active','inactive','suspended'), u.user_id DESC
 ");
-$stmt->execute($params);
-$adminsRaw = $stmt->fetchAll();
+ $stmt->execute($params);
+ $adminsRaw = $stmt->fetchAll();
 
 // Build Admin Title filter options only for Non-Academic-Student / Others-Default
-$adminFilterOptions = [];
+ $adminFilterOptions = [];
 if (in_array($filterScope, ['Non-Academic-Student', 'Others-Default'], true)) {
     foreach ($adminsRaw as $row) {
         $title = trim($row['admin_title'] ?? '');
@@ -313,8 +335,8 @@ if (!empty($filterAdminTitle) && in_array($filterScope, ['Non-Academic-Student',
 }
 
 // Stats
-$totalAdmins  = count($admins);
-$activeAdmins = count(array_filter(
+ $totalAdmins  = count($admins);
+ $activeAdmins = count(array_filter(
     $admins,
     fn($a) => ($a['admin_status'] ?? '') === 'active'
 ));
@@ -734,24 +756,68 @@ function summarizeAssignedScopeShort(array $admin): string {
 
                   // Determine if this row should show "Inherit Scope" instead of "Activate"
                   $showInherit = false;
+
                   if (!empty($filterScope) && $status === 'inactive' && !empty($admin['scope_category'])) {
-                      foreach ($admins as $other) {
-                          if ($other['user_id'] == $admin['user_id']) continue;
-                          if (
-                              ($other['scope_category']   ?? '') === ($admin['scope_category']   ?? '') &&
-                              ($other['assigned_scope']    ?? '') === ($admin['assigned_scope']    ?? '') &&
-                              ($other['assigned_scope_1']  ?? '') === ($admin['assigned_scope_1']  ?? '') &&
-                              ($other['admin_status']      ?? '') === 'inactive' &&
-                              (int)$other['user_id']       < (int)$admin['user_id']
-                          ) {
-                              // For Non-Academic-Student & Others-Default, also require same admin_title (seat)
-                              if (in_array($admin['scope_category'], ['Non-Academic-Student','Others-Default'], true)) {
-                                  if (trim($other['admin_title'] ?? '') !== trim($admin['admin_title'] ?? '')) {
-                                      continue;
-                                  }
+
+                      // Special seat-based logic for Non-Academic-Student & Others-Default
+                      if (in_array($admin['scope_category'], ['Non-Academic-Student','Others-Default'], true)) {
+
+                          $seatCategory = $admin['scope_category']   ?? '';
+                          $seatScope    = $admin['assigned_scope']   ?? '';
+                          $seatScope1   = $admin['assigned_scope_1'] ?? '';
+                          $seatTitle    = trim($admin['admin_title'] ?? '');
+
+                          // Collect all admins that belong to the same seat
+                          $seatAdmins = array_filter($admins, function ($other) use ($admin, $seatCategory, $seatScope, $seatScope1, $seatTitle) {
+                              if (($other['scope_category']   ?? '') !== $seatCategory) return false;
+                              if (($other['assigned_scope']    ?? '') !== $seatScope)   return false;
+                              if (($other['assigned_scope_1']  ?? '') !== $seatScope1)  return false;
+                              if (trim($other['admin_title']   ?? '') !== $seatTitle)   return false;
+                              return true;
+                          });
+
+                          $hasActive        = false;
+                          $hasOlderInactive = false;
+                          $maxId            = 0;
+                          $currentId        = (int)$admin['user_id'];
+
+                          foreach ($seatAdmins as $sa) {
+                              $uid    = (int)$sa['user_id'];
+                              $status = $sa['admin_status'] ?? '';
+
+                              if ($uid > $maxId) {
+                                  $maxId = $uid; // track newest admin in this seat
                               }
+                              if ($uid !== $currentId && $status === 'active') {
+                                  $hasActive = true;
+                              }
+                              if ($uid < $currentId && $status === 'inactive') {
+                                  $hasOlderInactive = true; // may isang mas luma na inactive sa seat
+                              }
+                          }
+
+                          // Show Inherit only if:
+                          //  - Walang active admin sa seat (vacant na yung upuan)
+                          //  - Itong admin ang pinakabagong admin sa seat (max user_id)
+                          //  - May at least isang mas luma na inactive admin sa seat (source to inherit from)
+                          if (!$hasActive && $currentId === $maxId && $hasOlderInactive) {
                               $showInherit = true;
-                              break;
+                          }
+
+                      } else {
+                          // Existing generic behavior for other scope categories
+                          foreach ($admins as $other) {
+                              if ($other['user_id'] == $admin['user_id']) continue;
+                              if (
+                                  ($other['scope_category']   ?? '') === ($admin['scope_category']   ?? '') &&
+                                  ($other['assigned_scope']    ?? '') === ($admin['assigned_scope']    ?? '') &&
+                                  ($other['assigned_scope_1']  ?? '') === ($admin['assigned_scope_1']  ?? '') &&
+                                  ($other['admin_status']      ?? '') === 'inactive' &&
+                                  (int)$other['user_id']       < (int)$admin['user_id']
+                              ) {
+                                  $showInherit = true;
+                                  break;
+                              }
                           }
                       }
                   }
