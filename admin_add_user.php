@@ -1,40 +1,69 @@
 <?php
 session_start();
 date_default_timezone_set('Asia/Manila');
+
 // --- DB Connection ---
- $host = 'localhost';
- $db   = 'evoting_system';
- $user = 'root';
- $pass = '';
+ $host    = 'localhost';
+ $db      = 'evoting_system';
+ $user    = 'root';
+ $pass    = '';
  $charset = 'utf8mb4';
+
  $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
  $options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
+
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (\PDOException $e) {
     die("Database connection failed: " . $e->getMessage());
 }
+
 // --- Auth Check ---
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin','super_admin'])) {
     header('Location: login.php');
     exit();
 }
 
-// Get the current admin's role and assigned scope
- $adminRole = $_SESSION['role'];
+// Get current admin info from session
+ $adminRole     = $_SESSION['role'];
  $assignedScope = strtoupper(trim($_SESSION['assigned_scope'] ?? ''));
+ $scopeCategory = $_SESSION['scope_category'] ?? ''; // e.g. Academic-Student, Academic-Faculty, Non-Academic-Student, Others-Default, Non-Academic-Employee
 
-// Set role-specific instructions and CSV format based on assigned scope
- $instructions = '';
- $csvExample = '';
+// Resolve this admin's scope seat (admin_scopes), if applicable
+ $myScopeId   = null;
+ $myScopeType = null;
 
-// Determine admin type based on assigned scope
+if ($adminRole === 'admin' && !empty($scopeCategory)) {
+    $scopeStmt = $pdo->prepare("
+        SELECT scope_id, scope_type, scope_details
+        FROM admin_scopes
+        WHERE user_id   = :uid
+          AND scope_type = :stype
+        LIMIT 1
+    ");
+    $scopeStmt->execute([
+        ':uid'   => $_SESSION['user_id'],
+        ':stype' => $scopeCategory,
+    ]);
+    $scopeRow = $scopeStmt->fetch();
+    if ($scopeRow) {
+        $myScopeId   = (int)$scopeRow['scope_id'];
+        $myScopeType = $scopeRow['scope_type'];
+    }
+}
+
+// ---------------------------------------------------------------------
+// Determine admin_type (compatible with process_users_csv.php)
+// ---------------------------------------------------------------------
 if ($adminRole === 'super_admin') {
     $adminType = 'super_admin';
-} else if (in_array($assignedScope, ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC'])) {
+} else if (in_array($assignedScope, [
+    'CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS',
+    'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC'
+])) {
     $adminType = 'admin_students';
 } else if ($assignedScope === 'FACULTY ASSOCIATION') {
     $adminType = 'admin_academic';
@@ -48,36 +77,91 @@ if ($adminRole === 'super_admin') {
     $adminType = 'general_admin';
 }
 
+// NEW: refine adminType semantics using scope_category (override old assigned_scope logic)
+if ($scopeCategory === 'Non-Academic-Student') {
+    // Org-based student admins still use student CSV format
+    $adminType = 'admin_students';
+} elseif ($scopeCategory === 'Others-Default') {
+    // Others-Default admins use COOP-like CSV format
+    $adminType = 'admin_non_academic'; // Still use admin_non_academic for processing, but with custom format
+} elseif ($scopeCategory === 'Academic-Faculty') {
+    // Academic-Faculty admins should use faculty/academic CSV format
+    $adminType = 'admin_academic';
+} elseif ($scopeCategory === 'Non-Academic-Employee') {
+    // Non-Academic-Employee admins use non-academic CSV format
+    $adminType = 'admin_non_academic';
+}
+
+// ---------------------------------------------------------------------
+// Build instructions + CSV examples
+// ---------------------------------------------------------------------
+ $instructions = '';
+ $csvExample   = '';
+
 switch ($adminType) {
+
     case 'admin_students':
-        $instructions = '
-            <h3 class="font-semibold text-blue-800 mb-2">Instructions for Student Voters:</h3>
-            <ul class="list-disc pl-5 text-blue-700 space-y-1">
-                <li>Upload a CSV file containing student voters to add to the system</li>
-                <li>The CSV must have these columns in order: first_name, last_name, email, position, student_number, college, department, course</li>
-                <li>Passwords will be automatically generated for each student</li>
-                <li>Students will be added with the role "voter" and position "student"</li>
-                <li>Only students from your assigned college will be processed</li>
-                <li>is_coop_member will automatically be set to 0</li>
-            </ul>
-        ';
-        $csvExample = '
-            <h3 class="font-semibold text-yellow-800 mb-2">Student CSV Format Example:</h3>
-            <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">first_name,last_name,email,position,student_number,college,department,course
+        // Two sub-modes:
+        // 1) College/Campus student admins (Academic-Student / CSG)
+        // 2) Org-based Non-Academic-Student admins
+        if ($scopeCategory === 'Non-Academic-Student') {
+            // Non-Academic - Student Admin: org-based student voters
+            $instructions = '
+                <h3 class="font-semibold text-blue-800 mb-2">Instructions for Non-Academic Student Organization Members:</h3>
+                <ul class="list-disc pl-5 text-blue-700 space-y-1">
+                    <li>Upload a CSV file containing student members of <strong>your organization/scope</strong>.</li>
+                    <li>The CSV must have these columns in order:
+                        <code>first_name, last_name, email, position, student_number, college, department, course</code>
+                    </li>
+                    <li><strong>position</strong> should be set to <code>student</code> for all rows.</li>
+                    <li>All uploaded students will be added with role <code>voter</code> and position <code>student</code>.</li>
+                    <li>These members will be tied to <strong>your scope</strong> (owner_scope_id) so only your org admin can manage them.</li>
+                    <li><strong>Note:</strong> college/department/course are for reference and filtering; scope ownership will still follow your assigned org scope.</li>
+                </ul>
+            ';
+            // Keep same column order as legacy student format (important for process_users_csv.php)
+            $csvExample = '
+                <h3 class="font-semibold text-yellow-800 mb-2">Non-Academic Student Org CSV Format Example:</h3>
+                <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">first_name,last_name,email,position,student_number,college,department,course
+Raven,Kyle,raven.kyle@example.com,student,202200151,CEIT,Department of Information Technology,BS Information Technology
+Jam,Benito,jam.benito@example.com,student,202200146,CEIT,Department of Information Technology,BS Information Technology</pre>
+            ';
+        } else {
+            // Default: college-level student admins / CSG ADMIN
+            $instructions = '
+                <h3 class="font-semibold text-blue-800 mb-2">Instructions for Student Voters:</h3>
+                <ul class="list-disc pl-5 text-blue-700 space-y-1">
+                    <li>Upload a CSV file containing student voters to add to the system.</li>
+                    <li>The CSV must have these columns in order:
+                        <code>first_name, last_name, email, position, student_number, college, department, course</code>
+                    </li>
+                    <li><strong>position</strong> should be set to <code>student</code> for all rows.</li>
+                    <li>Passwords will be automatically generated for each student.</li>
+                    <li>Students will be added with the role <code>voter</code> and position <code>student</code>.</li>
+                    <li>Only students that match your assigned college and course scope will be processed.</li>
+                    <li><strong>Note:</strong> is_coop_member will automatically be set to 0.</li>
+                </ul>
+            ';
+            $csvExample = '
+                <h3 class="font-semibold text-yellow-800 mb-2">Student CSV Format Example:</h3>
+                <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">first_name,last_name,email,position,student_number,college,department,course
 John,Doe,john.doe@example.com,student,20231001,CEIT,Department of Computer and Electronics Engineering,BS Computer Science
 Jane,Smith,jane.smith@example.com,student,20231002,CAS,Department of Biological Sciences,BS Psychology</pre>
-        ';
+            ';
+        }
         break;
-        
+
     case 'admin_academic':
         $instructions = '
             <h3 class="font-semibold text-blue-800 mb-2">Instructions for Academic Voters (Faculty):</h3>
             <ul class="list-disc pl-5 text-blue-700 space-y-1">
-                <li>Upload a CSV file containing faculty members to add to the system</li>
-                <li>The CSV must have these columns in order: first_name, last_name, email, position, employee_number, college, department, status, is_coop_member</li>
-                <li>Passwords will be automatically generated for each faculty member</li>
-                <li>Faculty will be added with the role "voter" and position "academic"</li>
-                <li>Only faculty from your assigned departments will be processed</li>
+                <li>Upload a CSV file containing faculty members to add to the system.</li>
+                <li>The CSV must have these columns in order:
+                    <code>first_name, last_name, email, position, employee_number, college, department, status, is_coop_member</code>
+                </li>
+                <li>Passwords will be automatically generated for each faculty member.</li>
+                <li>Faculty will be added with the role <code>voter</code> and position <code>academic</code>.</li>
+                <li>Only faculty from your assigned departments will be processed.</li>
             </ul>
         ';
         $csvExample = '
@@ -87,37 +171,72 @@ John,Doe,john.doe@example.com,academic,1001,CEIT,Department of Computer and Elec
 Jane,Smith,jane.smith@example.com,academic,1002,CAS,Department of Biological Sciences,regular,1</pre>
         ';
         break;
-        
+
     case 'admin_non_academic':
-        $instructions = '
-            <h3 class="font-semibold text-blue-800 mb-2">Instructions for Non-Academic Employees:</h3>
-            <ul class="list-disc pl-5 text-blue-700 space-y-1">
-                <li>Upload a CSV file containing non-academic staff to add to the system</li>
-                <li>The CSV must have these columns in order: first_name, last_name, email, position, employee_number, department, status, is_coop_member</li>
-                <li>Passwords will be automatically generated for each employee</li>
-                <li>Non-academic staff will be added with the role "voter" and position "non-academic"</li>
-                <li>Only employees from your assigned offices will be processed</li>
-            </ul>
-        ';
-        $csvExample = '
-            <h3 class="font-semibold text-yellow-800 mb-2">Non-Academic CSV Format Example:</h3>
-            <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">first_name,last_name,email,position,employee_number,department,status,is_coop_member
-John,Doe,john.doe@example.com,non-academic,1001,Administration,regular,0
-Jane,Smith,jane.smith@example.com,non-academic,1002,Library,part-time,1</pre>
-        ';
+        if ($scopeCategory === 'Others-Default') {
+            // Others-Default: faculty + non-ac employees, with owner_scope_id & is_other_member
+            $instructions = '
+                <h3 class="font-semibold text-blue-800 mb-2">Instructions for Others - Default Admin (Faculty & Non-Academic Employees):</h3>
+                <ul class="list-disc pl-5 text-blue-700 space-y-1">
+                    <li>Upload a CSV file containing <strong>faculty and/or non-academic employees</strong> who belong to your scope.</li>
+                    <li>The CSV must have these columns in order:
+                        <code>first_name, last_name, email, position, employee_number, college, department, status, is_other_member</code>
+                    </li>
+                    <li><strong>position</strong> should be <code>academic</code> for faculty and <code>non-academic</code> for staff.</li>
+                    <li><strong>college</strong>:
+                        <ul class="list-disc pl-5">
+                            <li>For faculty: set to the college code (e.g., <code>CEIT</code>, <code>CAS</code>).</li>
+                            <li>For non-academic staff: you may leave college blank or use an appropriate office/college code.</li>
+                        </ul>
+                    </li>
+                    <li>Passwords will be automatically generated for each employee.</li>
+                    <li>All uploaded users will be added with role <code>voter</code> and tied to <strong>your scope</strong> via <code>owner_scope_id</code>, so only your admin can manage them.</li>
+                    <li><strong>is_other_member</strong> will be set to <code>1</code> for all uploaded rows (you can put 1 in the CSV or leave it blank; the system will enforce 1 during processing).</li>
+                </ul>
+            ';
+            $csvExample = '
+                <h3 class="font-semibold text-yellow-800 mb-2">Others - Default Employee CSV Format Example:</h3>
+                <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">first_name,last_name,email,position,employee_number,college,department,status,is_other_member
+Juan,DelaCruz,juan.dc@example.com,academic,2001,CEIT,DIT,regular,1
+Maria,Santos,maria.santos@example.com,non-academic,2002,,LIBRARY,contractual,1</pre>
+            ';
+        } else {
+            // Non-Academic-Employee & legacy NON-ACADEMIC: global non-ac staff, no owner_scope_id
+            $instructions = '
+                <h3 class="font-semibold text-blue-800 mb-2">Instructions for Non-Academic Employees:</h3>
+                <ul class="list-disc pl-5 text-blue-700 space-y-1">
+                    <li>Upload a CSV file containing non-academic staff to add to the system.</li>
+                    <li>The CSV must have these columns in order:
+                        <code>first_name, last_name, email, position, employee_number, department, status, is_coop_member</code>
+                    </li>
+                    <li><strong>position</strong> should be set to <code>non-academic</code> for all rows.</li>
+                    <li>Passwords will be automatically generated for each employee.</li>
+                    <li>Non-academic staff will be added with the role <code>voter</code> and position <code>non-academic</code>.</li>
+                    <li>These users are <strong>not</strong> tied to an owner scope; visibility is based on their department (per your Non-Academic-Employee scope settings).</li>
+                </ul>
+            ';
+            $csvExample = '
+                <h3 class="font-semibold text-yellow-800 mb-2">Non-Academic CSV Format Example:</h3>
+                <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">first_name,last_name,email,position,employee_number,department,status,is_coop_member
+John,Doe,john.doe@example.com,non-academic,1001,ADMIN,regular,0
+Jane,Smith,jane.smith@example.com,non-academic,1002,LIBRARY,part-time,1</pre>
+            ';
+        }
         break;
-        
+
     case 'admin_coop':
         $instructions = '
             <h3 class="font-semibold text-blue-800 mb-2">Instructions for COOP Members:</h3>
             <ul class="list-disc pl-5 text-blue-700 space-y-1">
-                <li>Upload a CSV file containing COOP members to add to the system</li>
-                <li>The CSV must have these columns in order: first_name, last_name, email, position, employee_number, college, department, status, is_coop_member</li>
-                <li>Passwords will be automatically generated for each COOP member</li>
-                <li>COOP members will be added with the role "voter"</li>
-                <li><strong>For academic staff:</strong> college is required (e.g., "CEIT", "CAS")</li>
-                <li><strong>For non-academic staff:</strong> leave college field empty</li>
-                <li>is_coop_member will automatically be set to 1</li>
+                <li>Upload a CSV file containing COOP members to add to the system.</li>
+                <li>The CSV must have these columns in order:
+                    <code>first_name, last_name, email, position, employee_number, college, department, status, is_coop_member</code>
+                </li>
+                <li>Passwords will be automatically generated for each COOP member.</li>
+                <li>COOP members will be added with the role <code>voter</code>.</li>
+                <li><strong>For academic staff:</strong> college is required (e.g., CEIT, CAS).</li>
+                <li><strong>For non-academic staff:</strong> leave college field empty.</li>
+                <li><strong>Note:</strong> is_coop_member should be set to 1 for all rows.</li>
             </ul>
         ';
         $csvExample = '
@@ -127,17 +246,19 @@ John,Doe,john.doe@example.com,academic,1001,CEIT,Department of Computer and Elec
 Jane,Smith,jane.smith@example.com,non-academic,1002,,Administration,part-time,1</pre>
         ';
         break;
-        
+
     case 'super_admin':
-    default: // For general admin
+    default: // For general admin / fallback
         $instructions = '
             <h3 class="font-semibold text-blue-800 mb-2">Instructions:</h3>
             <ul class="list-disc pl-5 text-blue-700 space-y-1">
-                <li>Upload a CSV file containing users to add to the system</li>
-                <li>The CSV must have these columns in order: first_name, last_name, email, position, student_number, employee_number, college, department, course, status, is_coop_member</li>
-                <li>Passwords will be automatically generated for each user</li>
-                <li>Users will be added with the role "voter"</li>
-                <li>Leave fields blank if not applicable to the user type</li>
+                <li>Upload a CSV file containing users to add to the system.</li>
+                <li>The CSV must have these columns in order:
+                    <code>first_name, last_name, email, position, student_number, employee_number, college, department, course, status, is_coop_member</code>
+                </li>
+                <li>Passwords will be automatically generated for each user.</li>
+                <li>Users will be added with the role <code>voter</code>.</li>
+                <li>Leave fields blank if not applicable to the user type.</li>
             </ul>
         ';
         $csvExample = '
@@ -149,31 +270,40 @@ Jane,Smith,jane.smith@example.com,student,20231002,,CAS,Department of Biological
         break;
 }
 
+// ---------------------------------------------------------------------
+// File upload handling
+// ---------------------------------------------------------------------
  $message = '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_FILES['csv_file']) && $_FILES['csv_file']['error'] === UPLOAD_ERR_OK) {
-        $fileTmpPath = $_FILES['csv_file']['tmp_name'];
-        $fileName = $_FILES['csv_file']['name'];
-        $fileSize = $_FILES['csv_file']['size'];
-        $fileType = $_FILES['csv_file']['type'];
-        $fileNameCmps = explode(".", $fileName);
+        $fileTmpPath   = $_FILES['csv_file']['tmp_name'];
+        $fileName      = $_FILES['csv_file']['name'];
+        $fileNameCmps  = explode(".", $fileName);
         $fileExtension = strtolower(end($fileNameCmps));
-        
-        // Check if file is csv
+
         if ($fileExtension === 'csv') {
-            // Define upload path
             $uploadFileDir = __DIR__ . '/uploads/';
             if (!is_dir($uploadFileDir)) {
                 mkdir($uploadFileDir, 0755, true);
             }
-            // Generate new unique file name
+
             $newFileName = 'users_' . time() . '.' . $fileExtension;
-            $dest_path = $uploadFileDir . $newFileName;
-            
+            $dest_path   = $uploadFileDir . $newFileName;
+
             if (move_uploaded_file($fileTmpPath, $dest_path)) {
-                // Save the path in session along with admin type
-                $_SESSION['csv_file_path'] = $dest_path;
-                $_SESSION['admin_type'] = $adminType; // Store admin type for processing
+                // Save the path and context in session
+                $_SESSION['csv_file_path']          = $dest_path;
+                $_SESSION['admin_type']             = $adminType;
+                $_SESSION['scope_category_for_csv'] = $scopeCategory;
+
+                // Only Non-Academic-Student and Others-Default use owner_scope_id to "own" their uploaded users
+                if (in_array($scopeCategory, ['Non-Academic-Student', 'Others-Default'], true) && $myScopeId !== null) {
+                    $_SESSION['owner_scope_id_for_csv'] = $myScopeId;
+                } else {
+                    $_SESSION['owner_scope_id_for_csv'] = null;
+                }
+
                 // Redirect to processing page
                 header("Location: process_users_csv.php");
                 exit;
@@ -208,9 +338,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       background: linear-gradient(135deg, var(--cvsu-green-dark) 0%, var(--cvsu-green) 100%);
     }
     
-    /* Custom styles for wider card and better text wrapping */
     .wide-card {
-      max-width: 5xl; /* Increased from max-w-3xl to max-w-5xl */
+      max-width: 5xl;
     }
     
     .instruction-card, .example-card {
@@ -224,19 +353,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       word-break: break-all;
     }
     
-    /* Ensure the file upload area is also wider */
     .file-upload-area {
       min-width: 100%;
     }
     
-    /* Error message styling */
     .error-message {
       background-color: #FEE2E2;
       border-left: 4px solid #EF4444;
       color: #B91C1C;
     }
     
-    /* File info styling */
     .file-info {
       background-color: #EFF6FF;
       border-left: 4px solid #3B82F6;
@@ -268,7 +394,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <h2 class="text-2xl font-bold mb-4 text-gray-800">Upload CSV to Add Users</h2>
         <?php if (!empty($message)): ?>
           <div class="mb-4 p-4 rounded error-message">
-            <?php echo $message; ?>
+            <?php echo htmlspecialchars($message); ?>
           </div>
         <?php endif; ?>
         
@@ -324,65 +450,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      const fileInput = document.getElementById('csv_file');
-      const fileInfo = document.getElementById('fileInfo');
-      const fileName = document.getElementById('fileName');
-      const removeFile = document.getElementById('removeFile');
-      const fileError = document.getElementById('fileError');
-      const errorMessage = document.getElementById('errorMessage');
-      const uploadForm = document.getElementById('uploadForm');
+      const fileInput   = document.getElementById('csv_file');
+      const fileInfo    = document.getElementById('fileInfo');
+      const fileNameEl  = document.getElementById('fileName');
+      const removeFile  = document.getElementById('removeFile');
+      const fileError   = document.getElementById('fileError');
+      const errorMsgEl  = document.getElementById('errorMessage');
+      const uploadForm  = document.getElementById('uploadForm');
       
-      // Handle file selection
-      fileInput.addEventListener('change', function(e) {
-        // Hide any previous error
+      fileInput.addEventListener('change', function() {
         fileError.classList.add('hidden');
         
         if (this.files && this.files[0]) {
           const file = this.files[0];
           
-          // Check if file is CSV
           if (file.name.toLowerCase().endsWith('.csv')) {
-            // Show file info
-            fileName.textContent = file.name;
+            fileNameEl.textContent = file.name;
             fileInfo.classList.remove('hidden');
           } else {
-            // Show error for non-CSV files
-            errorMessage.textContent = 'Please upload a valid CSV file (.csv).';
+            errorMsgEl.textContent = 'Please upload a valid CSV file (.csv).';
             fileError.classList.remove('hidden');
             fileInfo.classList.add('hidden');
-            // Clear the file input
             this.value = '';
           }
         } else {
-          // No file selected
           fileInfo.classList.add('hidden');
         }
       });
       
-      // Handle file removal
-      removeFile.addEventListener('click', function() {
-        fileInput.value = '';
-        fileInfo.classList.add('hidden');
-      });
+      if (removeFile) {
+        removeFile.addEventListener('click', function() {
+          fileInput.value = '';
+          fileInfo.classList.add('hidden');
+        });
+      }
       
-      // Handle form submission
       uploadForm.addEventListener('submit', function(e) {
-        // Hide any previous error
         fileError.classList.add('hidden');
         
-        // Check if a file is selected
         if (!fileInput.files || fileInput.files.length === 0) {
           e.preventDefault();
-          errorMessage.textContent = 'Please select a CSV file to upload.';
+          errorMsgEl.textContent = 'Please select a CSV file to upload.';
           fileError.classList.remove('hidden');
           return;
         }
         
-        // Check if the selected file is CSV
         const file = fileInput.files[0];
         if (!file.name.toLowerCase().endsWith('.csv')) {
           e.preventDefault();
-          errorMessage.textContent = 'Please upload a valid CSV file (.csv).';
+          errorMsgEl.textContent = 'Please upload a valid CSV file (.csv).';
           fileError.classList.remove('hidden');
           return;
         }

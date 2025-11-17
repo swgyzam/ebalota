@@ -1,247 +1,195 @@
-  // Define college to courses mapping
-  const collegeCourses = {
-    'CAFENR': [
-      'BSAgri',    // BS Agriculture
-      'BSAB',      // BS Agribusiness
-      'BSES',      // BS Environmental Science
-      'BSFT',      // BS Food Technology
-      'BSFor',     // BS Forestry
-      'BSABE',     // BS Agricultural and Biosystems Engineering
-      'BAE',       // Bachelor of Agricultural Entrepreneurship
-      'BSLDM'      // BS Land Use Design and Management
-    ],
-    'CAS': [
-      'BSBio',     // BS Biology
-      'BSChem',    // BS Chemistry
-      'BSMath',    // BS Mathematics
-      'BSPhysics', // BS Physics
-      'BSPsych',   // BS Psychology
-      'BAELS',     // BA English Language Studies
-      'BAComm',    // BA Communication
-      'BSStat'     // BS Statistics
-    ],
-    'CEIT': [
-      'BSCS',      // BS Computer Science
-      'BSIT',      // BS Information Technology
-      'BSCpE',     // BS Computer Engineering
-      'BSECE',     // BS Electronics Engineering
-      'BSCE',      // BS Civil Engineering
-      'BSME',      // BS Mechanical Engineering
-      'BSEE',      // BS Electrical Engineering
-      'BSIE',      // BS Industrial Engineering
-      'BSArch'      // BS Architecture
-    ],
-    'CVMBS': [
-      'DVM',       // Doctor of Veterinary Medicine
-      'BSPV'       // BS Biology (Pre-Veterinary)
-    ],
-    'CED': [
-      'BEEd',      // Bachelor of Elementary Education
-      'BSEd',      // Bachelor of Secondary Education
-      'BPE',       // Bachelor of Physical Education
-      'BTLE'       // Bachelor of Technology and Livelihood Education
-    ],
-    'CEMDS': [
-      'BSBA',      // BS Business Administration
-      'BSAcc',     // BS Accountancy
-      'BSEco',     // BS Economics
-      'BSEnt',     // BS Entrepreneurship
-      'BSOA'       // BS Office Administration
-    ],
-    'CSPEAR': [
-      'BPE',       // Bachelor of Physical Education
-      'BSESS'      // BS Exercise and Sports Sciences
-    ],
-    'CCJ': [
-      'BSCrim'     // BS Criminology
-    ],
-    'CON': [
-      'BSN',       // BS Nursing
-    ],
-    'CTHM': [
-      'BSHM',      // BS Hospitality Management (example, add if needed)
-      'BSTM'       // BS Tourism Management (example, add if needed)
-    ],
-    'COM': [
-      'BLIS'       // Bachelor of Library and Information Science
-    ],
-    'GS-OLC': [
-      'PhD',
-      'MS',
-      'MA'
-    ]
-  };
-  
-  // Function to load courses based on selected college
-  function loadCourses(type) {
-    // Huwag mag-load ng courses para sa academic
-    if (type === 'academic') return;
+// === CREATE ELECTION JS ===
 
-    const collegeSelect = document.getElementById(`${type}CollegeSelect`);
-    const coursesContainer = document.getElementById(`${type}CoursesContainer`);
-    const coursesList = document.getElementById(`${type}CoursesList`);
+// Map colleges to courses
+const collegeCourses = {
+  'CAFENR': ['BSAgri','BSAB','BSES','BSFT','BSFor','BSABE','BAE','BSLDM'],
+  'CAS':    ['BSBio','BSChem','BSMath','BSPhysics','BSPsych','BAELS','BAComm','BSStat'],
+  'CEIT':   ['BSCS','BSIT','BSCpE','BSECE','BSCE','BSME','BSEE','BSIE','BSArch'],
+  'CVMBS':  ['DVM','BSPV'],
+  'CED':    ['BEEd','BSEd','BPE','BTLE'],
+  'CEMDS':  ['BSBA','BSAcc','BSEco','BSEnt','BSOA'],
+  'CSPEAR': ['BPE','BSESS'],
+  'CCJ':    ['BSCrim'],
+  'CON':    ['BSN'],
+  'CTHM':   ['BSHM','BSTM'],
+  'COM':    ['BLIS'],
+  'GS-OLC': ['PhD','MS','MA']
+};
 
-    if (collegeSelect.value === 'all') {
-      coursesContainer.classList.add('hidden');
-      return;
-    }
+function loadCourses(type) {
+  if (type === 'academic') return; // no per-college course list for faculty
 
+  const collegeSelect    = document.getElementById(`${type}CollegeSelect`);
+  const coursesContainer = document.getElementById(`${type}CoursesContainer`);
+  const coursesList      = document.getElementById(`${type}CoursesList`);
+
+  if (!collegeSelect || !coursesContainer || !coursesList) return;
+
+  if (collegeSelect.value === 'all') {
+    coursesContainer.classList.add('hidden');
     coursesList.innerHTML = '';
-    const courses = collegeCourses[collegeSelect.value] || [];
+    return;
+  }
 
-    courses.forEach(course => {
-      coursesList.innerHTML += `
-        <label class="flex items-center">
-          <input type="checkbox" name="allowed_courses_${type}[]" value="${course}" class="mr-1">
-          ${course}
-        </label>
-      `;
-    });
+  coursesList.innerHTML = '';
+  const courses = collegeCourses[collegeSelect.value] || [];
 
-    coursesContainer.classList.remove('hidden');
+  courses.forEach(course => {
+    coursesList.innerHTML += `
+      <label class="flex items-center">
+        <input type="checkbox" name="allowed_courses_${type}[]" value="${course}" class="mr-1">
+        ${course}
+      </label>
+    `;
+  });
+
+  coursesContainer.classList.remove('hidden');
 }
 
-  
-  // Update the toggleAllCheckboxes function to work with dynamic checkboxes
-  function toggleAllCheckboxes(name) {
-    const checkboxes = document.querySelectorAll(`input[name="${name}"]`);
-    if (checkboxes.length === 0) return;
-    
-    const allChecked = Array.from(checkboxes).every(checkbox => checkbox.checked);
-    
-    checkboxes.forEach(checkbox => {
-      checkbox.checked = !allChecked;
-    });
+function toggleAllCheckboxes(name) {
+  const checkboxes = document.querySelectorAll(`input[name="${name}"]`);
+  if (checkboxes.length === 0) return;
+  const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+  checkboxes.forEach(cb => cb.checked = !allChecked);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const targetRadios      = document.querySelectorAll('input[name="target_voter"]');
+  const studentFields     = document.getElementById('studentFields');
+  const academicFields    = document.getElementById('academicFields');
+  const nonAcademicFields = document.getElementById('nonAcademicFields');
+  const coopFields        = document.getElementById('coopFields');
+  const openModalBtn      = document.getElementById('openModalBtn');
+  const closeModalBtn     = document.getElementById('closeModalBtn');
+  const modal             = document.getElementById('modal');
+  const createForm        = document.getElementById('createElectionForm');
+  const createError       = document.getElementById('createFormError');
+  const clearBtn          = document.getElementById('clearFormBtn');
+
+  function hideAllFields() {
+    if (studentFields)     studentFields.classList.add('hidden');
+    if (academicFields)    academicFields.classList.add('hidden');
+    if (nonAcademicFields) nonAcademicFields.classList.add('hidden');
+    if (coopFields)        coopFields.classList.add('hidden');
   }
-    // Elements
-    const targetRadios = document.querySelectorAll('input[name="target_voter"]');
-    const studentFields = document.getElementById('studentFields');
-    const academicFields = document.getElementById('academicFields');
-    const nonAcademicFields = document.getElementById('nonAcademicFields');
-    const coopFields = document.getElementById('coopFields');
-    const closeModalBtn = document.getElementById('closeModalBtn');
-    const modal = document.getElementById('modal');
-  
-    function toggleAllCheckboxes(name) {
-    const checkboxes = document.querySelectorAll(`input[name="${name}"]`);
-    const allChecked = Array.from(checkboxes).every(checkbox => checkbox.checked);
-    
-    checkboxes.forEach(checkbox => {
-      checkbox.checked = !allChecked;
+
+  // Target voter change → show sections
+  targetRadios.forEach(radio => {
+    radio.addEventListener('change', e => {
+      hideAllFields();
+      switch (e.target.value) {
+        case 'student':
+          if (studentFields) studentFields.classList.remove('hidden');
+          break;
+        case 'academic':
+          if (academicFields) academicFields.classList.remove('hidden');
+          break;
+        case 'non_academic':
+          if (nonAcademicFields) nonAcademicFields.classList.remove('hidden');
+          break;
+        case 'others':
+          if (coopFields) coopFields.classList.remove('hidden');
+          break;
+      }
     });
-  }
-  
-  // Add this to handle the initial state of the COOP toggle button
-  document.addEventListener('DOMContentLoaded', function() {
-    const coopCheckbox = document.querySelector('input[name="allowed_status_coop[]"]');
-    if (coopCheckbox) {
-      coopCheckbox.checked = true; // Default checked for COOP
-    }
   });
-    function hideAllFields() {
-      studentFields.classList.add('hidden');
-      academicFields.classList.add('hidden');
-      nonAcademicFields.classList.add('hidden');
-      coopFields.classList.add('hidden');
-    }
-  
-    targetRadios.forEach(radio => {
-      radio.addEventListener('change', e => {
-        hideAllFields();
-        switch(e.target.value) {
-          case 'student':
-            studentFields.classList.remove('hidden');
-            break;
-          case 'academic':
-            academicFields.classList.remove('hidden');
-            break;
-          case 'non_academic':
-            nonAcademicFields.classList.remove('hidden');
-            break;
-          case 'coop':
-            coopFields.classList.remove('hidden');
-            break;
-        }
-      });
+
+  // Default MIGS checked (optional)
+  const coopCheckbox = document.querySelector('input[name="allowed_status_coop[]"]');
+  if (coopCheckbox) coopCheckbox.checked = true;
+
+  // Open / Close modal
+  if (openModalBtn && modal) {
+    openModalBtn.addEventListener('click', () => {
+      if (createError) {
+        createError.classList.add('hidden');
+        createError.textContent = '';
+      }
+      modal.classList.remove('hidden');
     });
-  
-    closeModalBtn.addEventListener('click', () => {
-      modal.classList.add('hidden');
-    });
-  document.addEventListener('DOMContentLoaded', function () {
-    const openModalBtn = document.getElementById('openModalBtn');
-    const closeModalBtn = document.getElementById('closeModalBtn');
-    const modal = document.getElementById('modal');
-  
-    openModalBtn.addEventListener('click', () => modal.classList.remove('hidden'));
+  }
+  if (closeModalBtn && modal) {
     closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
     window.addEventListener('click', e => {
       if (e.target === modal) modal.classList.add('hidden');
     });
-  
-    const checkboxes = document.querySelectorAll('.target-check');
-    const courseSection = document.getElementById('allowedCoursesSection');
-    const statusSection = document.getElementById('allowedStatusSection');
-    const form = document.querySelector('form');
-  
-    // Create hidden inputs for null values
-    const nullCoursesInput = document.createElement('input');
-    nullCoursesInput.type = 'hidden';
-    nullCoursesInput.name = 'allowed_courses[]';
-    nullCoursesInput.value = '';
-    
-    const nullStatusInput = document.createElement('input');
-    nullStatusInput.type = 'hidden';
-    nullStatusInput.name = 'allowed_status[]';
-    nullStatusInput.value = '';
-  
-    function toggleSections() {
-      let studentChecked = false;
-      let facultyChecked = false;
-      let coopChecked = false;
-  
-      checkboxes.forEach(checkbox => {
-        if (checkbox.checked && checkbox.dataset.target === 'student') studentChecked = true;
-        if (checkbox.checked && checkbox.dataset.target === 'faculty') facultyChecked = true;
-        if (checkbox.checked && checkbox.dataset.target === 'non_academic') facultyChecked = true;
-        if (checkbox.checked && checkbox.dataset.target === 'coop') coopChecked = true;
-      });
-  
-      // Show courses only if student is selected
-      if (studentChecked) {
-        courseSection.style.display = 'block';
-        // Remove null courses input if it exists
-        if (form.contains(nullCoursesInput)) {
-          form.removeChild(nullCoursesInput);
-        }
-      } else {
-        courseSection.style.display = 'none';
-        // Add null courses input if not already added
-        if (!form.contains(nullCoursesInput)) {
-          form.appendChild(nullCoursesInput);
-        }
-      }
-  
-      // Show status only if faculty or coop is selected
-      if (facultyChecked || coopChecked) {
-        statusSection.style.display = 'block';
-        // Remove null status input if it exists
-        if (form.contains(nullStatusInput)) {
-          form.removeChild(nullStatusInput);
-        }
-      } else {
-        statusSection.style.display = 'none';
-        // Add null status input if not already added
-        if (!form.contains(nullStatusInput)) {
-          form.appendChild(nullStatusInput);
-        }
-      }
-    }
-  
-    checkboxes.forEach(cb => cb.addEventListener('change', toggleSections));
-    
-    // Initialize sections on page load
-    toggleSections();
-  });
+  }
 
-  
+  // Clear form
+  if (clearBtn && createForm) {
+    clearBtn.addEventListener('click', () => {
+      createForm.reset();
+      hideAllFields();
+      const collegeStudent = document.getElementById('studentCollegeSelect');
+      const coursesStudent = document.getElementById('studentCoursesList');
+      const containerStudent = document.getElementById('studentCoursesContainer');
+      if (collegeStudent) collegeStudent.value = 'all';
+      if (coursesStudent) coursesStudent.innerHTML = '';
+      if (containerStudent) containerStudent.classList.add('hidden');
+      if (createError) {
+        createError.classList.add('hidden');
+        createError.textContent = '';
+      }
+      if (coopCheckbox) coopCheckbox.checked = true;
+    });
+  }
+
+  // Client-side validation + AJAX submit
+  if (createForm && createError) {
+    createForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      createError.classList.add('hidden');
+      createError.textContent = '';
+
+      const formData = new FormData(createForm);
+
+      const name   = formData.get('election_name')?.trim();
+      const start  = formData.get('start_datetime');
+      const end    = formData.get('end_datetime');
+      const target = formData.get('target_voter');
+      const admin  = formData.get('assigned_admin_id');
+
+      if (!name || !start || !end || !target || !admin) {
+        createError.textContent = 'Please fill in all required fields.';
+        createError.classList.remove('hidden');
+        return;
+      }
+
+      const startDate = new Date(start);
+      const endDate   = new Date(end);
+      if (!(startDate instanceof Date) || !(endDate instanceof Date) || isNaN(startDate) || isNaN(endDate)) {
+        createError.textContent = 'Invalid date/time format.';
+        createError.classList.remove('hidden');
+        return;
+      }
+      if (endDate <= startDate) {
+        createError.textContent = 'End date/time must be after the start date/time.';
+        createError.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        const res  = await fetch('create_election.php', { method: 'POST', body: formData });
+        const data = await res.json().catch(() => null);
+
+        if (!data) {
+          createError.textContent = 'Unexpected server response.';
+          createError.classList.remove('hidden');
+          return;
+        }
+
+        if (data.status === 'error') {
+          createError.textContent = data.message || 'An error occurred while creating the election.';
+          createError.classList.remove('hidden');
+        } else {
+          // Success: reload the page to see new election
+          window.location.reload();
+        }
+      } catch (err) {
+        console.error(err);
+        createError.textContent = 'Network or server error. Please try again.';
+        createError.classList.remove('hidden');
+      }
+    });
+  }
+});

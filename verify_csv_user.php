@@ -36,12 +36,16 @@ try {
     $position = $user['position'];
     $is_coop_member = $user['is_coop_member'];
     
-    // Insert into users table with all fields including department1 for students
+    // NEW: carry over extra flags from pending_users
+    $is_other_member = isset($user['is_other_member']) ? (int)$user['is_other_member'] : 0;
+    $owner_scope_id  = isset($user['owner_scope_id']) ? (int)$user['owner_scope_id'] : null;
+    
+    // Insert into users table with all fields including department1, is_other_member, owner_scope_id
     $insertStmt = $pdo->prepare("INSERT INTO users 
         (first_name, last_name, email, role, position, student_number, employee_number, 
-         is_coop_member, department, department1, course, status, password, force_password_change, 
-         is_verified, is_admin, is_active, migs_status) 
-        VALUES (?, ?, ?, 'voter', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, 0, 1, 0)");
+         is_coop_member, is_other_member, department, department1, course, status, password, 
+         force_password_change, is_verified, is_admin, is_active, migs_status, owner_scope_id) 
+        VALUES (?, ?, ?, 'voter', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, 0, 1, 0, ?)");
     $insertStmt->execute([
         $user['first_name'],
         $user['last_name'],
@@ -50,11 +54,13 @@ try {
         $user['student_number'],
         $user['employee_number'],
         $is_coop_member,
+        $is_other_member,           // NEW
         $user['department'],
-        $user['department1'], // This will now include the department for students
+        $user['department1'],       // For students: dept1; for academic staff: academic dept
         $user['course'],
         $user['status'],
-        $user['password']
+        $user['password'],
+        $owner_scope_id             // NEW (can be null)
     ]);
     
     // Delete from pending_users table

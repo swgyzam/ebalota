@@ -5,7 +5,7 @@ session_start();
 date_default_timezone_set('Asia/Manila');
 
  $host = 'localhost';
- $db   = 'evoting_system';
+ $db = 'evoting_system';
  $user = 'root';
  $pass = '';
  $charset = 'utf8mb4';
@@ -29,11 +29,17 @@ if (!isset($_GET['token'])) {
 }
 
  $token = filter_input(INPUT_GET, 'token', FILTER_SANITIZE_STRING);
+
+// Updated query to join with admin_scopes table to get scope_details
  $stmt = $pdo->prepare("
-    SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, 
-           u.is_verified, u.assigned_scope
+    SELECT 
+        u.user_id, u.first_name, u.last_name, u.email, u.role, 
+        u.is_verified, u.assigned_scope, u.scope_category, 
+        u.assigned_scope_1, u.admin_status,
+        ascope.scope_details
     FROM admin_login_tokens alt
     JOIN users u ON alt.user_id = u.user_id
+    LEFT JOIN admin_scopes ascope ON u.user_id = ascope.user_id
     WHERE alt.token = ? AND alt.expires_at > NOW()
 ");
  $stmt->execute([$token]);
@@ -41,6 +47,12 @@ if (!isset($_GET['token'])) {
 
 if (!$user || $user['role'] !== 'admin') {
     header("Location: login.html?error=" . urlencode("Token is invalid or has expired."));
+    exit;
+}
+
+// Double-check admin status
+if ($user['admin_status'] === 'inactive') {
+    header("Location: login.html?error=" . urlencode("Your admin account is inactive. Please contact super admin."));
     exit;
 }
 
@@ -58,8 +70,12 @@ if (!$user || $user['role'] !== 'admin') {
  $_SESSION['CREATED'] = time();
  $_SESSION['LAST_ACTIVITY'] = time();
 
-// ✅ Important: set assigned_scope for admins
+// Set all new scope-related session variables
+ $_SESSION['scope_category'] = $user['scope_category'] ?? '';
  $_SESSION['assigned_scope'] = $user['assigned_scope'] ?? '';
+ $_SESSION['assigned_scope_1'] = $user['assigned_scope_1'] ?? '';
+ $_SESSION['scope_details'] = !empty($user['scope_details']) ? json_decode($user['scope_details'], true) : [];
+ $_SESSION['admin_status'] = $user['admin_status'] ?? 'inactive';
 
 // If user isn't verified in DB, update them
 if (!$user['is_verified']) {
@@ -68,8 +84,52 @@ if (!$user['is_verified']) {
     $_SESSION['is_verified'] = true;
 }
 
-// Debug output (remove after testing)
- $debugInfo = "Role: " . $_SESSION['role'] . ", Scope: " . $_SESSION['assigned_scope'];
+// Generate debug information
+ $scopeDescription = formatScopeDetailsForDebug($user['scope_category'], $user['scope_details']);
+ $debugInfo = "Role: " . $_SESSION['role'] . 
+             ", Category: " . $_SESSION['scope_category'] . 
+             ", Scope: " . $_SESSION['assigned_scope'] . 
+             ", Details: " . $scopeDescription;
+
+// Helper function to format scope details for debugging
+function formatScopeDetailsForDebug($scope_type, $scope_details) {
+    if (empty($scope_details)) {
+        return 'No specific scope assigned';
+    }
+    
+    $details = json_decode($scope_details, true);
+    if (!$details) {
+        return 'Invalid scope data';
+    }
+    
+    switch ($scope_type) {
+        case 'Academic-Student':
+            $college = $details['college'] ?? '';
+            $courses_display = $details['courses_display'] ?? '';
+            return "$college - $courses_display";
+            
+        case 'Academic-Faculty':
+            $college = $details['college'] ?? '';
+            $departments_display = $details['departments_display'] ?? '';
+            return "$college - $departments_display";
+            
+        case 'Non-Academic-Employee':
+            $departments_display = $details['departments_display'] ?? '';
+            return $departments_display;
+            
+        case 'Others-COOP':
+            return 'COOP Admin';
+            
+        case 'Others-Default':
+            return 'Default Admin';
+            
+        case 'Special-Scope':
+            return 'CSG Admin';
+            
+        default:
+            return 'Unknown scope type';
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -151,6 +211,37 @@ if (!$user['is_verified']) {
     color: #666;
   }
 
+  .scope-info {
+    background-color: #e8f5e9;
+    border: 1px solid #c8e6c9;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 15px 0;
+    text-align: left;
+  }
+
+  .scope-info h3 {
+    margin-top: 0;
+    color: #2e7d32;
+    font-size: 16px;
+  }
+
+  .scope-info p {
+    margin: 5px 0;
+    font-size: 14px;
+  }
+
+  .scope-category {
+    display: inline-block;
+    background-color: #2e7d32;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 10px;
+  }
+
   button {
     background-color: #0a5f2d;
     border: none;
@@ -185,6 +276,17 @@ if (!$user['is_verified']) {
     </div>
     <h2>Welcome Admin!</h2>
     <p>Your email has been successfully verified. You will be redirected to the admin dashboard.</p>
+    
+    <!-- Scope Information Display -->
+    <div class="scope-info">
+      <div class="scope-category"><?php echo htmlspecialchars($_SESSION['scope_category']); ?></div>
+      <h3>Your Administrative Scope</h3>
+      <p><strong>Assigned Scope:</strong> <?php echo htmlspecialchars($_SESSION['assigned_scope']); ?></p>
+      <?php if (!empty($_SESSION['assigned_scope_1'])): ?>
+      <p><strong>Scope Details:</strong> <?php echo htmlspecialchars($_SESSION['assigned_scope_1']); ?></p>
+      <?php endif; ?>
+      <p><strong>Status:</strong> <?php echo htmlspecialchars($_SESSION['admin_status']); ?></p>
+    </div>
     
     <!-- Debug info (remove after testing) -->
     <div class="debug-info">

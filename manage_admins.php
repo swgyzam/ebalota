@@ -9,17 +9,18 @@ include_once 'admin_functions.php'; // taxonomy & helpers
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
- $PAGE_CSRF = $_SESSION['csrf_token'];
+$PAGE_CSRF = $_SESSION['csrf_token'];
 
 // --- DB Connection ---
- $host = 'localhost';
- $db = 'evoting_system';
- $user = 'root';
- $pass = '';
- $charset = 'utf8mb4';
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+$host    = 'localhost';
+$db      = 'evoting_system';
+$user    = 'root';
+$pass    = '';
+$charset = 'utf8mb4';
+
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
 
@@ -46,12 +47,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         exit();
     }
 
-    $action = $_POST['action'];
+    $action   = $_POST['action'];
     $response = ['success' => false, 'message' => ''];
 
     try {
+        // Toggle status
         if ($action === 'toggle_status') {
-            $adminId = (int)($_POST['admin_id'] ?? 0);
+            $adminId   = (int)($_POST['admin_id'] ?? 0);
             $newStatus = $_POST['status'] ?? 'inactive';
 
             $allowed = ['active', 'inactive', 'suspended'];
@@ -60,39 +62,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
 
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare("SELECT user_id, role, admin_status, scope_category, assigned_scope, assigned_scope_1 
-                                   FROM users WHERE user_id = ? AND role = 'admin' FOR UPDATE");
+            $stmt = $pdo->prepare("
+                SELECT user_id, role, admin_status, scope_category, assigned_scope, assigned_scope_1 
+                FROM users 
+                WHERE user_id = ? AND role = 'admin' 
+                FOR UPDATE
+            ");
             $stmt->execute([$adminId]);
             $admin = $stmt->fetch();
             if (!$admin) {
                 throw new Exception('Admin not found');
             }
 
+            // Enforce one ACTIVE admin per logical scope
             if ($newStatus === 'active') {
                 $conditions = [];
-                $params = [];
+                $params     = [];
+
                 if (!empty($admin['scope_category'])) {
-                    $conditions[] = "scope_category = :scope_category";
+                    $conditions[]              = "scope_category = :scope_category";
                     $params[':scope_category'] = $admin['scope_category'];
                 }
                 if (!empty($admin['assigned_scope'])) {
-                    $conditions[] = "assigned_scope = :assigned_scope";
+                    $conditions[]              = "assigned_scope = :assigned_scope";
                     $params[':assigned_scope'] = $admin['assigned_scope'];
                 }
                 if (!empty($admin['assigned_scope_1'])) {
-                    $conditions[] = "assigned_scope_1 = :assigned_scope_1";
-                    $params[':assigned_scope_1'] = $admin['assigned_scope_1'];
+                    $conditions[]               = "assigned_scope_1 = :assigned_scope_1";
+                    $params[':assigned_scope_1']= $admin['assigned_scope_1'];
                 }
 
                 if ($conditions) {
                     $where = implode(' AND ', $conditions);
-                    $sql = "SELECT user_id, first_name, last_name, admin_title 
-                            FROM users 
-                            WHERE role = 'admin' AND admin_status = 'active' 
-                              AND $where AND user_id != :cur";
+                    $sql   = "SELECT user_id, first_name, last_name, admin_title 
+                              FROM users 
+                              WHERE role = 'admin' AND admin_status = 'active' 
+                                AND $where AND user_id != :cur";
                     $params[':cur'] = $adminId;
 
-                    $check = $pdo->prepare($sql);
+                    $check    = $pdo->prepare($sql);
                     $check->execute($params);
                     $existing = $check->fetch();
 
@@ -113,6 +121,112 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $response['success'] = true;
             $response['message'] = 'Admin status updated successfully';
         }
+
+        // Inherit scope seat from previous admin with the same scope
+        elseif ($action === 'inherit_scope') {
+            $targetAdminId = (int)($_POST['target_admin_id'] ?? 0);
+
+            if ($targetAdminId <= 0) {
+                throw new Exception('Invalid target admin.');
+            }
+
+            $pdo->beginTransaction();
+
+            // Fetch target admin
+            $stmt = $pdo->prepare("
+                SELECT user_id, admin_status, scope_category, assigned_scope, assigned_scope_1, admin_title 
+                FROM users 
+                WHERE user_id = ? AND role = 'admin'
+                FOR UPDATE
+            ");
+            $stmt->execute([$targetAdminId]);
+            $target = $stmt->fetch();
+            if (!$target) {
+                throw new Exception('Target admin not found.');
+            }
+
+            if ($target['admin_status'] !== 'inactive') {
+                throw new Exception('Target admin must be inactive to inherit scope.');
+            }
+            if (empty($target['scope_category'])) {
+                throw new Exception('Target admin has no scope category.');
+            }
+
+            $scopeCategory  = $target['scope_category'];
+            $assignedScope  = $target['assigned_scope'];
+            $assignedScope1 = $target['assigned_scope_1'];
+            $adminTitle     = $target['admin_title'];
+
+            // Source admin: same scope_category + assigned_scope + assigned_scope_1
+            // For Non-Academic-Student / Others-Default, also require same admin_title.
+            $sql = "
+                SELECT user_id, admin_status, admin_title, first_name, last_name
+                FROM users
+                WHERE role = 'admin'
+                  AND user_id != :target
+                  AND scope_category = :scope_category
+                  AND assigned_scope = :assigned_scope
+                  AND assigned_scope_1 = :assigned_scope_1
+                  AND admin_status = 'inactive'
+            ";
+            $params = [
+                ':target'          => $targetAdminId,
+                ':scope_category'  => $scopeCategory,
+                ':assigned_scope'  => $assignedScope,
+                ':assigned_scope_1'=> $assignedScope1,
+            ];
+
+            if (in_array($scopeCategory, ['Non-Academic-Student','Others-Default'], true) && !empty($adminTitle)) {
+                $sql .= " AND admin_title = :admin_title";
+                $params[':admin_title'] = $adminTitle;
+            }
+
+            $sql .= " ORDER BY user_id ASC LIMIT 1";
+
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            $source = $stmt->fetch();
+
+            if (!$source) {
+                throw new Exception('No previous inactive admin found with the same scope to inherit from.');
+            }
+
+            $sourceAdminId = (int)$source['user_id'];
+
+            // 1) Remove any existing scope rows for this scope_category under the target admin
+            $stmt = $pdo->prepare("
+                DELETE FROM admin_scopes 
+                WHERE user_id = :target_id 
+                  AND scope_type = :scope_type
+            ");
+            $stmt->execute([
+                ':target_id'  => $targetAdminId,
+                ':scope_type' => $scopeCategory,
+            ]);
+
+            // 2) Transfer scope seat: move admin_scopes rows from source to target
+            $stmt = $pdo->prepare("
+                UPDATE admin_scopes
+                SET user_id = :target_id
+                WHERE user_id = :source_id
+                  AND scope_type = :scope_type
+            ");
+            $stmt->execute([
+                ':target_id'  => $targetAdminId,
+                ':source_id'  => $sourceAdminId,
+                ':scope_type' => $scopeCategory,
+            ]);
+
+            // Activate target admin after inheriting
+            $stmt = $pdo->prepare("UPDATE users SET admin_status = 'active' WHERE user_id = :target_id");
+            $stmt->execute([':target_id' => $targetAdminId]);
+
+            $pdo->commit();
+
+            $response['success'] = true;
+            $response['message'] = "Scope successfully inherited from {$source['admin_title']} ({$source['first_name']} {$source['last_name']}).";
+        }
+
         else {
             throw new Exception('Unknown action');
         }
@@ -127,73 +241,90 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // --- Filtering ---
- $filterScope = $_GET['scope'] ?? '';
- $filterCollege = $_GET['college'] ?? '';
- $filterCourse = $_GET['course'] ?? '';
- $filterDepartment = $_GET['department'] ?? '';
- $filterYear = $_GET['year'] ?? '';
+$filterScope      = $_GET['scope']       ?? '';
+$filterCollege    = $_GET['college']     ?? '';
+$filterCourse     = $_GET['course']      ?? '';
+$filterDepartment = $_GET['department']  ?? '';
+$filterYear       = $_GET['year']        ?? '';
+$filterAdminTitle = $_GET['admin_title'] ?? '';
 
- $scopeQuery = '';
- $params = [];
+$scopeQuery = '';
+$params     = [];
 
 if (!empty($filterScope)) {
-    $scopeQuery .= " AND u.scope_category = :scope";
-    $params[':scope'] = $filterScope;
+    $scopeQuery         .= " AND u.scope_category = :scope";
+    $params[':scope']    = $filterScope;
 }
 
 if (!empty($filterCollege)) {
-    $scopeQuery .= " AND u.assigned_scope = :college";
-    $params[':college'] = $filterCollege;
+    $scopeQuery          .= " AND u.assigned_scope = :college";
+    $params[':college']   = $filterCollege;
 }
 
-if (!empty($filterCourse)) {
-    if ($filterScope === 'Academic-Student') {
-        $scopeQuery .= " AND u.assigned_scope_1 LIKE :course";
-        $params[':course'] = '%' . $filterCourse . '%';
-    }
+if (!empty($filterCourse) && $filterScope === 'Academic-Student') {
+    $scopeQuery         .= " AND u.assigned_scope_1 LIKE :course";
+    $params[':course']   = '%' . $filterCourse . '%';
 }
 
 if (!empty($filterDepartment)) {
     if ($filterScope === 'Academic-Faculty') {
-        $scopeQuery .= " AND u.assigned_scope_1 LIKE :department";
-        $params[':department'] = '%' . $filterDepartment . '%';
+        $scopeQuery         .= " AND u.assigned_scope_1 LIKE :department";
+        $params[':department']= '%' . $filterDepartment . '%';
     } elseif ($filterScope === 'Non-Academic-Employee') {
-        $scopeQuery .= " AND (u.assigned_scope LIKE :department OR u.assigned_scope_1 LIKE :department)";
-        $params[':department'] = '%' . $filterDepartment . '%';
+        $scopeQuery         .= " AND (u.assigned_scope LIKE :department OR u.assigned_scope_1 LIKE :department)";
+        $params[':department']= '%' . $filterDepartment . '%';
     }
 }
 
 if (!empty($filterYear)) {
-    $scopeQuery .= " AND u.academic_year = :year";
-    $params[':year'] = $filterYear;
+    $scopeQuery        .= " AND u.academic_year = :year";
+    $params[':year']    = $filterYear;
 }
 
-// Get distinct academic years for filter
- $yearStmt = $pdo->prepare("SELECT DISTINCT academic_year FROM users WHERE role = 'admin' ORDER BY academic_year DESC");
- $yearStmt->execute();
- $academicYears = $yearStmt->fetchAll(PDO::FETCH_COLUMN);
-
-// --- Fetch admins (with scope_details) ---
- $stmt = $pdo->prepare("
+// Fetch admins for this scope/college/course/department/year
+$stmt = $pdo->prepare("
     SELECT u.*, asd.scope_details 
     FROM users u 
     LEFT JOIN admin_scopes asd ON u.user_id = asd.user_id 
     WHERE u.role = 'admin' $scopeQuery 
-    ORDER BY u.admin_status DESC, u.user_id DESC
+    ORDER BY FIELD(u.admin_status, 'active','inactive','suspended'), u.user_id DESC
 ");
- $stmt->execute($params);
- $admins = $stmt->fetchAll();
+$stmt->execute($params);
+$adminsRaw = $stmt->fetchAll();
+
+// Build Admin Title filter options only for Non-Academic-Student / Others-Default
+$adminFilterOptions = [];
+if (in_array($filterScope, ['Non-Academic-Student', 'Others-Default'], true)) {
+    foreach ($adminsRaw as $row) {
+        $title = trim($row['admin_title'] ?? '');
+        if ($title === '') continue;
+        $adminFilterOptions[$title] = $title;
+    }
+}
+
+// Apply Admin Title filter (seat-level) for those two categories
+if (!empty($filterAdminTitle) && in_array($filterScope, ['Non-Academic-Student', 'Others-Default'], true)) {
+    $admins = array_values(array_filter(
+        $adminsRaw,
+        fn($a) => trim($a['admin_title'] ?? '') === $filterAdminTitle
+    ));
+} else {
+    $admins = $adminsRaw;
+}
 
 // Stats
- $totalAdmins = count($admins);
- $activeAdmins = count(array_filter($admins, fn($a) => ($a['admin_status'] ?? '') === 'active'));
+$totalAdmins  = count($admins);
+$activeAdmins = count(array_filter(
+    $admins,
+    fn($a) => ($a['admin_status'] ?? '') === 'active'
+));
 
-// === Helper: summarize scope details for SHORT table display (codes only) ===
+// Helper: scope summary for display
 function summarizeAssignedScopeShort(array $admin): string {
-    $category = $admin['scope_category'] ?? '';
-    $scopeDetailsJson = $admin['scope_details'] ?? '';
-    $assignedScope = $admin['assigned_scope'] ?? '';
-    $assignedScope1 = $admin['assigned_scope_1'] ?? '';
+    $category        = $admin['scope_category']   ?? '';
+    $scopeDetailsJson= $admin['scope_details']    ?? '';
+    $assignedScope   = $admin['assigned_scope']   ?? '';
+    $assignedScope1  = $admin['assigned_scope_1'] ?? '';
 
     $details = [];
     if ($scopeDetailsJson) {
@@ -203,18 +334,18 @@ function summarizeAssignedScopeShort(array $admin): string {
 
     // Academic - Student
     if ($category === 'Academic-Student') {
-        $college = $details['college'] ?? $assignedScope;
-        // Determine course codes
+        $college     = $details['college'] ?? $assignedScope;
         $courseCodes = [];
+
         if (!empty($details['courses']) && is_array($details['courses'])) {
             $courseCodes = $details['courses'];
-        } elseif ($assignedScope1 && str_starts_with($assignedScope1, 'Multiple: ')) {
+        } elseif ($assignedScope1 && strpos($assignedScope1, 'Multiple: ') === 0) {
             $courseCodes = array_map('trim', explode(',', substr($assignedScope1, 9)));
         } elseif (!empty($assignedScope1)) {
             $courseCodes = [$assignedScope1];
         }
 
-        if ($courseCodes === [] && $college) {
+        if (empty($courseCodes) && $college) {
             return $college . " - All courses";
         } elseif (count($courseCodes) === 1) {
             return ($college ? $college . " - " : "") . $courseCodes[0];
@@ -225,18 +356,18 @@ function summarizeAssignedScopeShort(array $admin): string {
 
     // Academic - Faculty
     if ($category === 'Academic-Faculty') {
-        $college = $details['college'] ?? $assignedScope;
-        // Determine dept codes
+        $college   = $details['college'] ?? $assignedScope;
         $deptCodes = [];
+
         if (!empty($details['departments']) && is_array($details['departments'])) {
             $deptCodes = $details['departments'];
-        } elseif ($assignedScope1 && str_starts_with($assignedScope1, 'Multiple: ')) {
+        } elseif ($assignedScope1 && strpos($assignedScope1, 'Multiple: ') === 0) {
             $deptCodes = array_map('trim', explode(',', substr($assignedScope1, 9)));
         } elseif (!empty($assignedScope1)) {
             $deptCodes = [$assignedScope1];
         }
 
-        if ($deptCodes === []) {
+        if (empty($deptCodes)) {
             return $college . " - All departments";
         } elseif (count($deptCodes) === 1) {
             return ($college ? $college . " - " : "") . $deptCodes[0];
@@ -248,9 +379,10 @@ function summarizeAssignedScopeShort(array $admin): string {
     // Non-Academic-Employee
     if ($category === 'Non-Academic-Employee') {
         $deptCodes = [];
+
         if (!empty($details['departments']) && is_array($details['departments'])) {
             $deptCodes = $details['departments'];
-        } elseif ($assignedScope1 && str_starts_with($assignedScope1, 'Multiple: ')) {
+        } elseif ($assignedScope1 && strpos($assignedScope1, 'Multiple: ') === 0) {
             $deptCodes = array_map('trim', explode(',', substr($assignedScope1, 9)));
         } elseif (!empty($assignedScope1) && $assignedScope1 !== 'Non-Academic') {
             $deptCodes = [$assignedScope1];
@@ -258,7 +390,7 @@ function summarizeAssignedScopeShort(array $admin): string {
             $deptCodes = [$assignedScope];
         }
 
-        if ($deptCodes === []) {
+        if (empty($deptCodes)) {
             return "All non-academic departments";
         } elseif (count($deptCodes) === 1) {
             return $deptCodes[0];
@@ -267,11 +399,11 @@ function summarizeAssignedScopeShort(array $admin): string {
         }
     }
 
-    // Others
-    if ($category === 'Others-COOP')            return 'COOP Admin';
-    if ($category === 'Others-Default')         return 'Default Admin';
-    if ($category === 'Non-Academic-Student')   return 'All non-academic orgs';
-    if ($category === 'Special-Scope')          return 'CSG Admin';
+    // Others & Non-Academic-Student
+    if ($category === 'Others-COOP')          return 'COOP Admin';
+    if ($category === 'Others-Default')       return 'Default Admin';
+    if ($category === 'Non-Academic-Student') return 'All non-academic orgs';
+    if ($category === 'Special-Scope')        return 'CSG Admin';
 
     return 'No specific scope assigned';
 }
@@ -284,7 +416,6 @@ function summarizeAssignedScopeShort(array $admin): string {
   <title>Manage Admins - Super Admin Panel</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
   <style>
     :root { --cvsu-green-dark:#154734; --cvsu-green:#1E6F46; --cvsu-green-light:#37A66B; --cvsu-yellow:#FFD166; }
     .gradient-bg { background: linear-gradient(135deg, var(--cvsu-green-dark) 0%, var(--cvsu-green) 100%); }
@@ -299,124 +430,43 @@ function summarizeAssignedScopeShort(array $admin): string {
     .btn-success { background-color:#10b981; transition: all .3s ease; }
     .btn-success:hover { background-color:#059669; transform: translateY(-2px); box-shadow:0 4px 6px rgba(0,0,0,.1); }
     .table-hover tbody tr:hover { background-color:#f3f4f6; }
-
     .status-badge { display:inline-flex; align-items:center; padding:.25rem .75rem; border-radius:9999px; font-size:.75rem; font-weight:600; }
     .status-active { background:#d1fae5; color:#065f46; }
     .status-inactive { background:#fee2e2; color:#991b1b; }
     .status-suspended { background:#fef3c7; color:#92400e; }
-
     .scope-badge { display:inline-block; padding:.25rem .5rem; border-radius:.375rem; font-size:.75rem; font-weight:500; margin-bottom:.25rem; }
     .scope-primary { background:#dbeafe; color:#1e40af; }
     .scope-secondary { background:#e9d5ff; color:#6b21a8; }
-
     .admin-table td { vertical-align: middle; }
     .admin-table .admin-info { display:flex; align-items:center; }
     .admin-table .admin-avatar { flex-shrink:0; }
     .admin-table .admin-details { margin-left:1rem; }
-
-    /* Keep the scope cell tight */
     .scope-cell .scope-secondary {
-      display: inline-block;
-      max-width: 420px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      vertical-align: bottom;
+      display:inline-block; max-width:420px; white-space:nowrap;
+      overflow:hidden; text-overflow:ellipsis; vertical-align:bottom;
     }
-    
-    /* Notification Modal Styles */
     #notificationModal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(0, 0, 0, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity 0.3s, visibility 0.3s;
+      position:fixed; top:0; left:0; right:0; bottom:0;
+      background-color:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center;
+      z-index:9999; opacity:0; visibility:hidden; transition:opacity .3s, visibility .3s;
     }
-
-    #notificationModal.show {
-      opacity: 1;
-      visibility: visible;
-    }
-
+    #notificationModal.show { opacity:1; visibility:visible; }
     .notification-content {
-      background-color: white;
-      border-radius: 0.5rem;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-      padding: 1.5rem;
-      max-width: 90%;
-      width: 100%;
-      max-width: 500px;
-      transform: translateY(20px);
-      transition: transform 0.3s;
+      background-color:white; border-radius:.5rem; box-shadow:0 10px 25px rgba(0,0,0,0.2);
+      padding:1.5rem; max-width:90%; width:100%; max-width:500px; transform:translateY(20px); transition:transform .3s;
     }
-
-    #notificationModal.show .notification-content {
-      transform: translateY(0);
-    }
-
-    .notification-success {
-      background-color: #d1fae5;
-      color: #065f46;
-    }
-
-    .notification-error {
-      background-color: #fee2e2;
-      color: #991b1b;
-    }
-
-    .notification-warning {
-      background-color: #fef3c7;
-      color: #92400e;
-    }
-
-    .notification-info {
-      background-color: #dbeafe;
-      color: #1e40af;
-    }
-    
-    /* Responsive adjustments */
-    @media (min-width: 1024px) {
-      .admin-container {
-        max-width: 1400px;
-        margin: 0 auto;
-      }
-    }
-    
-    @media (max-width: 1279px) {
-      .stats-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
-    
-    @media (max-width: 767px) {
-      .stats-grid {
-        grid-template-columns: 1fr;
-      }
-      
-      .filter-form {
-        flex-direction: column;
-      }
-      
-      .filter-container {
-        width: 100%;
-      }
-      
-      .admin-actions {
-        flex-direction: column;
-        gap: 0.5rem;
-      }
-      
-      .admin-actions button {
-        width: 100%;
-      }
+    #notificationModal.show .notification-content { transform:translateY(0); }
+    .notification-success { background-color:#d1fae5; color:#065f46; }
+    .notification-error   { background-color:#fee2e2; color:#991b1b; }
+    .notification-warning { background-color:#fef3c7; color:#92400e; }
+    .notification-info    { background-color:#dbeafe; color:#1e40af; }
+    @media (min-width:1024px){ .admin-container{ max-width:1400px; margin:0 auto; } }
+    @media (max-width:1279px){ .stats-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media (max-width:767px){
+      .stats-grid{ grid-template-columns:1fr; }
+      .filter-form{ flex-direction:column; }
+      .admin-actions{ flex-direction:column; gap:.5rem; }
+      .admin-actions button{ width:100%; }
     }
   </style>
 </head>
@@ -484,7 +534,8 @@ function summarizeAssignedScopeShort(array $admin): string {
             <p class="text-gray-600 text-sm">Filters will apply automatically as you select options</p>
           </div>
 
-          <form method="GET" id="filterForm" class="flex flex-col sm:flex-row gap-3">
+          <form method="GET" id="filterForm" class="flex flex-col sm:flex-row gap-3 filter-form">
+            <!-- Scope Category -->
             <div class="relative">
               <label for="scope" class="block text-sm font-medium text-gray-700 mb-1">Scope Category</label>
               <div class="relative">
@@ -503,6 +554,7 @@ function summarizeAssignedScopeShort(array $admin): string {
               </div>
             </div>
 
+            <!-- College -->
             <div id="collegeFilterContainer" class="relative <?= in_array($filterScope, ['Academic-Student','Academic-Faculty'], true) ? '' : 'hidden' ?>">
               <label for="college" class="block text-sm font-medium text-gray-700 mb-1">College</label>
               <div class="relative">
@@ -521,6 +573,7 @@ function summarizeAssignedScopeShort(array $admin): string {
               </div>
             </div>
 
+            <!-- Course -->
             <div id="courseFilterContainer" class="relative <?= ($filterScope === 'Academic-Student' && !empty($filterCollege)) ? '' : 'hidden' ?>">
               <label for="course" class="block text-sm font-medium text-gray-700 mb-1">Course</label>
               <div class="relative">
@@ -544,6 +597,7 @@ function summarizeAssignedScopeShort(array $admin): string {
               </div>
             </div>
 
+            <!-- Department -->
             <div id="departmentFilterContainer" class="relative <?= (($filterScope === 'Academic-Faculty' && !empty($filterCollege)) || $filterScope === 'Non-Academic-Employee') ? '' : 'hidden' ?>">
               <label for="department" class="block text-sm font-medium text-gray-700 mb-1">
                 <?= $filterScope === 'Non-Academic-Employee' ? 'Department (Non-Academic)' : 'Department' ?>
@@ -554,7 +608,6 @@ function summarizeAssignedScopeShort(array $admin): string {
                   <option value="">All Departments</option>
                   <?php
                   if ($filterScope === 'Non-Academic-Employee') {
-                    // Show non-academic departments
                     $nonAcademicDepts = getNonAcademicDepartments();
                     foreach ($nonAcademicDepts as $code => $name): ?>
                       <option value="<?= htmlspecialchars($code) ?>" <?= $filterDepartment === $code ? 'selected' : '' ?>>
@@ -562,7 +615,6 @@ function summarizeAssignedScopeShort(array $admin): string {
                       </option>
                     <?php endforeach;
                   } elseif ($filterScope === 'Academic-Faculty' && !empty($filterCollege)) {
-                    // Show academic departments for the selected college
                     $departments = getAcademicDepartments()[$filterCollege] ?? [];
                     foreach ($departments as $code => $name): ?>
                       <option value="<?= htmlspecialchars($code) ?>" <?= $filterDepartment === $code ? 'selected' : '' ?>>
@@ -571,6 +623,25 @@ function summarizeAssignedScopeShort(array $admin): string {
                     <?php endforeach;
                   }
                   ?>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                  <i class="fas fa-chevron-down"></i>
+                </div>
+              </div>
+            </div>
+
+            <!-- Admin Title filter only for Non-Academic-Student & Others-Default -->
+            <div id="adminFilterContainer" class="relative <?= in_array($filterScope, ['Non-Academic-Student','Others-Default'], true) ? '' : 'hidden' ?>">
+              <label for="admin_title" class="block text-sm font-medium text-gray-700 mb-1">Admin Title</label>
+              <div class="relative">
+                <select name="admin_title" id="admin_title"
+                        class="appearance-none block w-full pl-3 pr-10 py-2.5 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm rounded-lg">
+                  <option value="">All Admin Titles</option>
+                  <?php foreach ($adminFilterOptions as $title => $label): ?>
+                    <option value="<?= htmlspecialchars($title) ?>" <?= $filterAdminTitle === $title ? 'selected' : '' ?>>
+                      <?= htmlspecialchars($label) ?>
+                    </option>
+                  <?php endforeach; ?>
                 </select>
                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
                   <i class="fas fa-chevron-down"></i>
@@ -643,23 +714,49 @@ function summarizeAssignedScopeShort(array $admin): string {
             <?php else: ?>
               <?php foreach ($admins as $admin): ?>
                 <?php
-                  $firstName = htmlspecialchars($admin['first_name'] ?? '');
-                  $lastName  = htmlspecialchars($admin['last_name'] ?? '');
-                  $email     = htmlspecialchars($admin['email'] ?? '');
-                  $adminTitle= htmlspecialchars($admin['admin_title'] ?? 'Administrator');
-                  $status    = htmlspecialchars($admin['admin_status'] ?? 'inactive');
+                  $firstName   = htmlspecialchars($admin['first_name'] ?? '');
+                  $lastName    = htmlspecialchars($admin['last_name']  ?? '');
+                  $email       = htmlspecialchars($admin['email']      ?? '');
+                  $adminTitle  = htmlspecialchars($admin['admin_title'] ?? 'Administrator');
+                  $status      = htmlspecialchars($admin['admin_status'] ?? 'inactive');
                   $statusClass = 'status-inactive';
-                  if ($status === 'active') $statusClass = 'status-active';
+                  if ($status === 'active')        $statusClass = 'status-active';
                   elseif ($status === 'suspended') $statusClass = 'status-suspended';
 
-                  $scopeLabel = 'No Scope';
+                  $scopeLabel   = 'No Scope';
                   $scopeSummary = 'No specific scope assigned';
                   if (!empty($admin['scope_category'])) {
-                      $scopeLabel = htmlspecialchars(getScopeCategoryLabel($admin['scope_category']));
-                      $scopeSummary = htmlspecialchars(summarizeAssignedScopeShort($admin)); // codes only
+                      $scopeLabel   = htmlspecialchars(getScopeCategoryLabel($admin['scope_category']));
+                      $scopeSummary = htmlspecialchars(summarizeAssignedScopeShort($admin));
                   } elseif (!empty($admin['assigned_scope'])) {
                       $scopeLabel = htmlspecialchars($admin['assigned_scope']);
                   }
+
+                  // Determine if this row should show "Inherit Scope" instead of "Activate"
+                  $showInherit = false;
+                  if (!empty($filterScope) && $status === 'inactive' && !empty($admin['scope_category'])) {
+                      foreach ($admins as $other) {
+                          if ($other['user_id'] == $admin['user_id']) continue;
+                          if (
+                              ($other['scope_category']   ?? '') === ($admin['scope_category']   ?? '') &&
+                              ($other['assigned_scope']    ?? '') === ($admin['assigned_scope']    ?? '') &&
+                              ($other['assigned_scope_1']  ?? '') === ($admin['assigned_scope_1']  ?? '') &&
+                              ($other['admin_status']      ?? '') === 'inactive' &&
+                              (int)$other['user_id']       < (int)$admin['user_id']
+                          ) {
+                              // For Non-Academic-Student & Others-Default, also require same admin_title (seat)
+                              if (in_array($admin['scope_category'], ['Non-Academic-Student','Others-Default'], true)) {
+                                  if (trim($other['admin_title'] ?? '') !== trim($admin['admin_title'] ?? '')) {
+                                      continue;
+                                  }
+                              }
+                              $showInherit = true;
+                              break;
+                          }
+                      }
+                  }
+
+                  $isAllCategories = empty($filterScope);
                 ?>
                 <tr>
                   <td class="px-4 md:px-6 py-4 whitespace-nowrap">
@@ -709,17 +806,34 @@ function summarizeAssignedScopeShort(array $admin): string {
 
                   <td class="px-4 md:px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                     <div class="flex flex-col sm:flex-row gap-2 justify-center admin-actions">
-                      <button
-                        onclick="toggleAdminStatus(<?= (int)$admin['user_id'] ?>, '<?= $status === 'active' ? 'inactive' : 'active' ?>')"
-                        class="<?= $status === 'active' ? 'btn-danger' : 'btn-success' ?> text-white px-3 py-1 rounded-lg inline-flex items-center justify-center">
-                        <i class="fas fa-<?= $status === 'active' ? 'ban' : 'check' ?> mr-1"></i>
-                        <?= $status === 'active' ? 'Deactivate' : 'Activate' ?>
-                      </button>
+                      <?php if ($isAllCategories): ?>
+                        <!-- All Categories: ONLY Edit/Delete -->
+                        <button onclick="handleEditClick(<?= (int)$admin['user_id'] ?>)"
+                                class="btn-warning text-white px-3 py-1 rounded-lg inline-flex items-center justify-center" data-edit-btn>
+                          <i class="fas fa-edit mr-1"></i>Edit
+                        </button>
+                      <?php else: ?>
+                        <!-- Specific scope filter: allow inherit / toggle -->
+                        <?php if ($showInherit): ?>
+                          <button
+                            onclick="inheritScope(<?= (int)$admin['user_id'] ?>)"
+                            class="btn-primary text-white px-3 py-1 rounded-lg inline-flex items-center justify-center">
+                            <i class="fas fa-share-alt mr-1"></i>Inherit Scope
+                          </button>
+                        <?php else: ?>
+                          <button
+                            onclick="toggleAdminStatus(<?= (int)$admin['user_id'] ?>, '<?= $status === 'active' ? 'inactive' : 'active' ?>')"
+                            class="<?= $status === 'active' ? 'btn-danger' : 'btn-success' ?> text-white px-3 py-1 rounded-lg inline-flex items-center justify-center">
+                            <i class="fas fa-<?= $status === 'active' ? 'ban' : 'check' ?> mr-1"></i>
+                            <?= $status === 'active' ? 'Deactivate' : 'Activate' ?>
+                          </button>
+                        <?php endif; ?>
 
-                      <button onclick="handleEditClick(<?= (int)$admin['user_id'] ?>)"
-                              class="btn-warning text-white px-3 py-1 rounded-lg inline-flex items-center justify-center">
-                        <i class="fas fa-edit mr-1"></i>Edit
-                      </button>
+                        <button onclick="handleEditClick(<?= (int)$admin['user_id'] ?>)"
+                                class="btn-warning text-white px-3 py-1 rounded-lg inline-flex items-center justify-center" data-edit-btn>
+                          <i class="fas fa-edit mr-1"></i>Edit
+                        </button>
+                      <?php endif; ?>
 
                       <form action="delete_admin.php" method="POST" class="inline delete-form" id="delete-form-<?= (int)$admin['user_id'] ?>">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($PAGE_CSRF) ?>">
@@ -785,8 +899,8 @@ function summarizeAssignedScopeShort(array $admin): string {
   <input type="hidden" id="pageCsrf" value="<?= htmlspecialchars($PAGE_CSRF) ?>">
   <script>
 // === Global taxonomy bootstrap ===
-window.collegesData = <?php echo json_encode(getColleges()); ?>;
-window.academicDepartmentsData = <?php echo json_encode(getAcademicDepartments()); ?>;
+window.collegesData             = <?php echo json_encode(getColleges()); ?>;
+window.academicDepartmentsData  = <?php echo json_encode(getAcademicDepartments()); ?>;
 window.nonAcademicDepartmentsData = <?php echo json_encode(getNonAcademicDepartments()); ?>;
 
 // Build coursesByCollegeData
@@ -804,15 +918,13 @@ foreach (array_keys(getColleges()) as $college) {
 
 // === Notification helpers ===
 function showNotification(title, message, type='info') {
-  const modal = document.getElementById('notificationModal');
-  const icon = document.getElementById('notificationIcon');
-  const titleEl = document.getElementById('notificationTitle');
-  const messageEl = document.getElementById('notificationMessage');
+  const modal    = document.getElementById('notificationModal');
+  const icon     = document.getElementById('notificationIcon');
+  const titleEl  = document.getElementById('notificationTitle');
+  const messageEl= document.getElementById('notificationMessage');
 
-  // Reset icon classes
   icon.className = 'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mr-3 ';
-  
-  // Set icon based on type
+
   if (type === 'success') {
     icon.classList.add('notification-success');
     icon.innerHTML = '<i class="fas fa-check-circle"></i>';
@@ -827,16 +939,11 @@ function showNotification(title, message, type='info') {
     icon.innerHTML = '<i class="fas fa-info-circle"></i>';
   }
 
-  titleEl.textContent = title;
+  titleEl.textContent   = title;
   messageEl.textContent = message;
-  
-  // Show the modal
+
   modal.classList.add('show');
-  
-  // Auto-hide after 5 seconds
-  setTimeout(() => {
-    hideNotification();
-  }, 5000);
+  setTimeout(hideNotification, 5000);
 }
 
 function hideNotification() {
@@ -846,8 +953,8 @@ function hideNotification() {
 // === Confirmation modal helpers ===
 let confirmationCallback = null;
 function showConfirmation(title, message, callback) {
-  document.getElementById('confirmationTitle').textContent = title;
-  document.getElementById('confirmationMessage').textContent = message;
+  document.getElementById('confirmationTitle').textContent  = title;
+  document.getElementById('confirmationMessage').textContent= message;
   confirmationCallback = callback;
   document.getElementById('confirmationModal').classList.remove('hidden');
 }
@@ -860,24 +967,30 @@ document.getElementById('confirmButton').addEventListener('click', function(){
   cancelConfirmation();
 });
 
-// === Filter by year from table header ===
+// === Year filter ===
 function filterByYear(year) {
   const url = new URL(window.location);
-  if (year) {
-    url.searchParams.set('year', year);
-  } else {
-    url.searchParams.delete('year');
-  }
+  if (year) url.searchParams.set('year', year);
+  else      url.searchParams.delete('year');
   window.location.href = url.toString();
 }
 
 // === Filter autosubmit ===
 function updateCollegeFilter(){
-  const scope = document.getElementById('scope');
-  const collegeContainer = document.getElementById('collegeFilterContainer');
+  const scope           = document.getElementById('scope');
+  const collegeContainer= document.getElementById('collegeFilterContainer');
   const courseContainer = document.getElementById('courseFilterContainer');
-  const deptContainer = document.getElementById('departmentFilterContainer');
-  const selected = scope ? scope.value : '';
+  const deptContainer   = document.getElementById('departmentFilterContainer');
+  const adminContainer  = document.getElementById('adminFilterContainer');
+  const selected        = scope ? scope.value : '';
+
+  // Admin Title filter only for Non-Academic-Student & Others-Default
+  if (selected === 'Non-Academic-Student' || selected === 'Others-Default') {
+    adminContainer.classList.remove('hidden');
+  } else {
+    adminContainer.classList.add('hidden');
+  }
+
   if (['Academic-Student','Academic-Faculty'].includes(selected)) {
     collegeContainer.classList.remove('hidden');
   } else {
@@ -885,381 +998,147 @@ function updateCollegeFilter(){
     courseContainer.classList.add('hidden');
     deptContainer.classList.add('hidden');
     const college = document.getElementById('college');
-    if (college) college.value='';
+    if (college) college.value = '';
   }
 }
+
 function updateCourseDepartmentFilter(){
-  const scope = document.getElementById('scope')?.value || '';
-  const college = document.getElementById('college')?.value || '';
-  const courseContainer = document.getElementById('courseFilterContainer');
-  const deptContainer = document.getElementById('departmentFilterContainer');
+  const scope          = document.getElementById('scope')?.value || '';
+  const college        = document.getElementById('college')?.value || '';
+  const courseContainer= document.getElementById('courseFilterContainer');
+  const deptContainer  = document.getElementById('departmentFilterContainer');
 
-  if (scope === 'Academic-Student' && college) courseContainer.classList.remove('hidden');
-  else courseContainer.classList.add('hidden');
+  if (scope === 'Academic-Student' && college) {
+    courseContainer.classList.remove('hidden');
+  } else {
+    courseContainer.classList.add('hidden');
+  }
 
-  // Show department container for Academic-Faculty (with college) OR Non-Academic-Employee
   if ((scope === 'Academic-Faculty' && college) || scope === 'Non-Academic-Employee') {
     deptContainer.classList.remove('hidden');
   } else {
     deptContainer.classList.add('hidden');
   }
 }
+
 function submitFilterForm(){ document.getElementById('filterForm').submit(); }
 
 document.addEventListener('DOMContentLoaded', () => {
-  const scopeSel = document.getElementById('scope');
+  const scopeSel   = document.getElementById('scope');
   const collegeSel = document.getElementById('college');
-  const courseSel = document.getElementById('course');
-  const deptSel = document.getElementById('department');
+  const courseSel  = document.getElementById('course');
+  const deptSel    = document.getElementById('department');
+  const adminSel   = document.getElementById('admin_title');
 
-  if (scopeSel) scopeSel.addEventListener('change', ()=>{ updateCollegeFilter(); submitFilterForm(); });
-  if (collegeSel) collegeSel.addEventListener('change', ()=>{ updateCourseDepartmentFilter(); submitFilterForm(); });
-  if (courseSel) courseSel.addEventListener('change', submitFilterForm);
-  if (deptSel) deptSel.addEventListener('change', submitFilterForm);
+  if (scopeSel)   scopeSel.addEventListener('change', () => { updateCollegeFilter(); submitFilterForm(); });
+  if (collegeSel) collegeSel.addEventListener('change', () => { updateCourseDepartmentFilter(); submitFilterForm(); });
+  if (courseSel)  courseSel.addEventListener('change', submitFilterForm);
+  if (deptSel)    deptSel.addEventListener('change', submitFilterForm);
+  if (adminSel)   adminSel.addEventListener('change', submitFilterForm);
+
+  updateCollegeFilter();
 });
 
-// === Toggle Admin Status (with CSRF) ===
+// === Toggle Admin Status ===
 function toggleAdminStatus(adminId, newStatus){
-  showConfirmation('Confirm Action', `Are you sure you want to ${newStatus==='active'?'activate':'deactivate'} this admin?`, function(){
-    const overlay = document.getElementById('loadingOverlay');
-    overlay?.classList.remove('hidden');
+  showConfirmation(
+    'Confirm Action',
+    `Are you sure you want to ${newStatus==='active'?'activate':'deactivate'} this admin?`,
+    function(){
+      const overlay = document.getElementById('loadingOverlay');
+      overlay && overlay.classList.remove('hidden');
 
-    fetch('manage_admins.php', {
-      method: 'POST',
-      headers: {'Content-Type':'application/x-www-form-urlencoded'},
-      body: new URLSearchParams({
-        action: 'toggle_status',
-        admin_id: adminId,
-        status: newStatus,
-        csrf_token: document.getElementById('pageCsrf').value
+      fetch('manage_admins.php', {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({
+          action: 'toggle_status',
+          admin_id: adminId,
+          status: newStatus,
+          csrf_token: document.getElementById('pageCsrf').value
+        })
       })
-    }).then(r=>r.json()).then(data=>{
-      overlay?.classList.add('hidden');
-      if (data.success) {
-        showNotification('Success', data.message, 'success');
-        setTimeout(()=>window.location.reload(), 900);
-      } else {
-        showNotification('Error', data.message, 'error');
-      }
-    }).catch(err=>{
-      overlay?.classList.add('hidden');
-      showNotification('Request Failed', err.message, 'error');
-    });
-  });
+      .then(r => r.json())
+      .then(data => {
+        overlay && overlay.classList.add('hidden');
+        if (data.success) {
+          showNotification('Success', data.message, 'success');
+          setTimeout(() => window.location.reload(), 900);
+        } else {
+          showNotification('Error', data.message, 'error');
+        }
+      })
+      .catch(err => {
+        overlay && overlay.classList.add('hidden');
+        showNotification('Request Failed', err.message, 'error');
+      });
+    }
+  );
 }
 
-// === Edit Modal — single source of truth ===
+// === Inherit Scope ===
+function inheritScope(targetAdminId) {
+  showConfirmation(
+    'Inherit Scope',
+    'This will inherit the scope from the previous inactive admin with the same scope. Continue?',
+    function() {
+      const overlay = document.getElementById('loadingOverlay');
+      overlay && overlay.classList.remove('hidden');
 
+      fetch('manage_admins.php', {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({
+          action: 'inherit_scope',
+          target_admin_id: targetAdminId,
+          csrf_token: document.getElementById('pageCsrf').value
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        overlay && overlay.classList.add('hidden');
+        if (data.success) {
+          showNotification('Success', data.message, 'success');
+          setTimeout(() => window.location.reload(), 900);
+        } else {
+          showNotification('Error', data.message, 'error');
+        }
+      })
+      .catch(err => {
+        overlay && overlay.classList.add('hidden');
+        showNotification('Request Failed', err.message, 'error');
+      });
+    }
+  );
+}
+
+// === Edit Modal glue ===
 function triggerEditAdmin(userId){
-  const overlay = document.getElementById('loadingOverlay'); overlay?.classList.remove('hidden');
+  const overlay = document.getElementById('loadingOverlay');
+  overlay && overlay.classList.remove('hidden');
+
   fetch('get_admin.php?user_id=' + encodeURIComponent(userId))
-    .then(res=>{
+    .then(res => {
       if (!res.ok) throw new Error('Network response was not ok');
       return res.json();
     })
-    .then(data=>{
-      overlay?.classList.add('hidden');
-      if (data.status === 'success') openUpdateModal(data.data);
-      else showNotification('Error', data.message || 'Admin not found', 'error');
+    .then(data => {
+      overlay && overlay.classList.add('hidden');
+      if (data.status === 'success') {
+        openUpdateModal(data.data);
+      } else {
+        showNotification('Error', data.message || 'Admin not found', 'error');
+      }
     })
-    .catch(err=>{
-      overlay?.classList.add('hidden');
+    .catch(err => {
+      overlay && overlay.classList.add('hidden');
       showNotification('Error', err.message, 'error');
     });
 }
-function handleEditClick(userId){ triggerEditAdmin(userId); }
 
-// Build readonly fields per scope
-function updateScopeFieldsForEdit(){
-  const scopeCategory = document.getElementById('updateScopeCategoryModal');
-  const container = document.getElementById('updateDynamicScopeFieldsModal');
-  if (!scopeCategory || !container) return;
-  container.innerHTML = '';
-
-  switch(scopeCategory.value){
-    case 'Academic-Student':
-      container.innerHTML = `
-        <div>
-          <label class="read-only-label">College Scope (Read-only)</label>
-          <div id="updateCollegeDisplay" class="read-only-display read-only-value"></div>
-          <input type="hidden" name="college" id="updateCollegeHidden">
-        </div>
-        <div class="mt-3">
-          <label class="read-only-label">Course Scope (Read-only)</label>
-          <div id="updateCoursesDisplay" class="read-only-display read-only-value"></div>
-          <div id="updateCoursesHiddenContainer"></div>
-        </div>`;
-      break;
-
-    case 'Academic-Faculty':
-      container.innerHTML = `
-        <div>
-          <label class="read-only-label">College Scope (Read-only)</label>
-          <div id="updateFacultyCollegeDisplay" class="read-only-display read-only-value"></div>
-          <input type="hidden" name="college" id="updateFacultyCollegeHidden">
-        </div>
-        <div class="mt-3">
-          <label class="read-only-label">Department Scope (Read-only)</label>
-          <div id="updateDepartmentsDisplay" class="read-only-display read-only-value"></div>
-          <div id="updateDepartmentsHiddenContainer"></div>
-        </div>`;
-      break;
-
-    case 'Non-Academic-Employee':
-      container.innerHTML = `
-        <div>
-          <label class="read-only-label">Department Scope (Read-only)</label>
-          <div id="updateNonAcademicDeptsDisplay" class="read-only-display read-only-value"></div>
-          <div id="updateNonAcademicDeptsHiddenContainer"></div>
-        </div>`;
-      break;
-
-    case 'Others-Default':
-      container.innerHTML = `
-        <div class="disabled-field-container">
-          <div class="disabled-field-label">Admin Scope Information (Read-only)</div>
-          <div class="bg-purple-50 p-3 rounded text-sm text-purple-800">
-            <strong>Others - Default Admin</strong><br>
-            Scope: All Faculty and Non-Academic Employees
-          </div>
-        </div>`;
-      break;
-
-    case 'Others-COOP':
-      container.innerHTML = `
-        <div class="disabled-field-container">
-          <div class="disabled-field-label">Admin Scope Information (Read-only)</div>
-          <div class="bg-green-50 p-3 rounded text-sm text-green-800">
-            <strong>Others - COOP Admin</strong><br>
-            Scope: Faculty & Non-Academic Employees (COOP + MIGS)
-          </div>
-        </div>`;
-      break;
-
-    case 'Non-Academic-Student':
-      container.innerHTML = `
-        <div class="disabled-field-container">
-          <div class="disabled-field-label">Admin Scope Information (Read-only)</div>
-          <div class="bg-blue-50 p-3 rounded text-sm text-blue-800">
-            <strong>Non-Academic - Student Admin</strong><br>
-            Scope: All non-academic student organizations
-          </div>
-        </div>`;
-      break;
-
-    case 'Special-Scope':
-      container.innerHTML = `
-        <div class="disabled-field-container">
-          <div class="disabled-field-label">Admin Scope Information (Read-only)</div>
-          <div class="bg-yellow-50 p-3 rounded text-sm text-yellow-800">
-            <strong>CSG Admin</strong><br>
-            Scope: All Student Organizations
-          </div>
-        </div>`;
-      break;
-
-    default:
-      container.innerHTML = '<p class="text-gray-500">Select a scope category to see options</p>';
-  }
+function handleEditClick(userId){
+  triggerEditAdmin(userId);
 }
-
-// Populate displays + append hidden inputs (modal shows code - full name)
-function populateScopeDetailsForEdit(admin){
-  let details = {};
-  if (admin.scope_details) {
-    try { details = JSON.parse(admin.scope_details) || {}; } catch(e){ details = {}; }
-  }
-
-  switch(admin.scope_category){
-    case 'Academic-Student': {
-      const collegeDisplay = document.getElementById('updateCollegeDisplay');
-      const collegeHidden  = document.getElementById('updateCollegeHidden');
-      const coursesDisplay = document.getElementById('updateCoursesDisplay');
-      const hiddenWrap     = document.getElementById('updateCoursesHiddenContainer');
-
-      const collegeCode = details.college || admin.assigned_scope || '';
-      const collegeName = (window.collegesData || {})[collegeCode] || '';
-      if (collegeDisplay) collegeDisplay.innerHTML = collegeCode ? (collegeCode + (collegeName ? ` - ${collegeName}` : '')) : '<span class="read-only-note">No college assigned</span>';
-      if (collegeHidden)  collegeHidden.value = collegeCode;
-
-      if (hiddenWrap) hiddenWrap.innerHTML = '';
-      const courseCodes = Array.isArray(details.courses) ? details.courses
-                        : admin.assigned_scope_1 && admin.assigned_scope_1.startsWith('Multiple: ')
-                            ? admin.assigned_scope_1.substring(9).split(',').map(s=>s.trim()).filter(Boolean)
-                            : admin.assigned_scope_1 ? [admin.assigned_scope_1] : [];
-
-      if (coursesDisplay) {
-        if (courseCodes.length) {
-          const list = (window.coursesByCollegeData[collegeCode] || []);
-          const names = courseCodes.map(code=>{
-            const match = list.find(c=>c.code===code);
-            return match ? `${code} - ${match.name}` : code;
-          });
-          coursesDisplay.innerHTML = names.join('<br>');
-        } else {
-          coursesDisplay.innerHTML = '<span class="read-only-note">All courses in selected college</span>';
-        }
-      }
-      if (hiddenWrap) {
-        if (courseCodes.length) {
-          courseCodes.forEach(code=>{
-            const i = document.createElement('input');
-            i.type='hidden'; i.name='courses[]'; i.value=code; hiddenWrap.appendChild(i);
-          });
-        } else {
-          const i = document.createElement('input');
-          i.type='hidden'; i.name='select_all_courses'; i.value='true'; hiddenWrap.appendChild(i);
-        }
-      }
-      break;
-    }
-
-    case 'Academic-Faculty': {
-      const collegeDisplay = document.getElementById('updateFacultyCollegeDisplay');
-      const collegeHidden  = document.getElementById('updateFacultyCollegeHidden');
-      const deptsDisplay   = document.getElementById('updateDepartmentsDisplay');
-      const hiddenWrap     = document.getElementById('updateDepartmentsHiddenContainer');
-
-      const collegeCode = details.college || admin.assigned_scope || '';
-      const collegeName = (window.collegesData || {})[collegeCode] || '';
-      if (collegeDisplay) collegeDisplay.innerHTML = collegeCode ? (collegeCode + (collegeName ? ` - ${collegeName}` : '')) : '<span class="read-only-note">No college assigned</span>';
-      if (collegeHidden)  collegeHidden.value = collegeCode;
-
-      if (hiddenWrap) hiddenWrap.innerHTML='';
-      const deptCodes = Array.isArray(details.departments) ? details.departments
-                      : admin.assigned_scope_1 && admin.assigned_scope_1.startsWith('Multiple: ')
-                          ? admin.assigned_scope_1.substring(9).split(',').map(s=>s.trim()).filter(Boolean)
-                          : admin.assigned_scope_1 ? [admin.assigned_scope_1] : [];
-
-      // Show "CODE - FULL NAME"
-      const deptMap = (window.academicDepartmentsData || {})[collegeCode] || {};
-      if (deptsDisplay) {
-        if (deptCodes.length) {
-          const names = deptCodes.map(code=>{
-            const full = deptMap[code] || '';
-            return full ? `${code} - ${full}` : code;
-          });
-          deptsDisplay.innerHTML = names.join('<br>');
-        } else {
-          deptsDisplay.innerHTML = '<span class="read-only-note">All departments in selected college</span>';
-        }
-      }
-      if (hiddenWrap) {
-        if (deptCodes.length) {
-          deptCodes.forEach(code=>{
-            const i = document.createElement('input');
-            i.type='hidden'; i.name='departments[]'; i.value=code; hiddenWrap.appendChild(i);
-          });
-        } else {
-          const i = document.createElement('input');
-          i.type='hidden'; i.name='select_all_departments'; i.value='true'; hiddenWrap.appendChild(i);
-        }
-      }
-      break;
-    }
-
-    case 'Non-Academic-Employee': {
-      const display = document.getElementById('updateNonAcademicDeptsDisplay');
-      const hiddenWrap = document.getElementById('updateNonAcademicDeptsHiddenContainer');
-      if (hiddenWrap) hiddenWrap.innerHTML = '';
-
-      let deptCodes = [];
-      if (Array.isArray(details.departments) && details.departments.length) {
-        deptCodes = details.departments;
-      } else if (admin.assigned_scope_1 && admin.assigned_scope_1.startsWith('Multiple: ')) {
-        deptCodes = admin.assigned_scope_1.substring(9).split(',').map(s=>s.trim()).filter(Boolean);
-      } else if (admin.assigned_scope_1) {
-        deptCodes = [admin.assigned_scope_1];
-      } else if (admin.assigned_scope && admin.assigned_scope !== 'Non-Academic') {
-        deptCodes = [admin.assigned_scope];
-      }
-
-      const map = window.nonAcademicDepartmentsData || {};
-      if (display) {
-        if (deptCodes.length) {
-          const names = deptCodes.map(code => map[code] ? `${code} - ${map[code]}` : code);
-          display.innerHTML = names.join('<br>');
-        } else {
-          display.innerHTML = '<span class="read-only-note">All non-academic departments</span>';
-        }
-      }
-
-      if (hiddenWrap) {
-        if (deptCodes.length) {
-          deptCodes.forEach(code=>{
-            const i = document.createElement('input');
-            i.type='hidden'; i.name='departments[]'; i.value=code; hiddenWrap.appendChild(i);
-          });
-        } else {
-          const i = document.createElement('input');
-          i.type='hidden'; i.name='select_all_non_academic_depts'; i.value='true'; hiddenWrap.appendChild(i);
-        }
-      }
-      break;
-    }
-  }
-}
-
-function openUpdateModal(admin){
-  document.getElementById('update_user_id').value = admin.user_id;
-  document.getElementById('update_admin_title').value = admin.admin_title || '';
-  document.getElementById('update_first_name').value = admin.first_name || '';
-  document.getElementById('update_last_name').value  = admin.last_name || '';
-  document.getElementById('update_email').value      = admin.email || '';
-
-  const scopeSel = document.getElementById('updateScopeCategoryModal');
-  const scopeHidden = document.getElementById('update_scope_category_hidden');
-  if (scopeSel) scopeSel.value = admin.scope_category || '';
-  if (scopeHidden) scopeHidden.value = admin.scope_category || '';
-
-  updateScopeFieldsForEdit();
-  setTimeout(()=>populateScopeDetailsForEdit(admin), 100);
-
-  document.getElementById('updateModal').classList.remove('hidden');
-  setTimeout(()=>document.getElementById('update_first_name').focus(), 120);
-}
-
-function closeUpdateModal(){
-  document.getElementById('updateModal').classList.add('hidden');
-  document.getElementById('updateAdminForm')?.reset();
-  document.getElementById('updateDynamicScopeFieldsModal').innerHTML = '';
-}
-
-// Pre-submit guard for Non-Academic-Employee
-document.addEventListener('DOMContentLoaded', () => {
-  const form = document.getElementById('updateAdminForm');
-  if (!form) return;
-  form.addEventListener('submit', (e)=>{
-    const scope = document.getElementById('update_scope_category_hidden')?.value || '';
-    if (scope === 'Non-Academic-Employee') {
-      const count = document.querySelectorAll('#updateAdminForm input[name="departments[]"]').length;
-      const all = document.querySelector('#updateAdminForm input[name="select_all_non_academic_depts"]');
-      if (!count && !all) {
-        e.preventDefault();
-        const err = document.getElementById('updateFormError');
-        if (err) {
-          err.textContent = 'Please select at least one department (or All non-academic departments).';
-          err.classList.remove('hidden');
-        } else {
-          alert('Please select at least one department (or All).');
-        }
-      }
-    }
-  });
-});
-
-// Delete confirm
-document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('.delete-form').forEach(form=>{
-    form.addEventListener('submit', function(ev){
-      ev.preventDefault();
-      showConfirmation('Delete Admin','Are you sure you want to delete this admin? This action cannot be undone.', ()=>{
-        document.getElementById('loadingOverlay')?.classList.remove('hidden');
-        form.submit();
-      });
-    });
-  });
-});
-</script>
+  </script>
 </body>
 </html>

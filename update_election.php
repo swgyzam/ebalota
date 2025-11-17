@@ -2,18 +2,17 @@
 session_start();
 date_default_timezone_set('Asia/Manila');
 
-// Check admin
-//if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
-    //header('Location: login.html');
-    //exit();
-//}
-
 // DB connection
 try {
-    $pdo = new PDO("mysql:host=localhost;dbname=evoting_system;charset=utf8mb4", 'root', '', [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-    ]);
+    $pdo = new PDO(
+        "mysql:host=localhost;dbname=evoting_system;charset=utf8mb4",
+        'root',
+        '',
+        [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+        ]
+    );
 } catch (PDOException $e) {
     die("Database connection failed: " . $e->getMessage());
 }
@@ -28,89 +27,159 @@ foreach ($required as $field) {
     }
 }
 
-// Process data with proper null handling
-$election_id = (int)$_POST['election_id'];
-$title = trim($_POST['election_name']);
-$description = trim($_POST['description'] ?? '');
+$election_id    = (int)$_POST['election_id'];
+$title          = trim($_POST['election_name']);
+$description    = trim($_POST['description'] ?? '');
 $start_datetime = date('Y-m-d H:i:s', strtotime($_POST['start_datetime']));
-$end_datetime = date('Y-m-d H:i:s', strtotime($_POST['end_datetime']));
-$target_voter = $_POST['target_voter'];
+$end_datetime   = date('Y-m-d H:i:s', strtotime($_POST['end_datetime']));
+$target_voter   = $_POST['target_voter'];
 $realtime_results = isset($_POST['realtime_results']) ? 1 : 0;
 
-// Initialize fields according to schema defaults
-$allowed_colleges = 'All';
-$allowed_courses = '';
-$allowed_status = null;
+$allowed_colleges    = 'All';
+$allowed_courses     = '';
+$allowed_status      = null;
 $allowed_departments = null;
-$target_position = 'All';
-$target_department = 'All';
-$assigned_admin_id = !empty($_POST['assigned_admin_id']) ? (int)$_POST['assigned_admin_id'] : null;
+$target_position     = 'All';
+$target_department   = 'All';
+$assigned_admin_id   = !empty($_POST['assigned_admin_id']) ? (int)$_POST['assigned_admin_id'] : null;
 
-// Process voter type
+// NEW: election_scope_type + owner_scope_id
+$election_scope_type = null;
+$owner_scope_id      = null;
+
+try {
+    if ($assigned_admin_id) {
+        $adminStmt = $pdo->prepare("SELECT scope_category FROM users WHERE user_id = :uid");
+        $adminStmt->execute([':uid' => $assigned_admin_id]);
+        $adminRow = $adminStmt->fetch();
+
+        if ($adminRow) {
+            $election_scope_type = $adminRow['scope_category'];
+
+            $scopeStmt = $pdo->prepare("
+                SELECT scope_id, scope_type, scope_details
+                FROM admin_scopes
+                WHERE user_id = :uid
+                  AND scope_type = :stype
+                LIMIT 1
+            ");
+            $scopeStmt->execute([
+                ':uid'   => $assigned_admin_id,
+                ':stype' => $election_scope_type
+            ]);
+            $scopeRow = $scopeStmt->fetch();
+            if ($scopeRow) {
+                $owner_scope_id = (int)$scopeRow['scope_id'];
+            }
+        }
+    }
+} catch (PDOException $e) {
+    file_put_contents('update_debug.log', "Scope error: ".$e->getMessage()."\n", FILE_APPEND);
+}
+
+// Process voter type (align with create_election.php)
 switch ($target_voter) {
+    // STUDENT
     case 'student':
-        $allowed_colleges = $_POST['allowed_colleges'] ?? 'All';
-        $allowed_courses = !empty($_POST['allowed_courses_student']) 
-            ? implode(',', array_map('trim', $_POST['allowed_courses_student']))
-            : '';
-        $target_position = 'student';
+        $allowed_colleges = $_POST['allowed_colleges'] ?? 'all';
+        if (strtolower($allowed_colleges) === 'all' || $allowed_colleges === '') {
+            $allowed_colleges = 'All';
+            $allowed_courses  = '';
+        } else {
+            $raw = $_POST['allowed_courses_student'] ?? [];
+            if (!empty($raw) && is_array($raw)) {
+                $clean = array_map('trim', $raw);
+                $clean = array_filter($clean, fn($c) => $c !== '');
+                $allowed_courses = $clean ? implode(',', $clean) : '';
+            } else {
+                $allowed_courses = '';
+            }
+        }
+        $target_position   = 'student';
         $target_department = 'Students';
         break;
 
+    // FACULTY
     case 'faculty':
-        $allowed_colleges = $_POST['allowed_colleges_faculty'] ?? 'All';
-        
-        // Always NULL for faculty
+        $allowed_colleges = $_POST['allowed_colleges_faculty'] ?? 'all';
+        if (strtolower($allowed_colleges) === 'all' || $allowed_colleges === '') {
+            $allowed_colleges = 'All';
+        }
+
         $allowed_courses = null;
-        
-        $allowed_status = !empty($_POST['allowed_status_faculty']) 
-            ? implode(',', array_map('trim', $_POST['allowed_status_faculty']))
-            : null;
-        $target_position = 'faculty';
+
+        // Departments from UI
+        $deptArr = $_POST['allowed_departments_faculty'] ?? [];
+        if (!empty($deptArr) && is_array($deptArr)) {
+            $clean = array_map('trim', $deptArr);
+            $clean = array_filter($clean, fn($d) => $d !== '');
+            $allowed_departments = $clean ? implode(',', $clean) : 'All';
+        } else {
+            $allowed_departments = 'All';
+        }
+
+        // Status from UI
+        $rawStatus = $_POST['allowed_status_faculty'] ?? [];
+        if (!empty($rawStatus) && is_array($rawStatus)) {
+            $clean = array_map('trim', $rawStatus);
+            $clean = array_filter($clean, fn($s) => $s !== '');
+            $allowed_status = $clean ? implode(',', $clean) : null;
+        } else {
+            $allowed_status = null;
+        }
+
+        $target_position   = 'faculty';
         $target_department = 'Faculty';
         break;
 
+    // NON-ACADEMIC
     case 'non_academic':
         $departments = $_POST['allowed_departments_nonacad'] ?? 'all';
         $allowed_departments = (strtolower($departments) === 'all') ? 'All' : $departments;
 
         if (!empty($_POST['allowed_status_nonacad'])) {
             $allowed_status_arr = array_map('trim', $_POST['allowed_status_nonacad']);
-            $allowed_status = implode(',', $allowed_status_arr);
+            $allowed_status     = implode(',', $allowed_status_arr);
         } else {
             $allowed_status = 'All';
         }
 
-        $allowed_courses = 'All'; // not applicable
-        $allowed_colleges = 'All'; // set this explicitly
-        $target_position = 'non-academic';
+        $allowed_courses  = '';
+        $allowed_colleges = 'All';
+        $target_position  = 'non-academic';
+        $target_department= 'Non-Academic';
         break;
 
+    // COOP / OTHERS (update modal radio "coop")
     case 'coop':
-        // COOP doesn't need colleges or courses
-        $allowed_colleges = 'All';
-        $allowed_courses = 'All';
+        $migsArray = $_POST['allowed_status_coop'] ?? [];
+        $hasMigs   = is_array($migsArray) && in_array('MIGS', $migsArray, true);
 
-        // Filter allowed_status_coop to only include 'MIGS'
-        if (!empty($_POST['allowed_status_coop'])) {
-            $allowed_status_arr = array_map('trim', $_POST['allowed_status_coop']);
-            // Keep only 'MIGS' status (case-insensitive)
-            $allowed_status_arr = array_filter($allowed_status_arr, function($status) {
-                return strtoupper($status) === 'MIGS';
-            });
+        if ($hasMigs) {
+            // COOP + MIGS
+            $allowed_colleges    = 'All';
+            $allowed_courses     = '';
+            $allowed_status      = 'MIGS';
+            $allowed_departments = 'All';
+            $target_position     = 'coop';
+            $target_department   = 'COOP';
 
-            if (count($allowed_status_arr) === 0) {
-                // If none selected, default to 'MIGS'
-                $allowed_status = 'MIGS';
-            } else {
-                $allowed_status = implode(',', $allowed_status_arr);
+            if ($election_scope_type === null) {
+                $election_scope_type = 'Others-COOP';
             }
         } else {
-            // Default to 'MIGS' if nothing selected
-            $allowed_status = 'MIGS';
-        }
+            // Others-Default: Employees
+            $allowed_colleges    = 'All';
+            $allowed_courses     = '';
+            $allowed_status      = 'All';
+            $allowed_departments = 'All';
+            $target_position     = 'others';
+            $target_department   = 'Employees';
 
-        $target_position = 'coop';
+            if ($election_scope_type === null) {
+                $election_scope_type = 'Others-Default';
+            }
+        }
         break;
 
     default:
@@ -121,9 +190,9 @@ switch ($target_voter) {
 
 // Date validation
 if (strtotime($start_datetime) >= strtotime($end_datetime)) {
-    $_SESSION['error'] = 'End date must be after start date';
-    header('Location: manage_elections.php');
-    exit();
+  $_SESSION['error'] = 'End date must be after start date';
+  header('Location: manage_elections.php');
+  exit();
 }
 
 // ===== File Upload Handling for Logo Update =====
@@ -136,10 +205,10 @@ if (isset($_FILES['update_logo']) && $_FILES['update_logo']['error'] === UPLOAD_
         mkdir($targetDir, 0777, true);
     }
 
-    $fileName = time() . "_" . basename($_FILES["update_logo"]["name"]);
+    $fileName       = time() . "_" . basename($_FILES["update_logo"]["name"]);
     $targetFilePath = $targetDir . $fileName;
 
-    $fileType = strtolower(pathinfo($targetFilePath, PATHINFO_EXTENSION));
+    $fileType     = strtolower(pathinfo($targetFilePath, PATHINFO_EXTENSION));
     $allowedTypes = ['jpg', 'jpeg', 'png'];
 
     if (!in_array($fileType, $allowedTypes)) {
@@ -174,76 +243,53 @@ if ($logoPath === null) {
 // Update query matching exact schema
 try {
     $sql = "UPDATE elections SET
-    title = :title,
-    description = :description,
-    start_datetime = :start_datetime,
-    end_datetime = :end_datetime,
-    target_position = :target_position,
-    target_department = :target_department,
-    allowed_colleges = :allowed_colleges,
-    allowed_courses = :allowed_courses,
-    allowed_status = :allowed_status,
-    allowed_departments = :allowed_departments,
-    realtime_results = :realtime_results,
-    logo_path = :logo_path,
-    assigned_admin_id = :assigned_admin_id
-    WHERE election_id = :election_id";
+        title               = :title,
+        description         = :description,
+        start_datetime      = :start_datetime,
+        end_datetime        = :end_datetime,
+        target_position     = :target_position,
+        target_department   = :target_department,
+        election_scope_type = :election_scope_type,
+        owner_scope_id      = :owner_scope_id,
+        allowed_colleges    = :allowed_colleges,
+        allowed_courses     = :allowed_courses,
+        allowed_status      = :allowed_status,
+        allowed_departments = :allowed_departments,
+        realtime_results    = :realtime_results,
+        logo_path           = :logo_path,
+        assigned_admin_id   = :assigned_admin_id
+        WHERE election_id   = :election_id";
 
     $stmt = $pdo->prepare($sql);
-    
+
     $params = [
-        ':title' => $title,
-        ':description' => $description,
-        ':start_datetime' => $start_datetime,
-        ':end_datetime' => $end_datetime,
-        ':target_position' => $target_position,
-        ':target_department' => $target_department,
-        ':allowed_colleges' => $allowed_colleges,
-        ':allowed_courses' => $allowed_courses,
-        ':allowed_status' => $allowed_status,
+        ':title'               => $title,
+        ':description'         => $description,
+        ':start_datetime'      => $start_datetime,
+        ':end_datetime'        => $end_datetime,
+        ':target_position'     => $target_position,
+        ':target_department'   => $target_department,
+        ':election_scope_type' => $election_scope_type,
+        ':owner_scope_id'      => $owner_scope_id,
+        ':allowed_colleges'    => $allowed_colleges,
+        ':allowed_courses'     => $allowed_courses,
+        ':allowed_status'      => $allowed_status,
         ':allowed_departments' => $allowed_departments,
-        ':realtime_results' => $realtime_results,
-        ':logo_path' => $logoPath,
-        ':election_id' => $election_id,
-        ':assigned_admin_id' => $assigned_admin_id
+        ':realtime_results'    => $realtime_results,
+        ':logo_path'           => $logoPath,
+        ':assigned_admin_id'   => $assigned_admin_id,
+        ':election_id'         => $election_id
     ];
 
     file_put_contents('update_debug.log', "Executing with params:\n".print_r($params, true)."\n", FILE_APPEND);
-    
+
     $stmt->execute($params);
 
     if ($stmt->rowCount() > 0) {
         $_SESSION['success'] = 'Election updated successfully!';
         file_put_contents('update_debug.log', "Update successful for election $election_id\n", FILE_APPEND);
     } else {
-        // Verify if data was actually changed
-        $check = $pdo->prepare("SELECT * FROM elections WHERE election_id = ?");
-        $check->execute([$election_id]);
-        $current = $check->fetch();
-        
-        $changes = array_diff_assoc($params, [
-            ':title' => $current['title'],
-            ':description' => $current['description'],
-            ':start_datetime' => $current['start_datetime'],
-            ':end_datetime' => $current['end_datetime'],
-            ':target_position' => $current['target_position'],
-            ':target_department' => $current['target_department'],
-            ':allowed_colleges' => $current['allowed_colleges'],
-            ':allowed_courses' => $current['allowed_courses'],
-            ':allowed_status' => $current['allowed_status'],
-            ':allowed_departments' => $current['allowed_departments'],
-            ':realtime_results' => $current['realtime_results'],
-            ':logo_path' => $current['logo_path']
-        ]);
-        
-        if (empty($changes)) {
-            $_SESSION['info'] = 'No changes were made (data identical)';
-        } else {
-            $_SESSION['error'] = 'Update failed - no rows affected';
-            file_put_contents('update_debug.log', 
-                "Update failed but changes detected:\n".print_r($changes, true)."\n", 
-                FILE_APPEND);
-        }
+        $_SESSION['info'] = 'No changes were made (data identical)';
     }
 } catch (PDOException $e) {
     $_SESSION['error'] = 'Database error: ' . $e->getMessage();

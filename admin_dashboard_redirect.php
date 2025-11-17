@@ -2,69 +2,77 @@
 session_start();
 date_default_timezone_set('Asia/Manila');
 
-// --- DB Connection ---
- $host = 'localhost';
- $db   = 'evoting_system';
- $user = 'root';
- $pass = '';
- $charset = 'utf8mb4';
-
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
-    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    PDO::ATTR_EMULATE_PREPARES   => false,
-];
-
-try {
-    $pdo = new PDO($dsn, $user, $pass, $options);
-} catch (\PDOException $e) {
-    error_log("Database connection failed: " . $e->getMessage());
-    die("A system error occurred. Please try again later.");
-}
-
 // --- Auth check ---
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit();
 }
 
-// Get user info including scope
- $stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = ?");
- $stmt->execute([$_SESSION['user_id']]);
- $userInfo = $stmt->fetch();
-
- $role = $userInfo['role'] ?? '';
- $scope = strtoupper(trim($userInfo['assigned_scope'] ?? ''));
-
-// Determine redirect URL based on user scope
- $redirectUrl = '';
-switch ($scope) {
-    case 'CSG ADMIN':
-        $redirectUrl = "admin_dashboard_csg.php";
-        break;
-    case 'FACULTY ASSOCIATION':
-        $redirectUrl = "admin_dashboard_faculty.php";
-        break;
-    case 'COOP':
-        $redirectUrl = "admin_dashboard_coop.php";
-        break;
-    case 'NON-ACADEMIC':
-        $redirectUrl = "admin_dashboard_nonacademic.php";
-        break;
-    default:
-        // Check if it's a college admin
-        $validCollegeScopes = ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC'];
-        if (in_array($scope, $validCollegeScopes)) {
-            $redirectUrl = "admin_dashboard_college.php";
-        } else {
-            // Default for other roles (including super admin or unknown scopes)
-            $redirectUrl = "admin_dashboard_default.php";
-        }
-        break;
+// --- Super Admin redirect ---
+if ($_SESSION['role'] === 'super_admin') {
+    header("Location: super_admin/dashboard.php");
+    exit;
 }
 
-// Redirect to the appropriate dashboard
-header("Location: $redirectUrl");
+// --- Admin redirect using NEW scope system only ---
+if ($_SESSION['role'] === 'admin') {
+
+    // Set by admin_verify_token.php
+    $scopeCategory = $_SESSION['scope_category'] ?? '';
+
+    // Safety: kung wala / empty scope_category, huwag mag-crash
+    if ($scopeCategory === '' || $scopeCategory === null) {
+        // You can change this to an error page if you want
+        header("Location: admin_dashboard_default.php");
+        exit;
+    }
+
+    switch ($scopeCategory) {
+
+        case 'Special-Scope':
+            // CSG Admin – system-wide student org management
+            $redirectUrl = "admin_dashboard_csg.php";
+            break;
+
+        case 'Others-COOP':
+            // COOP Admin – COOP + MIGS employees
+            $redirectUrl = "admin_dashboard_coop.php";
+            break;
+
+        case 'Academic-Student':
+            // Academic - Student: by college + department + course (students only)
+            $redirectUrl = "admin_dashboard_college.php";
+            break;
+
+        case 'Academic-Faculty':
+            // Academic - Faculty: faculty employees, with colleges + departments + status
+            $redirectUrl = "admin_dashboard_faculty.php";
+            break;
+
+        case 'Non-Academic-Employee':
+            // Non-Academic Employee Admin
+            $redirectUrl = "admin_dashboard_nonacademic.php";
+            break;
+
+        case 'Others-Default':
+            // Default Admin – all faculty + non-academic employees
+            $redirectUrl = "admin_dashboard_default.php";
+            break;
+
+        case 'Non-Academic-Student':
+            // Non-Academic Student Admin – org-based student admins
+            $redirectUrl = "admin_dashboard_nonacad_students.php";
+            break;
+
+        default:
+            // Unknown / future scope type – safe, neutral fallback
+            $redirectUrl = "admin_dashboard_default.php";
+    }
+
+    header("Location: $redirectUrl");
+    exit;
+}
+
+// --- Other roles (voters, etc.) ---
+header("Location: voters_dashboard.php");
 exit();
-?>

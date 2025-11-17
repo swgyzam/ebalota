@@ -3,7 +3,7 @@ session_start();
 date_default_timezone_set('Asia/Manila');
 
  $host = 'localhost';
- $db   = 'evoting_system';
+ $db = 'evoting_system';
  $user = 'root';
  $pass = '';
  $charset = 'utf8mb4';
@@ -142,7 +142,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     try {
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
+        // Updated query - removed scope_details (doesn't exist in users table)
+        $stmt = $pdo->prepare("SELECT user_id, first_name, last_name, email, password, role, 
+            position, is_coop_member, department, course, status, assigned_scope, 
+            scope_category, assigned_scope_1, admin_status 
+            FROM users WHERE email = ?");
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
@@ -153,6 +157,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!password_verify($password, $user['password'])) {
             header("Location: login.html?error=Incorrect password.&email=" . urlencode($email));
+            exit;
+        }
+
+        // Check if admin account is inactive
+        if ($user['role'] === 'admin' && $user['admin_status'] === 'inactive') {
+            header("Location: login.html?error=Your admin account is inactive. Please contact super admin.&email=" . urlencode($email));
             exit;
         }
 
@@ -170,9 +180,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($user['role'] === 'admin') {
                 $success = sendAdminVerificationEmail($user['email'], $user['first_name'], $user['last_name'], $token);
             }
+            
             if ($success) {
+                // Store pending admin data with scope information
                 $_SESSION['pending_admin_auth'] = $user['user_id'];
-                $_SESSION['pending_auth_role'] = $user['role']; 
+                $_SESSION['pending_auth_role'] = $user['role'];
+                
+                // Store scope data for pending admin
+                if ($user['role'] === 'admin') {
+                    $_SESSION['pending_scope_category'] = $user['scope_category'];
+                    $_SESSION['pending_assigned_scope'] = $user['assigned_scope'];
+                    $_SESSION['pending_assigned_scope_1'] = $user['assigned_scope_1'];
+                    
+                    // Fetch scope_details from admin_scopes table
+                    try {
+                        $scopeStmt = $pdo->prepare("SELECT scope_details FROM admin_scopes WHERE user_id = ?");
+                        $scopeStmt->execute([$user['user_id']]);
+                        $scopeData = $scopeStmt->fetch();
+                        $_SESSION['pending_scope_details'] = !empty($scopeData['scope_details']) ? 
+                            json_decode($scopeData['scope_details'], true) : [];
+                    } catch (PDOException $e) {
+                        error_log("Error fetching scope details: " . $e->getMessage());
+                        $_SESSION['pending_scope_details'] = [];
+                    }
+                    
+                    $_SESSION['pending_admin_status'] = $user['admin_status'];
+                }
+                
                 header("Location: admin_login_pending.php");
                 exit;            
             } else {
@@ -193,10 +227,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['department'] = $user['department'] ?? '';
         $_SESSION['course'] = $user['course'] ?? '';
         $_SESSION['status'] = $user['status'] ?? '';
-
-        if ($user['role'] === 'admin') {
-            $_SESSION['assigned_scope'] = $user['assigned_scope'] ?? '';
-        }        
 
         // Remember me
         if ($remember) {
@@ -236,3 +266,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header("Location: login.html");
     exit;
 }
+?>

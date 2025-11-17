@@ -37,18 +37,18 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
 }
 
 // Get form data
- $admin_title = trim($_POST['admin_title'] ?? '');
- $first_name = trim($_POST['first_name'] ?? '');
- $last_name = trim($_POST['last_name'] ?? '');
- $email = trim($_POST['email'] ?? '');
- $scope_category = trim($_POST['scope_category'] ?? '');
- $password = $_POST['password'] ?? '';
- $admin_status = isset($_POST['admin_status']) ? trim($_POST['admin_status']) : 'inactive'; // Default to inactive
+$admin_title    = trim($_POST['admin_title']    ?? '');
+$first_name     = trim($_POST['first_name']     ?? '');
+$last_name      = trim($_POST['last_name']      ?? '');
+$email          = trim($_POST['email']          ?? '');
+$scope_category = trim($_POST['scope_category'] ?? '');
+$password       = $_POST['password']            ?? '';
+$admin_status   = isset($_POST['admin_status']) ? trim($_POST['admin_status']) : 'inactive'; // Default to inactive
 
 // Calculate current academic year
- $currentYear = date('Y');
- $nextYear = $currentYear + 1;
- $academicYear = "$currentYear-$nextYear";
+$currentYear  = date('Y');
+$nextYear     = $currentYear + 1;
+$academicYear = "$currentYear-$nextYear";
 
 // Validate required fields
 if (!$admin_title || !$first_name || !$last_name || !$email || !$scope_category || !$password) {
@@ -61,11 +61,16 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 
 // Database connection
 try {
-    $pdo = new PDO('mysql:host=localhost;dbname=evoting_system;charset=utf8mb4', 'root', '', [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false,
-    ]);
+    $pdo = new PDO(
+        'mysql:host=localhost;dbname=evoting_system;charset=utf8mb4',
+        'root',
+        '',
+        [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES   => false,
+        ]
+    );
 } catch (PDOException $e) {
     error_log("Database connection failed: " . $e->getMessage());
     sendJsonResponse('error', 'Database connection failed.');
@@ -84,211 +89,237 @@ try {
 }
 
 // Process scope details
- $scope_details = [];
- $assigned_scope = '';
- $assigned_scope_1 = '';
+$scope_details    = [];
+$assigned_scope   = '';
+$assigned_scope_1 = '';
+$scope_value      = ''; // for admin_scopes.scope_value
 
 switch ($scope_category) {
-    case 'Academic-Student':
+
+    case 'Academic-Student': {
         $college = $_POST['college'] ?? '';
         $courses = $_POST['courses'] ?? [];
-        
+
         if (empty($college)) {
             sendJsonResponse('error', 'College selection is required for Academic-Student admins.');
         }
-        
+
         // Check if all courses are selected
         if (isset($_POST['select_all_courses']) && $_POST['select_all_courses'] === 'true') {
-            $courses_display = 'All';
+            $courses_display  = 'All';
             $assigned_scope_1 = 'All';
-        } else if (!empty($courses)) {
-            // If multiple courses are selected, store them as comma-separated list
+        } elseif (!empty($courses)) {
             if (count($courses) > 1) {
-                $courses_display = implode(', ', $courses);
+                $courses_display  = implode(', ', $courses);
                 $assigned_scope_1 = 'Multiple: ' . implode(', ', $courses);
             } else {
-                $courses_display = $courses[0];
+                $courses_display  = $courses[0];
                 $assigned_scope_1 = $courses[0];
             }
         } else {
-            $courses_display = '';
+            $courses_display  = '';
             $assigned_scope_1 = '';
         }
-        
+
         $scope_details = [
-            'college' => $college,
-            'courses' => $courses,
+            'college'         => $college,
+            'courses'         => $courses,
             'courses_display' => $courses_display
         ];
         $assigned_scope = $college;
+        $scope_value    = $college; // key for scope; courses are in details
         break;
-        
-    case 'Academic-Faculty':
-        $college = $_POST['college'] ?? '';
-        $departments = $_POST['departments'] ?? [];
-        
+    }
+
+    case 'Academic-Faculty': {
+        $college     = $_POST['college']    ?? '';
+        $departments = $_POST['departments']?? [];
+
         if (empty($college)) {
             sendJsonResponse('error', 'College selection is required for Academic-Faculty admins.');
         }
-        
+
         // Check if all departments are selected
         if (isset($_POST['select_all_departments']) && $_POST['select_all_departments'] === 'true') {
             $departments_display = 'All';
-            $assigned_scope_1 = 'All';
-        } else if (!empty($departments)) {
-            // If multiple departments are selected, store them as comma-separated list
+            $assigned_scope_1    = 'All';
+        } elseif (!empty($departments)) {
             if (count($departments) > 1) {
                 $departments_display = implode(', ', $departments);
-                $assigned_scope_1 = 'Multiple: ' . implode(', ', $departments);
+                $assigned_scope_1    = 'Multiple: ' . implode(', ', $departments);
             } else {
                 $departments_display = $departments[0];
-                $assigned_scope_1 = $departments[0];
+                $assigned_scope_1    = $departments[0];
             }
         } else {
             $departments_display = '';
-            $assigned_scope_1 = '';
+            $assigned_scope_1    = '';
         }
-        
+
         $scope_details = [
-            'college' => $college,
-            'departments' => $departments,
+            'college'             => $college,
+            'departments'         => $departments,
             'departments_display' => $departments_display
         ];
         $assigned_scope = $college;
+        $scope_value    = $college;
         break;
-        
-    case 'Non-Academic-Employee':
+    }
+
+    case 'Non-Academic-Employee': {
         $departments = $_POST['departments'] ?? [];
-        
+
         if (empty($departments)) {
             sendJsonResponse('error', 'Department selection is required for Non-Academic-Employee admins.');
         }
-        
-        // Check if all non-academic departments are selected
+
         if (isset($_POST['select_all_non_academic_depts']) && $_POST['select_all_non_academic_depts'] === 'true') {
             $departments_display = 'All';
-            $assigned_scope_1 = 'All';
-        } else if (!empty($departments)) {
-            // If multiple departments are selected, store them as comma-separated list
+            $assigned_scope_1    = 'All';
+        } elseif (!empty($departments)) {
             if (count($departments) > 1) {
                 $departments_display = implode(', ', $departments);
-                $assigned_scope_1 = 'Multiple: ' . implode(', ', $departments);
+                $assigned_scope_1    = 'Multiple: ' . implode(', ', $departments);
             } else {
                 $departments_display = $departments[0];
-                $assigned_scope_1 = $departments[0];
+                $assigned_scope_1    = $departments[0];
             }
         } else {
             $departments_display = '';
-            $assigned_scope_1 = '';
+            $assigned_scope_1    = '';
         }
-        
+
         $scope_details = [
-            'departments' => $departments,
+            'departments'         => $departments,
             'departments_display' => $departments_display
         ];
         $assigned_scope = $departments[0] ?? 'Non-Academic';
+        $scope_value    = 'Non-Academic-Employee';
         break;
-        
-    case 'Others-COOP':
-        $scope_details = ['type' => 'coop'];
-        $assigned_scope = 'COOP';
+    }
+
+    case 'Non-Academic-Student': {
+        // Global non-academic student org scope for now
+        $scope_details    = ['type' => 'non_academic_student'];
+        $assigned_scope   = 'Non-Academic-Student';
+        $assigned_scope_1 = 'All';
+        $scope_value      = 'Non-Academic-Student';
+        break;
+    }
+
+    case 'Others-COOP': {
+        $scope_details    = ['type' => 'coop'];
+        $assigned_scope   = 'COOP';
         $assigned_scope_1 = 'COOP Admin';
+        $scope_value      = 'Others-COOP';
         break;
-        
-    case 'Others-Default':
-        $scope_details = ['type' => 'default'];
-        $assigned_scope = 'Default';
+    }
+
+    case 'Others-Default': {
+        $scope_details    = ['type' => 'default'];
+        $assigned_scope   = 'Default';
         $assigned_scope_1 = 'Default Admin';
+        $scope_value      = 'Others-Default';
         break;
-        
-    case 'Special-Scope':
-        $scope_details = ['type' => 'csg'];
-        $assigned_scope = 'CSG Admin';
+    }
+
+    case 'Special-Scope': {
+        $scope_details    = ['type' => 'csg'];
+        $assigned_scope   = 'CSG Admin';
         $assigned_scope_1 = 'CSG Admin';
+        $scope_value      = 'Special-Scope';
         break;
-        
+    }
+
     default:
         sendJsonResponse('error', 'Invalid scope category.');
 }
 
 // Check if there's already an active admin with the same credentials
 if ($admin_status === 'active') {
-    // Build condition to find admins with same credentials
     $conditions = [];
-    $params = [];
-    
+    $params     = [];
+
     if (!empty($scope_category)) {
-        $conditions[] = "scope_category = :scope_category";
+        $conditions[]              = "scope_category = :scope_category";
         $params[':scope_category'] = $scope_category;
     }
-    
+
     if (!empty($assigned_scope)) {
-        $conditions[] = "assigned_scope = :assigned_scope";
-        $params[':assigned_scope'] = $assigned_scope;
+        $conditions[]             = "assigned_scope = :assigned_scope";
+        $params[':assigned_scope']= $assigned_scope;
     }
-    
+
     if (!empty($assigned_scope_1)) {
-        $conditions[] = "assigned_scope_1 = :assigned_scope_1";
-        $params[':assigned_scope_1'] = $assigned_scope_1;
+        $conditions[]               = "assigned_scope_1 = :assigned_scope_1";
+        $params[':assigned_scope_1']= $assigned_scope_1;
     }
-    
-    // If we have conditions, check for existing active admin
+
     if (!empty($conditions)) {
         $whereClause = implode(' AND ', $conditions);
-        $checkSql = "SELECT user_id, first_name, last_name, admin_title FROM users 
-                     WHERE role = 'admin' AND admin_status = 'active' 
-                     AND $whereClause";
-        
+        $checkSql    = "SELECT user_id, first_name, last_name, admin_title
+                        FROM users
+                        WHERE role = 'admin' AND admin_status = 'active'
+                          AND $whereClause";
+
         $checkStmt = $pdo->prepare($checkSql);
         $checkStmt->execute($params);
         $existingAdmin = $checkStmt->fetch();
-        
+
         if ($existingAdmin) {
-            sendJsonResponse('error', "Cannot create admin with active status. There is already an active admin ({$existingAdmin['admin_title']}: {$existingAdmin['first_name']} {$existingAdmin['last_name']}) with the same scope credentials. Only one admin can be active for the same scope.");
+            sendJsonResponse(
+                'error',
+                "Cannot create admin with active status. There is already an active admin " .
+                "({$existingAdmin['admin_title']}: {$existingAdmin['first_name']} {$existingAdmin['last_name']}) " .
+                "with the same scope credentials. Only one admin can be active for the same scope."
+            );
         }
     }
 }
 
 // Hash password
- $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+$hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
 // Insert admin into database
 try {
     $pdo->beginTransaction();
-    
+
     // Insert into users table
     $stmt = $pdo->prepare("INSERT INTO users 
-        (admin_title, first_name, last_name, email, password, role, is_verified, is_admin, force_password_change, assigned_scope, scope_category, assigned_scope_1, admin_status, academic_year)
-        VALUES (:admin_title, :first, :last, :email, :pw, 'admin', 1, 1, 1, :assigned_scope, :scope_category, :assigned_scope_1, :admin_status, :academic_year)");
-    
+        (admin_title, first_name, last_name, email, password, role, is_verified, is_admin, force_password_change,
+         assigned_scope, scope_category, assigned_scope_1, admin_status, academic_year)
+        VALUES (:admin_title, :first, :last, :email, :pw, 'admin', 1, 1, 1,
+                :assigned_scope, :scope_category, :assigned_scope_1, :admin_status, :academic_year)");
+
     $stmt->execute([
-        ':admin_title' => $admin_title,
-        ':first' => $first_name,
-        ':last' => $last_name,
-        ':email' => $email,
-        ':pw' => $hashed_password,
-        ':assigned_scope' => $assigned_scope,
-        ':scope_category' => $scope_category,
+        ':admin_title'      => $admin_title,
+        ':first'            => $first_name,
+        ':last'             => $last_name,
+        ':email'            => $email,
+        ':pw'               => $hashed_password,
+        ':assigned_scope'   => $assigned_scope,
+        ':scope_category'   => $scope_category,
         ':assigned_scope_1' => $assigned_scope_1,
-        ':admin_status' => $admin_status,
-        ':academic_year' => $academicYear
+        ':admin_status'     => $admin_status,
+        ':academic_year'    => $academicYear
     ]);
-    
+
     $user_id = $pdo->lastInsertId();
-    
-    // Insert into admin_scopes table
+
+    // Insert into admin_scopes table (with scope_value)
     $stmt = $pdo->prepare("INSERT INTO admin_scopes 
-        (user_id, scope_type, scope_details)
-        VALUES (:user_id, :scope_type, :scope_details)");
-    
+        (user_id, scope_type, scope_value, scope_details)
+        VALUES (:user_id, :scope_type, :scope_value, :scope_details)");
+
     $stmt->execute([
-        ':user_id' => $user_id,
-        ':scope_type' => $scope_category,
+        ':user_id'       => $user_id,
+        ':scope_type'    => $scope_category,
+        ':scope_value'   => $scope_value,
         ':scope_details' => json_encode($scope_details)
     ]);
-    
+
     $pdo->commit();
-    
+
 } catch (PDOException $e) {
     $pdo->rollBack();
     error_log("Admin creation failed: " . $e->getMessage());
@@ -296,10 +327,10 @@ try {
 }
 
 // Prepare email content based on scope category
- $scope_description = formatScopeDetails($scope_category, json_encode($scope_details));
+$scope_description = formatScopeDetails($scope_category, json_encode($scope_details));
 
 // Email admin credentials
- $mail = new PHPMailer(true);
+$mail = new PHPMailer(true);
 try {
     $mail->isSMTP();
     $mail->Host       = 'smtp.gmail.com';
@@ -313,8 +344,7 @@ try {
     $mail->addAddress($email, "$first_name $last_name");
     $mail->isHTML(true);
     $mail->Subject = 'Your eBalota Admin Account Has Been Created';
-    
-    // Email template
+
     $mail->Body = "
         <!DOCTYPE html>
         <html>
@@ -518,28 +548,26 @@ try {
 
     $mail->send();
 
-    // Log successful admin creation
     error_log("Admin created successfully: $email with scope $scope_category and status $admin_status");
 
-    // Send success response
     sendJsonResponse('success', 'Admin created successfully and credentials sent to email.', [
-        'admin_title' => $admin_title,
-        'scope_category' => $scope_category,
+        'admin_title'       => $admin_title,
+        'scope_category'    => $scope_category,
         'scope_description' => $scope_description,
-        'admin_status' => $admin_status,
-        'academic_year' => $academicYear
+        'admin_status'      => $admin_status,
+        'academic_year'     => $academicYear
     ]);
 
 } catch (Exception $e) {
     error_log("Email error: " . $mail->ErrorInfo);
-    
+
     // Send success response even if email fails (admin was still created)
     sendJsonResponse('success', 'Admin created successfully, but email sending failed.', [
-        'admin_title' => $admin_title,
-        'scope_category' => $scope_category,
+        'admin_title'       => $admin_title,
+        'scope_category'    => $scope_category,
         'scope_description' => $scope_description,
-        'admin_status' => $admin_status,
-        'academic_year' => $academicYear
+        'admin_status'      => $admin_status,
+        'academic_year'     => $academicYear
     ]);
 }
 

@@ -2,37 +2,247 @@
 session_start();
 date_default_timezone_set('Asia/Manila');
 
-// --- DB Connection ---
- $host = 'localhost';
- $db   = 'evoting_system';
- $user = 'root';
- $pass = '';
- $charset = 'utf8mb4';
+/* ==========================================================
+   DB CONNECTION
+   ========================================================== */
+$host    = 'localhost';
+$db      = 'evoting_system';
+$user    = 'root';
+$pass    = '';
+$charset = 'utf8mb4';
 
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
 
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (\PDOException $e) {
-    die("Database connection failed: " . $e->getMessage());
+    die("Database connection failed.");
 }
 
-// --- Auth check ---
+/* ==========================================================
+   AUTH CHECK
+   ========================================================== */
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit();
 }
 
- $userId = $_SESSION['user_id'];
+$userId = $_SESSION['user_id'];
 
-// --- Fetch user info ---
- $stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = :userId");
- $stmt->execute([':userId' => $userId]);
- $user = $stmt->fetch();
+/* ==========================================================
+   LEGACY HELPERS (for fallback mode)
+   ========================================================== */
+
+function normalize_course_code(string $raw): string {
+    $s = strtoupper(trim($raw));
+    if ($s === '') return 'UNSPECIFIED';
+
+    $s = preg_replace('/[.\-_,]/', ' ', $s);
+    $s = preg_replace('/\s+/', ' ', $s);
+
+    $replacements = [
+        'BACHELOR OF SCIENCE IN ' => 'BS ',
+        'BACHELOR OF SCIENCE '    => 'BS ',
+        'BACHELOR OF '            => 'B ',
+        'INFORMATION TECHNOLOGY'  => 'IT',
+        'COMPUTER SCIENCE'        => 'CS',
+        'COMPUTER ENGINEERING'    => 'CPE',
+        'ELECTRONICS ENGINEERING' => 'ECE',
+        'CIVIL ENGINEERING'       => 'CE',
+        'MECHANICAL ENGINEERING'  => 'ME',
+        'ELECTRICAL ENGINEERING'  => 'EE',
+        'INDUSTRIAL ENGINEERING'  => 'IE',
+        'AGRICULTURE'             => 'AGRI',
+        'AGRIBUSINESS'            => 'AB',
+        'ENVIRONMENTAL SCIENCE'   => 'ES',
+        'FOOD TECHNOLOGY'         => 'FT',
+        'FORESTRY'                => 'FOR',
+        'AGRICULTURAL AND BIOSYSTEMS ENGINEERING' => 'ABE',
+        'AGRICULTURAL ENTREPRENEURSHIP'           => 'AE',
+        'LAND USE DESIGN AND MANAGEMENT'          => 'LDM',
+        'BIOLOGY'                 => 'BIO',
+        'CHEMISTRY'               => 'CHEM',
+        'MATHEMATICS'             => 'MATH',
+        'PHYSICS'                 => 'PHYSICS',
+        'PSYCHOLOGY'              => 'PSYCH',
+        'ENGLISH LANGUAGE STUDIES'=> 'ELS',
+        'COMMUNICATION'           => 'COMM',
+        'STATISTICS'              => 'STAT',
+        'CRIMINOLOGY'             => 'CRIM',
+        'NURSING'                 => 'N',
+        'HOSPITALITY MANAGEMENT'  => 'HM',
+        'TOURISM MANAGEMENT'      => 'TM',
+        'LIBRARY AND INFORMATION SCIENCE' => 'LIS',
+        'LIBRARY & INFORMATION SCIENCE'   => 'LIS',
+        'EXERCISE AND SPORTS SCIENCES'    => 'ESS',
+        'OFFICE ADMINISTRATION'   => 'OA',
+        'ENTREPRENEURSHIP'        => 'ENT',
+        'ECONOMICS'               => 'ECO',
+        'ACCOUNTANCY'             => 'ACC',
+        'SECONDARY EDUCATION'     => 'SED',
+        'ELEMENTARY EDUCATION'    => 'EED',
+        'PHYSICAL EDUCATION'      => 'PE',
+        'TECHNOLOGY AND LIVELIHOOD EDUCATION' => 'TLE',
+        'PRE VETERINARY'          => 'PV',
+        'VETERINARY MEDICINE'     => 'DVM',
+    ];
+    foreach ($replacements as $from => $to) {
+        $s = str_replace($from, $to, $s);
+    }
+
+    $s       = preg_replace('/\s+/', ' ', trim($s));
+    $noSpace = str_replace(' ', '', $s);
+
+    $patterns = [
+        '/^BSIT$/'      => 'BSIT',
+        '/^BSCS$/'      => 'BSCS',
+        '/^BSCPE$/'     => 'BSCpE',
+        '/^BSECE$/'     => 'BSECE',
+        '/^BSCE$/'      => 'BSCE',
+        '/^BSME$/'      => 'BSME',
+        '/^BSEE$/'      => 'BSEE',
+        '/^BSIE$/'      => 'BSIE',
+        '/^BSAGRI$/'    => 'BSAgri',
+        '/^BSAB$/'      => 'BSAB',
+        '/^BSES$/'      => 'BSES',
+        '/^BSFT$/'      => 'BSFT',
+        '/^BSFOR$/'     => 'BSFor',
+        '/^BSABE$/'     => 'BSABE',
+        '/^BAE$/'       => 'BAE',
+        '/^BSLDM$/'     => 'BSLDM',
+        '/^BSBIO$/'     => 'BSBio',
+        '/^BSCHEM$/'    => 'BSChem',
+        '/^BSMATH$/'    => 'BSMath',
+        '/^BSPHYSICS$/' => 'BSPhysics',
+        '/^BSPSYCH$/'   => 'BSPsych',
+        '/^BAELS$/'     => 'BAELS',
+        '/^BACOMM$/'    => 'BAComm',
+        '/^BSSTAT$/'    => 'BSStat',
+        '/^DVM$/'       => 'DVM',
+        '/^BSPV$/'      => 'BSPV',
+        '/^BEED$/'      => 'BEEd',
+        '/^BSED$/'      => 'BSEd',
+        '/^BPE$/'       => 'BPE',
+        '/^BTLE$/'      => 'BTLE',
+        '/^BSBA$/'      => 'BSBA',
+        '/^BSACC$/'     => 'BSAcc',
+        '/^BSECO$/'     => 'BSEco',
+        '/^BSENT$/'     => 'BSEnt',
+        '/^BSOA$/'      => 'BSOA',
+        '/^BSESS$/'     => 'BSESS',
+        '/^BSCRIM$/'    => 'BSCrim',
+        '/^BSN$/'       => 'BSN',
+        '/^BSHM$/'      => 'BSHM',
+        '/^BSTM$/'      => 'BSTM',
+        '/^BLIS$/'      => 'BLIS',
+        '/^PHD$/'       => 'PhD',
+        '/^MS$/'        => 'MS',
+        '/^MA$/'        => 'MA',
+    ];
+    foreach ($patterns as $regex => $code) {
+        if (preg_match($regex, $noSpace)) {
+            return $code;
+        }
+    }
+
+    return $noSpace !== '' ? $noSpace : 'UNSPECIFIED';
+}
+
+/**
+ * Parse course scope string like:
+ *  "BSIT,BSCS" or "Multiple: BSIT, BSCS"
+ * into normalized codes array: ['BSIT','BSCS']
+ */
+function parse_normalized_course_scope(?string $scopeString): array {
+    if ($scopeString === null) return [];
+
+    $clean = preg_replace('/^(Courses?:\s*)?Multiple:\s*/i', '', $scopeString);
+    $parts = array_filter(array_map('trim', explode(',', $clean)));
+    $codes = [];
+    foreach ($parts as $p) {
+        if ($p === '' || strcasecmp($p, 'All') === 0) continue;
+        $codes[] = strtoupper(normalize_course_code($p));
+    }
+    return array_unique($codes);
+}
+
+/**
+ * Check if an election is in admin's college scope.
+ */
+function election_matches_college_scope(array $election, string $adminCollege): bool {
+    $allowed = $election['allowed_colleges'] ?? 'All';
+    $allowed = trim($allowed);
+
+    if ($allowed === '' || strcasecmp($allowed, 'All') === 0) {
+        return true; // open to all colleges
+    }
+
+    $list = array_filter(array_map('trim', explode(',', $allowed)));
+    foreach ($list as $college) {
+        if (strcasecmp($college, $adminCollege) === 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Check if election courses overlap admin courses.
+ */
+function election_matches_course_scope(array $election, array $adminCourseCodes): bool {
+    $allowedCourses = $election['allowed_courses'] ?? '';
+    $clean = trim($allowedCourses);
+
+    if ($clean === '' || strcasecmp($clean, 'All') === 0) {
+        return true;
+    }
+
+    $parts = array_filter(array_map('trim', explode(',', $clean)));
+    $elecCodes = [];
+    foreach ($parts as $p) {
+        $elecCodes[] = strtoupper(normalize_course_code($p));
+    }
+    $elecCodes = array_unique($elecCodes);
+
+    if (empty($adminCourseCodes)) {
+        return true;
+    }
+
+    return count(array_intersect($elecCodes, $adminCourseCodes)) > 0;
+}
+
+/**
+ * Check if election departments overlap admin departments (for faculty scope).
+ */
+function election_matches_department_scope(array $election, array $adminDepartments): bool {
+    $allowedDepts = $election['allowed_departments'] ?? '';
+    $clean = trim($allowedDepts);
+
+    if ($clean === '' || strcasecmp($clean, 'All') === 0) {
+        return true;
+    }
+
+    $elecDepts = array_filter(array_map('trim', explode(',', $clean)));
+    if (empty($adminDepartments)) {
+        return true;
+    }
+    return count(array_intersect($elecDepts, $adminDepartments)) > 0;
+}
+
+/* ==========================================================
+   FETCH USER INFO
+   ========================================================== */
+$stmt = $pdo->prepare("
+    SELECT role, assigned_scope, scope_category, assigned_scope_1
+    FROM users
+    WHERE user_id = :userId
+");
+$stmt->execute([':userId' => $userId]);
+$user = $stmt->fetch();
 
 if (!$user) {
     session_destroy();
@@ -40,28 +250,142 @@ if (!$user) {
     exit();
 }
 
- $role = $user['role'];
+$role          = $user['role'];
+$assignedScope = $user['assigned_scope'];   // e.g. CEIT
+$scopeCategory = $user['scope_category'];   // Academic-Student / Academic-Faculty / ...
+$userScope1    = $user['assigned_scope_1']; // e.g. "Multiple: BSIT, BSCS"
 
-// --- Fetch elections for display ---
+/* ==========================================================
+   NEW: FETCH ADMIN SCOPE (admin_scopes) IF ADMIN
+   ========================================================== */
+$elections      = [];
+$now            = date('Y-m-d H:i:s');
+$usingNewScope  = false;
+$scopeRow       = null;
+$scopeId        = null;
+$scopeType      = null;
+
+if ($role === 'admin' && !empty($scopeCategory)) {
+    $scopeStmt = $pdo->prepare("
+        SELECT scope_id, scope_type, scope_details
+        FROM admin_scopes
+        WHERE user_id   = :uid
+          AND scope_type = :stype
+        LIMIT 1
+    ");
+    $scopeStmt->execute([
+        ':uid'   => $userId,
+        ':stype' => $scopeCategory,
+    ]);
+    $scopeRow = $scopeStmt->fetch();
+
+    if ($scopeRow) {
+        $usingNewScope = true;
+        $scopeId       = (int)$scopeRow['scope_id'];
+        $scopeType     = $scopeRow['scope_type'];
+    }
+}
+
+/* ==========================================================
+   FETCH ELECTIONS (NEW SCOPE MODEL + LEGACY FALLBACK)
+   ========================================================== */
+
 if ($role === 'admin') {
-    $electionStmt = $pdo->prepare("SELECT * FROM elections 
-                                   WHERE assigned_admin_id = :adminId
-                                   ORDER BY start_datetime DESC");
-    $electionStmt->execute([':adminId' => $userId]);
-    $elections = $electionStmt->fetchAll();
+
+    if ($usingNewScope && $scopeId !== null && $scopeType !== null) {
+        // ✅ NEW MODEL: elections owned by this admin's scope seat
+        $electionStmt = $pdo->prepare("
+            SELECT *
+            FROM elections
+            WHERE election_scope_type = :scopeType
+              AND owner_scope_id      = :scopeId
+            ORDER BY start_datetime DESC
+        ");
+        $electionStmt->execute([
+            ':scopeType' => $scopeType,
+            ':scopeId'   => $scopeId,
+        ]);
+        $elections = $electionStmt->fetchAll();
+
+    } else {
+        // 🔁 LEGACY BEHAVIOUR (no admin_scopes row yet)
+
+        if ($scopeCategory === 'Academic-Student') {
+            $adminCourseCodes = parse_normalized_course_scope($userScope1);
+
+            $stmt = $pdo->prepare("
+                SELECT *
+                FROM elections
+                WHERE LOWER(target_position) IN ('student', 'all')
+                ORDER BY start_datetime DESC
+            ");
+            $stmt->execute();
+            $allElections = $stmt->fetchAll();
+
+            $elections = [];
+            foreach ($allElections as $e) {
+                if (!election_matches_college_scope($e, $assignedScope)) {
+                    continue;
+                }
+                if (!election_matches_course_scope($e, $adminCourseCodes)) {
+                    continue;
+                }
+                $elections[] = $e;
+            }
+
+        } elseif ($scopeCategory === 'Academic-Faculty') {
+            $adminDepartments = [];
+            if (!empty($userScope1) && strcasecmp($userScope1, 'All') !== 0) {
+                $adminDepartments = array_filter(array_map('trim', explode(',', $userScope1)));
+            }
+
+            $stmt = $pdo->prepare("
+                SELECT *
+                FROM elections
+                WHERE LOWER(target_position) IN ('faculty', 'all')
+                ORDER BY start_datetime DESC
+            ");
+            $stmt->execute();
+            $allElections = $stmt->fetchAll();
+
+            $elections = [];
+            foreach ($allElections as $e) {
+                if (!election_matches_college_scope($e, $assignedScope)) {
+                    continue;
+                }
+                if (!election_matches_department_scope($e, $adminDepartments)) {
+                    continue;
+                }
+                $elections[] = $e;
+            }
+
+        } else {
+            // Old: assigned_admin_id based
+            $electionStmt = $pdo->prepare("
+                SELECT *
+                FROM elections
+                WHERE assigned_admin_id = :adminId
+                ORDER BY start_datetime DESC
+            ");
+            $electionStmt->execute([':adminId' => $userId]);
+            $elections = $electionStmt->fetchAll();
+        }
+    }
+
 } else {
+    // Super admin or other roles: show all elections
     $electionStmt = $pdo->query("SELECT * FROM elections ORDER BY start_datetime DESC");
     $elections = $electionStmt->fetchAll();
 }
 
- $now = date('Y-m-d H:i:s');
-
-// --- Check for toast messages ---
- $toastMessage = $_SESSION['toast_message'] ?? null;
- $toastType = $_SESSION['toast_type'] ?? null;
+/* ==========================================================
+   TOAST
+   ========================================================== */
+$toastMessage = $_SESSION['toast_message'] ?? null;
+$toastType    = $_SESSION['toast_type'] ?? null;
 unset($_SESSION['toast_message'], $_SESSION['toast_type']);
-?>
 
+?>
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
@@ -155,28 +479,26 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
       <section class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" id="electionsGrid">
         <?php foreach ($elections as $election): ?>
           <?php
-            $start = $election['start_datetime'];
-            $end = $election['end_datetime'];
-            $status = ($now < $start) ? 'upcoming' : (($now >= $start && $now <= $end) ? 'ongoing' : 'completed');
-            
-            // Status colors and icons
+            $start  = $election['start_datetime'];
+            $end    = $election['end_datetime'];
+            $status = ($now < $start) ? 'upcoming'
+                     : (($now >= $start && $now <= $end) ? 'ongoing' : 'completed');
+
             $statusColors = [
-              'ongoing' => 'border-l-green-600 bg-green-50',
+              'ongoing'   => 'border-l-green-600 bg-green-50',
               'completed' => 'border-l-gray-500 bg-gray-50',
-              'upcoming' => 'border-l-yellow-500 bg-yellow-50'
+              'upcoming'  => 'border-l-yellow-500 bg-yellow-50'
             ];
-            
             $statusIcons = [
-              'ongoing' => '🟢',
+              'ongoing'   => '🟢',
               'completed' => '⚫',
-              'upcoming' => '🟡'
+              'upcoming'  => '🟡'
             ];
           ?>
           <div class="election-card bg-white rounded-lg shadow-md overflow-hidden border-l-4 <?= $statusColors[$status] ?> flex flex-col h-full transition-transform hover:scale-[1.02]" data-status="<?= $status ?>">
             <div class="p-5 flex flex-grow">
-              <!-- Logo - Larger and on the Left -->
+              <!-- Logo -->
               <div class="flex-shrink-0 w-32 h-32 mr-5 relative">
-                <!-- Status indicator sa taas ng logo sa left side -->
                 <div class="absolute -top-3 left-0 z-10">
                   <span class="text-xs font-medium px-2 py-1 rounded-br-lg bg-white border shadow-sm">
                     <?= $statusIcons[$status] ?> <?= ucfirst($status) ?>
@@ -215,17 +537,17 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
                   </div>
                   <div class="flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2z" />
                     </svg>
                     <span><strong class="text-gray-700">End:</strong> <?= date("M d, Y h:i A", strtotime($end)) ?></span>
                   </div>
-                  <!-- Status Indicator -->
+                  <!-- Launch status -->
                   <div class="flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
                     </svg>
                     <span><strong class="text-gray-700">Status:</strong> 
-                      <?php if ($election['creation_stage'] === 'ready_for_voters'): ?>
+                      <?php if (($election['creation_stage'] ?? '') === 'ready_for_voters'): ?>
                         <span class="text-green-600">Launched to Voters</span>
                       <?php else: ?>
                         <span class="text-yellow-600">Not Yet Launched</span>
@@ -239,11 +561,9 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
             <!-- Actions -->
             <div class="mt-auto p-4 bg-gray-50 border-t">
               <div class="flex flex-col sm:flex-row gap-3">
-                <!-- Button Logic Based on Status and Launch Stage -->
                 <?php if ($status === 'upcoming'): ?>
-                  <!-- For upcoming elections - only show Launch to Voters if not yet launched -->
-                  <?php if ($election['creation_stage'] !== 'ready_for_voters'): ?>
-                    <button onclick="confirmLaunch(<?= $election['election_id'] ?>, '<?= htmlspecialchars($election['title']) ?>', '<?= $election['creation_stage'] ?>')" 
+                  <?php if (($election['creation_stage'] ?? '') !== 'ready_for_voters'): ?>
+                    <button onclick="confirmLaunch(<?= $election['election_id'] ?>, '<?= htmlspecialchars($election['title'], ENT_QUOTES) ?>', '<?= $election['creation_stage'] ?>')" 
                       class="flex-1 bg-[var(--cvsu-green)] hover:bg-green-600 text-white py-2 px-4 rounded-lg font-semibold transition text-center flex items-center justify-center">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -251,7 +571,6 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
                       Launch to Voters
                     </button>
                   <?php else: ?>
-                    <!-- Already launched upcoming election -->
                     <button class="flex-1 bg-gray-300 text-gray-600 py-2 px-4 rounded-lg font-semibold text-center flex items-center justify-center cursor-not-allowed">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -259,18 +578,17 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
                       Already Launched
                     </button>
                   <?php endif; ?>
+
                 <?php elseif ($status === 'ongoing'): ?>
-                  <!-- For ongoing elections - show View Vote Counts and Launch to Voters if not launched -->
                   <a href="view_vote_counts.php?id=<?= $election['election_id'] ?>" 
                     class="flex-1 bg-[var(--cvsu-yellow)] hover:bg-yellow-600 text-white py-2 px-4 rounded-lg font-semibold transition text-center flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2z" />
                     </svg>
                     View Vote Counts
                   </a>
-                  
-                  <?php if ($election['creation_stage'] !== 'ready_for_voters'): ?>
-                    <button onclick="confirmLaunch(<?= $election['election_id'] ?>, '<?= htmlspecialchars($election['title']) ?>', '<?= $election['creation_stage'] ?>')" 
+                  <?php if (($election['creation_stage'] ?? '') !== 'ready_for_voters'): ?>
+                    <button onclick="confirmLaunch(<?= $election['election_id'] ?>, '<?= htmlspecialchars($election['title'], ENT_QUOTES) ?>', '<?= $election['creation_stage'] ?>')" 
                       class="flex-1 bg-[var(--cvsu-yellow)] hover:bg-yellow-600 text-white py-2 px-4 rounded-lg font-semibold transition text-center flex items-center justify-center">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -278,14 +596,14 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
                       Launch to Voters
                     </button>
                   <?php endif; ?>
+
                 <?php endif; ?>
-                
-                <!-- Release Results Button - Only visible when election is completed -->
+
                 <?php if ($status === 'completed'): ?>
                   <a href="release_results.php?id=<?= $election['election_id'] ?>" 
                     class="flex-1 bg-[var(--cvsu-green)] hover:bg-[var(--cvsu-green-dark)] text-white py-2 px-4 rounded-lg font-semibold transition text-center flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2z" />
                     </svg>
                     Release Results
                   </a>
@@ -301,7 +619,13 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
         <h3 class="text-xl font-semibold text-gray-700 mb-2">No Elections Available</h3>
-        <p class="text-gray-600">There are no elections assigned to you at this time.</p>
+        <p class="text-gray-600">
+          <?php if ($role === 'admin'): ?>
+            There are no elections in your scope at this time.
+          <?php else: ?>
+            There are no elections available at this time.
+          <?php endif; ?>
+        </p>
       </div>
     <?php endif; ?>
   </div>
@@ -326,93 +650,68 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
     </div>
   </div>
 </div>
-
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    // Get DOM elements
-    const searchInput = document.getElementById('searchElections');
-    const tabButtons = document.querySelectorAll('.tab-btn');
+    const searchInput   = document.getElementById('searchElections');
+    const tabButtons    = document.querySelectorAll('.tab-btn');
     const electionCards = document.querySelectorAll('.election-card');
     
-    // Combined Search and Tab Filtering Function
     function filterElections() {
       const searchTerm = searchInput.value.toLowerCase().trim();
-      const activeTab = document.querySelector('.tab-btn.active').dataset.category;
-      
-      console.log('Search Term:', searchTerm);
-      console.log('Active Tab:', activeTab);
+      const activeTab  = document.querySelector('.tab-btn.active').dataset.category;
       
       electionCards.forEach(card => {
-        // Get title using specific class
         const titleElement = card.querySelector('.election-title');
-        
-        // Skip if element doesn't exist
         if (!titleElement) {
           card.style.display = 'none';
           return;
         }
-        
-        const title = titleElement.textContent.toLowerCase().trim();
+        const title      = titleElement.textContent.toLowerCase().trim();
         const cardStatus = card.dataset.status;
         
-        console.log('Card Title:', title);
-        console.log('Card Status:', cardStatus);
+        const matchesSearch = (searchTerm === '' || title.includes(searchTerm));
+        const matchesTab    = (activeTab === 'all' || cardStatus === activeTab);
         
-        // Check if card matches search term (title only)
-        const matchesSearch = searchTerm === '' || title.includes(searchTerm);
-        
-        // Check if card matches current tab filter
-        const matchesTab = activeTab === 'all' || cardStatus === activeTab;
-        
-        console.log('Matches Search:', matchesSearch);
-        console.log('Matches Tab:', matchesTab);
-        
-        // Show card only if it matches both search and tab
-        if (matchesSearch && matchesTab) {
-          card.style.display = 'block';
-        } else {
-          card.style.display = 'none';
-        }
+        card.style.display = (matchesSearch && matchesTab) ? 'block' : 'none';
       });
     }
     
-    // Add event listeners
-    searchInput.addEventListener('input', filterElections);
+    if (searchInput) {
+      searchInput.addEventListener('input', filterElections);
+    }
     
     tabButtons.forEach(btn => {
       btn.addEventListener('click', function() {
-        // Update active tab
         tabButtons.forEach(b => b.classList.remove('active'));
         this.classList.add('active');
-        
-        // Apply filters
         filterElections();
       });
     });
     
-    // Initialize with "All" tab selected
     filterElections();
   });
   
   function confirmLaunch(electionId, title, currentStage) {
+    const msgEl  = document.getElementById('modalMessage');
+    const btnEl  = document.getElementById('confirmLaunchBtn');
+    const modal  = document.getElementById('launchModal');
+    
     if (currentStage === 'ready_for_voters') {
-      document.getElementById('modalMessage').innerText = 
-        `This election has already been launched to voters. You cannot launch it again.`;
-      document.getElementById('confirmLaunchBtn').style.display = 'none';
+      msgEl.innerText = `This election has already been launched to voters. You cannot launch it again.`;
+      btnEl.style.display = 'none';
     } else {
-      document.getElementById('modalMessage').innerText = 
-        `Are you sure you want to launch "${title}" election to voters? Once launched, voters will be able to see and participate in this election.`;
-      document.getElementById('confirmLaunchBtn').href = 
-        `launch_election.php?id=${electionId}`;
-      document.getElementById('confirmLaunchBtn').style.display = 'block';
+      msgEl.innerText = `Are you sure you want to launch "${title}" election to voters? Once launched, voters will be able to see and participate in this election.`;
+      btnEl.href      = `launch_election.php?id=${electionId}`;
+      btnEl.style.display = 'inline-flex';
     }
-    document.getElementById('launchModal').classList.remove('hidden');
-    document.getElementById('launchModal').classList.add('flex');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
   }
 
   function closeModal() {
-    document.getElementById('launchModal').classList.add('hidden');
-    document.getElementById('launchModal').classList.remove('flex');
+    const modal = document.getElementById('launchModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
   }
 </script>
 

@@ -1,497 +1,458 @@
 <?php
+// Enable error reporting for development
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
 date_default_timezone_set('Asia/Manila');
- $host = 'localhost';
- $db   = 'evoting_system';
- $user = 'root';
- $pass = '';
+
+// === DB CONNECTION ===
+ $host    = 'localhost';
+ $db      = 'evoting_system';
+ $user    = 'root';
+ $pass    = '';
  $charset = 'utf8mb4';
-
-// UPDATED MAPPINGS - Match election creation format
- $department_map = [
-    // Full college names to codes
-    'College of Engineering and Information Technology (CEIT)' => 'CEIT',
-    'College of Arts and Sciences (CAS)' => 'CAS',
-    'College of Criminal Justice (CCJ)' => 'CCJ',
-    'College of Education (CED)' => 'CED',
-    'College of Agriculture, Food, Environment and Natural Resources (CAFENR)' => 'CAFENR',
-    'College of Economics, Management and Development Studies (CEMDS)' => 'CEMDS',
-    'College of Nursing (CON)' => 'CON',
-    'College of Sports, Physical Education and Recreation (CSPEAR)' => 'CSPEAR',
-    'College of Veterinary Medicine and Biomedical Sciences (CVMBS)' => 'CVMBS',
-    'Graduate School and Open Learning College (GS.OLC)' => 'GS-OLC',
-    'College of Medicine (COM)' => 'COM',
-    'College of Tourism and Hospitality Management (CTHM)' => 'CTHM',
-    
-    // Direct code mappings (for codes already in database)
-    'CEIT' => 'CEIT',
-    'CAS' => 'CAS',
-    'CCJ' => 'CCJ',
-    'CED' => 'CED',
-    'CAFENR' => 'CAFENR',
-    'CEMDS' => 'CEMDS',
-    'CON' => 'CON',
-    'CSPEAR' => 'CSPEAR',
-    'CVMBS' => 'CVMBS',
-    'GS-OLC' => 'GS-OLC',
-    'COM' => 'COM',
-    'CTHM' => 'CTHM',
-    
-    // Common variations
-    'college of engineering and information technology' => 'CEIT',
-    'college of arts and sciences' => 'CAS',
-    'college of criminal justice' => 'CCJ',
-    'college of education' => 'CED',
-    'college of agriculture food environment and natural resources' => 'CAFENR',
-    'college of economics management and development studies' => 'CEMDS',
-    'college of nursing' => 'CON',
-    'college of sports physical education and recreation' => 'CSPEAR',
-    'college of veterinary medicine and biomedical sciences' => 'CVMBS',
-    'graduate school and open learning college' => 'GS-OLC',
-    'college of medicine' => 'COM',
-    'college of tourism and hospitality management' => 'CTHM',
-];
-
-// UPDATED COURSE MAPPINGS - Match election creation format exactly
- $course_map = [
-    // CEIT Courses
-    'bs computer science' => 'BSCS',
-    'bachelor of science in computer science' => 'BSCS',
-    'computer science' => 'BSCS',
-    'bscs' => 'BSCS',
-    
-    'bs information technology' => 'BSIT',
-    'bachelor of science in information technology' => 'BSIT',
-    'information technology' => 'BSIT',
-    'bsit' => 'BSIT',
-    
-    'bs computer engineering' => 'BSCpE',  // Match election format exactly
-    'bachelor of science in computer engineering' => 'BSCpE',
-    'computer engineering' => 'BSCpE',
-    'bscpe' => 'BSCpE',
-    
-    'bs electronics engineering' => 'BSECE',
-    'bachelor of science in electronics engineering' => 'BSECE',
-    'electronics engineering' => 'BSECE',
-    'bsece' => 'BSECE',
-    
-    'bs civil engineering' => 'BSCE',
-    'bachelor of science in civil engineering' => 'BSCE',
-    'civil engineering' => 'BSCE',
-    'bsce' => 'BSCE',
-    
-    'bs mechanical engineering' => 'BSME',
-    'bachelor of science in mechanical engineering' => 'BSME',
-    'mechanical engineering' => 'BSME',
-    'bsme' => 'BSME',
-    
-    'bs electrical engineering' => 'BSEE',
-    'bachelor of science in electrical engineering' => 'BSEE',
-    'electrical engineering' => 'BSEE',
-    'bsee' => 'BSEE',
-    
-    'bs industrial engineering' => 'BSIE',
-    'bachelor of science in industrial engineering' => 'BSIE',
-    'industrial engineering' => 'BSIE',
-    'bsie' => 'BSIE',
-    
-    'bs architecture' => 'BSArch',
-    'bachelor of science in architecture' => 'BSArch',
-    'architecture' => 'BSArch',
-    'bsarch' => 'BSArch',
-    
-    // CAFENR Courses
-    'bs agriculture' => 'BSAgri',
-    'bachelor of science in agriculture' => 'BSAgri',
-    'agriculture' => 'BSAgri',
-    'bsagri' => 'BSAgri',
-    
-    'bs agribusiness' => 'BSAB',
-    'bachelor of science in agribusiness' => 'BSAB',
-    'agribusiness' => 'BSAB',
-    'bsab' => 'BSAB',
-    
-    'bs environmental science' => 'BSES',
-    'bachelor of science in environmental science' => 'BSES',
-    'environmental science' => 'BSES',
-    'bses' => 'BSES',
-    
-    'bs food technology' => 'BSFT',
-    'bachelor of science in food technology' => 'BSFT',
-    'food technology' => 'BSFT',
-    'bsft' => 'BSFT',
-    
-    'bs forestry' => 'BSFor',
-    'bachelor of science in forestry' => 'BSFor',
-    'forestry' => 'BSFor',
-    'bsfor' => 'BSFor',
-    
-    'bs agricultural and biosystems engineering' => 'BSABE',
-    'bachelor of science in agricultural and biosystems engineering' => 'BSABE',
-    'agricultural and biosystems engineering' => 'BSABE',
-    'bsabe' => 'BSABE',
-    
-    'bachelor of agricultural entrepreneurship' => 'BAE',
-    'agricultural entrepreneurship' => 'BAE',
-    'bae' => 'BAE',
-    
-    'bs land use design and management' => 'BSLDM',
-    'bachelor of science in land use design and management' => 'BSLDM',
-    'land use design and management' => 'BSLDM',
-    'bsldm' => 'BSLDM',
-    
-    // CAS Courses
-    'bs biology' => 'BSBio',
-    'bachelor of science in biology' => 'BSBio',
-    'biology' => 'BSBio',
-    'bsbio' => 'BSBio',
-    
-    'bs chemistry' => 'BSChem',
-    'bachelor of science in chemistry' => 'BSChem',
-    'chemistry' => 'BSChem',
-    'bschem' => 'BSChem',
-    
-    'bs mathematics' => 'BSMath',
-    'bachelor of science in mathematics' => 'BSMath',
-    'mathematics' => 'BSMath',
-    'bsmath' => 'BSMath',
-    
-    'bs physics' => 'BSPhysics',
-    'bachelor of science in physics' => 'BSPhysics',
-    'physics' => 'BSPhysics',
-    'bsphysics' => 'BSPhysics',
-    
-    'bs psychology' => 'BSPsych',
-    'bachelor of science in psychology' => 'BSPsych',
-    'psychology' => 'BSPsych',
-    'bspsych' => 'BSPsych',
-    
-    'ba english language studies' => 'BAELS',
-    'bachelor of arts in english language studies' => 'BAELS',
-    'english language studies' => 'BAELS',
-    'baels' => 'BAELS',
-    
-    'ba communication' => 'BAComm',
-    'bachelor of arts in communication' => 'BAComm',
-    'communication' => 'BAComm',
-    'bacomm' => 'BAComm',
-    
-    'bs statistics' => 'BSStat',
-    'bachelor of science in statistics' => 'BSStat',
-    'statistics' => 'BSStat',
-    'bsstat' => 'BSStat',
-    
-    // CVMBS Courses
-    'doctor of veterinary medicine' => 'DVM',
-    'veterinary medicine' => 'DVM',
-    'dvm' => 'DVM',
-    
-    'bs biology (pre-veterinary)' => 'BSPV',
-    'biology (pre-veterinary)' => 'BSPV',
-    'pre-veterinary' => 'BSPV',
-    'bspv' => 'BSPV',
-    
-    // CED Courses
-    'bachelor of elementary education' => 'BEEd',
-    'elementary education' => 'BEEd',
-    'beed' => 'BEEd',
-    
-    'bachelor of secondary education' => 'BSEd',
-    'secondary education' => 'BSEd',
-    'bsed' => 'BSEd',
-    
-    'bachelor of physical education' => 'BPE',
-    'physical education' => 'BPE',
-    'bpe' => 'BPE',
-    
-    'bachelor of technology and livelihood education' => 'BTLE',
-    'technology and livelihood education' => 'BTLE',
-    'btle' => 'BTLE',
-    
-    // CEMDS Courses
-    'bs business administration' => 'BSBA',
-    'bachelor of science in business administration' => 'BSBA',
-    'business administration' => 'BSBA',
-    'bsba' => 'BSBA',
-    
-    'bs accountancy' => 'BSAcc',
-    'bachelor of science in accountancy' => 'BSAcc',
-    'accountancy' => 'BSAcc',
-    'bsacc' => 'BSAcc',
-    
-    'bs economics' => 'BSEco',
-    'bachelor of science in economics' => 'BSEco',
-    'economics' => 'BSEco',
-    'bseco' => 'BSEco',
-    
-    'bs entrepreneurship' => 'BSEnt',
-    'bachelor of science in entrepreneurship' => 'BSEnt',
-    'entrepreneurship' => 'BSEnt',
-    'bsent' => 'BSEnt',
-    
-    'bs office administration' => 'BSOA',
-    'bachelor of science in office administration' => 'BSOA',
-    'office administration' => 'BSOA',
-    'bsoa' => 'BSOA',
-    
-    // CSPEAR Courses
-    'bs exercise and sports sciences' => 'BSESS',
-    'bachelor of science in exercise and sports sciences' => 'BSESS',
-    'exercise and sports sciences' => 'BSESS',
-    'bsess' => 'BSESS',
-    
-    // CCJ Courses
-    'bs criminology' => 'BSCrim',
-    'bachelor of science in criminology' => 'BSCrim',
-    'criminology' => 'BSCrim',
-    'bscrim' => 'BSCrim',
-    
-    // CON Courses
-    'bs nursing' => 'BSN',
-    'bachelor of science in nursing' => 'BSN',
-    'nursing' => 'BSN',
-    'bsn' => 'BSN',
-    
-    // CTHM Courses
-    'bs hospitality management' => 'BSHM',
-    'bachelor of science in hospitality management' => 'BSHM',
-    'hospitality management' => 'BSHM',
-    'bshm' => 'BSHM',
-    
-    'bs tourism management' => 'BSTM',
-    'bachelor of science in tourism management' => 'BSTM',
-    'tourism management' => 'BSTM',
-    'bstm' => 'BSTM',
-    
-    // COM Courses
-    'bachelor of library and information science' => 'BLIS',
-    'library and information science' => 'BLIS',
-    'blis' => 'BLIS',
-    
-    // GS-OLC Courses
-    'doctor of philosophy' => 'PhD',
-    'master of science' => 'MS',
-    'master of arts' => 'MA',
-];
 
  $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
  $options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    PDO::ATTR_STRINGIFY_FETCHES => true, // Force datetime values as strings
+    PDO::ATTR_EMULATE_PREPARES   => false,
 ];
+
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
-} catch (\PDOException $e) {
+} catch (PDOException $e) {
     die("Database connection failed: " . $e->getMessage());
 }
 
-// Redirect if not logged in or not a voter
-if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'voter') {
-    header("Location: login.html");
+// ===== AUTH CHECK =====
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'voter') {
+    header('Location: login.html');
     exit();
 }
 
-// After establishing the database connection, fetch the voter's migs_status and force_password_change
- $user_id = $_SESSION['user_id'];
- $stmt = $pdo->prepare("SELECT migs_status, force_password_change, position, department, status, course FROM users WHERE user_id = ?");
- $stmt->execute([$user_id]);
- $voter_data = $stmt->fetch();
+// ===== MAPPINGS (COLLEGES & COURSES) =====
+ $department_map = [
+    // Colleges
+    'cafenr' => 'CAFENR',
+    'college of agriculture, food and natural resources' => 'CAFENR',
+    'college of agriculture, food and natural resources' => 'CAFENR',
+    'caf enr' => 'CAFENR',
 
-// Add migs_status to session
- $_SESSION['migs_status'] = $voter_data['migs_status'] ?? 0;
- $is_coop_member = ($_SESSION['migs_status'] ?? 0) == 1; // Only MIGS members are COOP members for voting
- $forcePasswordChange = $voter_data['force_password_change'] ?? 0; // FIXED: Only check force_password_change value
+    'cas'   => 'CAS',
+    'college of arts and sciences' => 'CAS',
 
-// Get voter's position, department, status, and course directly from the database
- $voter_position = $voter_data['position'] ?? '';
- $voter_department = $voter_data['department'] ?? '';
- $voter_status = $voter_data['status'] ?? '';
- $voter_course = $voter_data['course'] ?? '';
+    'ceit'  => 'CEIT',
+    'college of engineering and information technology' => 'CEIT',
 
-// UPDATED NORMALIZATION CODE
-// Normalize voter data for comparison
- $voter_college_normalized = null;
- $voter_course_normalized = null;
- $voter_status_normalized = strtolower(trim($voter_status));
+    'cemds' => 'CEMDS',
+    'college of economics, management and development studies' => 'CEMDS',
 
-// Normalize college name using the mapping
+    'ced'   => 'CED',
+    'college of education' => 'CED',
+
+    'cspear'=> 'CSPEAR',
+    'college of sports, physical education and recreation' => 'CSPEAR',
+
+    'cthm'  => 'CTHM',
+    'college of tourism and hospitality management' => 'CTHM',
+
+    'cvmbs' => 'CVMBS',
+    'college of veterinary medicine and biomedical sciences' => 'CVMBS',
+
+    'com'   => 'COM',
+    'college of medicine' => 'COM',
+
+    'con'   => 'CON',
+    'college of nursing' => 'CON',
+
+    'ccj'   => 'CCJ',
+    'college of criminal justice education' => 'CCJ',
+
+    'gs-olc'=> 'GS-OLC',
+    'graduate school - open learning college' => 'GS-OLC',
+
+    // For non-academic departments, keep as-is (they're already codes)
+    'naea'       => 'NAEA',
+    'admin'      => 'ADMIN',
+    'finance'    => 'FINANCE',
+    'hr'         => 'HR',
+    'it'         => 'IT',
+    'maintenance'=> 'MAINTENANCE',
+    'security'   => 'SECURITY',
+    'library'    => 'LIBRARY',
+    'naes'       => 'NAES',
+    'naem'       => 'NAEM',
+    'naeh'       => 'NAEH',
+    'nae it'     => 'NAEIT',
+];
+
+ $course_map = [
+    // CEIT
+    'bsit'  => 'BSIT',
+    'bscs'  => 'BSCS',
+    'bscpe' => 'BSCpE',
+    'bsece' => 'BSECE',
+    'bsce'  => 'BSCE',
+    'bsme'  => 'BSME',
+    'bsee'  => 'BSEE',
+    'bsie'  => 'BSIE',
+    'bsarch'=> 'BSArch',
+
+    // CAS
+    'bsbio'   => 'BSBio',
+    'bschem'  => 'BSChem',
+    'bsmath'  => 'BSMath',
+    'bsphysics'=> 'BSPhysics',
+    'bspsych' => 'BSPsych',
+    'baels'   => 'BAELS',
+    'bacomm'  => 'BAComm',
+    'bsstat'  => 'BSStat',
+
+    // CAFENR
+    'bsagri'=> 'BSAgri',
+    'bsab'  => 'BSAB',
+    'bses'  => 'BSES',
+    'bsft'  => 'BSFT',
+    'bsfor' => 'BSFor',
+    'bsabe' => 'BSABE',
+    'bae'   => 'BAE',
+    'bsldm' => 'BSLDM',
+
+    // CVMBS
+    'dvm' => 'DVM',
+    'bspv'=> 'BSPV',
+
+    // CED
+    'beed'=> 'BEEd',
+    'bsed'=> 'BSEd',
+    'bpe' => 'BPE',
+    'btle'=> 'BTLE',
+
+    // CEMDS
+    'bsba' => 'BSBA',
+    'bsacc'=> 'BSAcc',
+    'bseco'=> 'BSEco',
+    'bsent'=> 'BSEnt',
+    'bsoa' => 'BSOA',
+
+    // CSPEAR
+    'bpe'   => 'BPE',
+    'bsess' => 'BSESS',
+
+    // CCJ
+    'bscrim'=> 'BSCrim',
+
+    // CON
+    'bsn' => 'BSN',
+
+    // CTHM
+    'bshm'=> 'BSHM',
+    'bstm'=> 'BSTM',
+
+    // COM
+    'blis'=> 'BLIS',
+
+    // GS-OLC
+    'phd' => 'PhD',
+    'ms'  => 'MS',
+    'ma'  => 'MA',
+];
+
+// ===== LOAD CURRENT VOTER =====
+ $user_id = (int)$_SESSION['user_id'];
+
+ $userSql = "
+    SELECT 
+        position,
+        department,
+        course,
+        status,
+        migs_status,
+        force_password_change,
+        is_coop_member,
+        owner_scope_id,
+        is_other_member,
+        department1
+    FROM users
+    WHERE user_id = :uid
+    LIMIT 1
+";
+ $stmtUser = $pdo->prepare($userSql);
+ $stmtUser->execute([':uid' => $user_id]);
+ $user = $stmtUser->fetch();
+
+if (!$user) {
+    die('User not found.');
+}
+
+ $voter_position      = $user['position'] ?? '';
+ $voter_department    = $user['department'] ?? '';
+ $voter_course        = $user['course'] ?? '';
+ $voter_status        = $user['status'] ?? '';
+ $voter_migs_status   = (int)($user['migs_status'] ?? 0);
+ $force_password_flag = (int)($user['force_password_change'] ?? 0);
+ $is_coop_member      = $voter_migs_status === 1; // MIGS = COOP member (COOP+MIGS rule)
+ $voter_owner_scope_id= (int)($user['owner_scope_id'] ?? 0);
+ $voter_is_other_mem  = (int)($user['is_other_member'] ?? 0);
+ $voter_department1  = $user['department1'] ?? '';
+
+// Normalize college / department & course
  $voter_department_lower = strtolower(trim($voter_department));
 if (isset($department_map[$voter_department_lower])) {
     $voter_college_normalized = $department_map[$voter_department_lower];
-} else if (isset($department_map[strtoupper($voter_department)])) {
-    $voter_college_normalized = $department_map[strtoupper($voter_department)];
+} elseif (isset($department_map[strtoupper($voter_department_lower)])) {
+    $voter_college_normalized = $department_map[strtoupper($voter_department_lower)];
 } else {
-    $voter_college_normalized = $voter_department; // Use as-is if not found in mapping
+    // fallback: use department as-is (works for HR/DIT/etc)
+    $voter_college_normalized = strtoupper($voter_department_lower);
 }
 
-// Normalize course name using the mapping
  $voter_course_lower = strtolower(trim($voter_course));
 if (isset($course_map[$voter_course_lower])) {
     $voter_course_normalized = $course_map[$voter_course_lower];
-} else if (isset($course_map[strtoupper($voter_course)])) {
-    $voter_course_normalized = $course_map[strtoupper($voter_course)];
+} elseif (isset($course_map[strtoupper($voter_course_lower)])) {
+    $voter_course_normalized = $course_map[strtoupper($voter_course_lower)];
 } else {
-    $voter_course_normalized = $voter_course; // Use as-is if not found in mapping
+    $voter_course_normalized = strtoupper($voter_course_lower);
 }
 
-// Fetch all elections
+ $voter_status_normalized = strtoupper(trim($voter_status));
+
+// ===== DEBUG: Log voter info =====
+error_log("Voter Info:");
+error_log("Position: " . $voter_position);
+error_log("Department: " . $voter_department);
+error_log("Department1: " . ($voter_department1 ?? 'NULL'));
+error_log("Status: " . $voter_status);
+error_log("Normalized College: " . $voter_college_normalized);
+error_log("Normalized Course: " . $voter_course_normalized);
+error_log("Normalized Status: " . $voter_status_normalized);
+error_log("Is Coop Member: " . ($is_coop_member ? 'Yes' : 'No'));
+error_log("Owner Scope ID: " . $voter_owner_scope_id);
+error_log("Is Other Member: " . ($voter_is_other_mem ? 'Yes' : 'No'));
+
+// ===== LOAD ALL ELECTIONS (we will filter in PHP) =====
  $sql = "SELECT * FROM elections ORDER BY election_id DESC";
  $stmt = $pdo->query($sql);
  $all_elections = $stmt->fetchAll();
- $filtered_elections = [];
- $now = date('Y-m-d H:i:s'); // current server datetime
 
 // Mapper: users.position → elections.target_position
 function mapUserPositionToElection($position) {
     $pos = strtolower(trim($position));
     if ($pos === 'non-academic') {
         return 'non-academic';
-    } else if ($pos === 'academic') {
+    } elseif ($pos === 'academic') {
         return 'faculty'; // academic (users) = faculty (elections)
-    } else if ($pos === 'student') {
+    } elseif ($pos === 'student') {
         return 'student';
-    } else if ($pos === 'coop' || $pos === 'COOP') {
+    } elseif ($pos === 'coop') {
         return 'coop';
     } else {
-        return 'All';
+        return 'all';
     }
 }
 
-// Get current voter info
  $voter = [
-    'position' => $voter_position,
-    'department' => $voter_department,
-    'status' => $voter_status,
-    'is_coop_member' => $is_coop_member
+    'position'        => $voter_position,
+    'department'      => $voter_department,
+    'status'          => $voter_status,
+    'is_coop_member'  => $is_coop_member,
+    'owner_scope_id'  => $voter_owner_scope_id,
+    'is_other_member' => $voter_is_other_mem,
 ];
 
-if (!$voter) {
-    die("User not found.");
-}
-
-// Election Filtering
  $filtered_elections = [];
+ $now = date('Y-m-d H:i:s'); // current date/time
+
  $mappedPosition = mapUserPositionToElection($voter['position']);
 
+// ===== MAIN ELECTION FILTERING LOOP =====
 foreach ($all_elections as $election) {
-    // DEBUG: Log election details
-    error_log("Processing election: " . $election['title'] . " (ID: " . $election['election_id'] . ")");
-    error_log("Target position: " . $election['target_position']);
-    error_log("Allowed colleges: " . $election['allowed_colleges']);
-    error_log("Allowed departments: " . $election['allowed_departments']);
-    error_log("Allowed status: " . $election['allowed_status']);
-    
-    // Parse allowed filters
-    $allowed_colleges = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_colleges'] ?? ''))));
-    $allowed_departments = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_departments'] ?? ''))));
-    $allowed_courses  = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_courses'] ?? ''))));
-    $allowed_status   = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status'] ?? ''))));
-    
-    // DEBUG: Log parsed values
-    error_log("Parsed allowed colleges: " . print_r($allowed_colleges, true));
-    error_log("Parsed allowed departments: " . print_r($allowed_departments, true));
-    error_log("Parsed allowed status: " . print_r($allowed_status, true));
-    
-    // DEBUG: Log voter data
-    error_log("Voter department (normalized): " . $voter_college_normalized);
-    error_log("Voter course (normalized): " . $voter_course_normalized);
-    error_log("Voter status (normalized): " . $voter_status_normalized);
-    
-    $is_coop_election = (strtolower($election['target_position']) === 'coop');
-    
-    // Check if election has been launched to voters
-    $is_launched = ($election['creation_stage'] === 'ready_for_voters');
-    
-    // Skip if election is not launched
-    if (!$is_launched) {
-        error_log("Election not launched, skipping");
+    // Only show elections that are launched to voters
+    if (($election['creation_stage'] ?? '') !== 'ready_for_voters') {
         continue;
     }
-    
-    // Only MIGS members can vote in COOP elections
-    if ($is_coop_election) {
-        if ($is_coop_member) {   // Check MIGS status
-            $filtered_elections[] = $election;
-            error_log("Added COOP election to filtered list");
-        }
-        continue;
-    }
-    
-    // For non-COOP elections, check position first (case-insensitive)
-    $election_target_position = strtolower($election['target_position']);
-    if ($election_target_position !== 'all' && $election_target_position !== $mappedPosition) {
-        error_log("Position mismatch: election target = " . $election_target_position . ", voter position = " . $mappedPosition);
-        continue; // Skip if position doesn't match
-    }
-    
-    // Special handling for non-academic elections
-    if ($election_target_position === 'non-academic') {
-        error_log("Processing non-academic election");
-        
-        // Check department first - this is CRITICAL
-        // For non-academic elections, use allowed_departments instead of allowed_colleges
-        $department_match = false; // Start with false, only set to true if there's a match
-        
-        // If no specific departments are listed, then all departments are allowed
-        if (empty($allowed_departments) || in_array('ALL', $allowed_departments)) {
-            $department_match = true;
-            error_log("No department restriction or ALL departments allowed (using allowed_departments)");
-        } else {
-            // Check if voter's department is in the allowed_departments list
-            $voter_dept_upper = strtoupper($voter_college_normalized);
-            if (in_array($voter_dept_upper, $allowed_departments)) {
-                $department_match = true;
-                error_log("Department match: " . $voter_dept_upper . " in allowed_departments");
-            } else {
-                error_log("Department mismatch: voter department " . $voter_dept_upper . " not in allowed_departments: " . print_r($allowed_departments, true));
-            }
-        }
-        
-        // Only check status if department matches
-        if ($department_match) {
-            $status_match = false; // Start with false
-            
-            // If no specific statuses are listed, then all statuses are allowed
-            if (empty($allowed_status) || in_array('ALL', $allowed_status)) {
-                $status_match = true;
-                error_log("No status restriction or ALL statuses allowed");
-            } else {
-                // Check if voter's status is in the allowed list
-                $voter_status_upper = strtoupper($voter_status_normalized);
-                if (in_array($voter_status_upper, $allowed_status)) {
-                    $status_match = true;
-                    error_log("Status match: " . $voter_status_upper);
-                } else {
-                    error_log("Status mismatch: voter status " . $voter_status_upper . " not in " . print_r($allowed_status, true));
-                }
-            }
-            
-            // Add to filtered elections only if both department and status match
-            if ($status_match) {
-                $filtered_elections[] = $election;
-                error_log("Added non-academic election to filtered list");
-            }
-        }
-    } 
-    // For other positions (student, faculty)
-    else {
-        error_log("Processing non-non-academic election");
-        // For student and faculty, use allowed_colleges as before
-        $college_allowed = empty($allowed_colleges) || in_array('ALL', $allowed_colleges) || in_array(strtoupper($voter_college_normalized), $allowed_colleges);
-        $course_allowed  = empty($allowed_courses) || in_array('ALL', $allowed_courses) || in_array(strtoupper($voter_course_normalized), $allowed_courses);
-        $status_allowed  = empty($allowed_status) || in_array('ALL', $allowed_status) || in_array(strtoupper($voter_status_normalized), $allowed_status);
 
-        if ($college_allowed && $course_allowed && $status_allowed) {
-            $filtered_elections[] = $election;
-            error_log("Added other position election to filtered list");
+    $electionTargetPos   = strtolower($election['target_position'] ?? 'all');
+    $electionScopeType   = $election['election_scope_type'] ?? null;
+    $electionOwnerScope  = isset($election['owner_scope_id']) ? (int)$election['owner_scope_id'] : 0;
+    $isCoopElection      = ($electionTargetPos === 'coop');
+    $isOthersElection    = ($electionTargetPos === 'others');
+    $isNonAcadElection   = ($electionTargetPos === 'non-academic');
+
+    // ---- SCOPE-BASED VISIBILITY FOR ORG ADMINS ----
+    // Non-Academic-Student & Others-Default are org-based elections.
+    // Only voters whose owner_scope_id matches the election's owner_scope_id should see them.
+    if (in_array($electionScopeType, ['Non-Academic-Student', 'Others-Default'], true)) {
+        if ($electionOwnerScope > 0 && $voter['owner_scope_id'] !== $electionOwnerScope) {
+            continue;
         }
+    }
+
+    // ---- COOP elections: MIGS only (global for now) ----
+    if ($isCoopElection) {
+        if ($voter['is_coop_member']) {
+            $filtered_elections[] = $election;
+        }
+        continue;
+    }
+
+    // ---- Position-level filtering ----
+    if ($isOthersElection) {
+        // "others" = employee elections, open to academic + non-academic staff only
+        if (!in_array($mappedPosition, ['faculty', 'non-academic'], true)) {
+            continue;
+        }
+    } else {
+        // Normal behaviour: student/faculty/non-acad
+        if ($electionTargetPos !== 'all' && $electionTargetPos !== $mappedPosition) {
+            continue;
+        }
+    }
+
+    // ---- Parse allowed filters from election row ----
+    $allowed_colleges    = array_filter(array_map('strtoupper', array_map('trim', explode(',', (string)($election['allowed_colleges'] ?? '')))));
+    $allowed_departments = array_filter(array_map('strtoupper', array_map('trim', explode(',', (string)($election['allowed_departments'] ?? '')))));
+    $allowed_courses     = array_filter(array_map('strtoupper', array_map('trim', explode(',', (string)($election['allowed_courses'] ?? '')))));
+    $allowed_status      = array_filter(array_map('strtoupper', array_map('trim', explode(',', (string)($election['allowed_status'] ?? '')))));
+
+    // ===== DEBUG: Log election details =====
+    error_log("Election: " . $election['title'] . " (ID: " . $election['election_id'] . ")");
+    error_log("Target Position: " . $electionTargetPos);
+    error_log("Allowed Colleges: " . $election['allowed_colleges']);
+    error_log("Allowed Departments: " . $election['allowed_departments']);
+    error_log("Allowed Courses: " . $election['allowed_courses']);
+    error_log("Allowed Status: " . $election['allowed_status']);
+    error_log("Election Scope Type: " . $electionScopeType);
+    error_log("Owner Scope ID: " . $electionOwnerScope);
+
+    // ---- Non-academic & "others" (employee) elections: use departments + status ----
+    if ($isNonAcadElection || $isOthersElection) {
+        $deptMatch   = false;
+        $statusMatch = false;
+
+        // Department check
+        if (empty($allowed_departments) || in_array('ALL', $allowed_departments, true)) {
+            $deptMatch = true;
+        } else {
+            $voterDeptUpper = strtoupper($voter['department'] ?: $voter_college_normalized);
+            if (in_array($voterDeptUpper, $allowed_departments, true)) {
+                $deptMatch = true;
+            }
+        }
+
+        if (!$deptMatch) {
+            continue;
+        }
+
+        // Status check
+        if (empty($allowed_status) || in_array('ALL', $allowed_status, true)) {
+            $statusMatch = true;
+        } else {
+            $voterStatusUpper = strtoupper($voter_status_normalized);
+            if (in_array($voterStatusUpper, $allowed_status, true)) {
+                $statusMatch = true;
+            }
+        }
+
+        if ($statusMatch) {
+            $filtered_elections[] = $election;
+        }
+
+        continue;
+    }
+
+    // ---- Student / Faculty elections: colleges + courses + status ----
+    $collegeAllowed = empty($allowed_colleges)
+        || in_array('ALL', $allowed_colleges, true)
+        || in_array(strtoupper($voter_college_normalized), $allowed_colleges, true);
+
+    // For faculty voters, course should be optional since they don't have courses
+    if ($electionTargetPos === 'faculty') {
+        $courseAllowed = empty($allowed_courses) || in_array('ALL', $allowed_courses, true);
+    } else {
+        $courseAllowed = empty($allowed_courses)
+            || in_array('ALL', $allowed_courses, true)
+            || in_array(strtoupper($voter_course_normalized), $allowed_courses, true);
+    }
+
+    $statusAllowed = empty($allowed_status)
+        || in_array('ALL', $allowed_status, true)
+        || in_array(strtoupper($voter_status_normalized), $allowed_status, true);
+
+    // ===== DEBUG: Log condition results for faculty election =====
+    if ($electionTargetPos === 'faculty') {
+        error_log("Faculty Election - Condition Results:");
+        error_log("College Allowed: " . ($collegeAllowed ? 'Yes' : 'No'));
+        error_log("Course Allowed: " . ($courseAllowed ? 'Yes' : 'No'));
+        error_log("Status Allowed: " . ($statusAllowed ? 'Yes' : 'No'));
+        
+        // Log department condition if it was applied
+        if (!empty($allowed_departments) && !in_array('ALL', $allowed_departments, true)) {
+            $voterDept1 = trim($voter_department1 ?? '');
+            $voterDeptUpper = 'General'; // Default value
+            
+            if (!empty($voterDept1)) {
+                // Try to map full department name to abbreviation
+                $deptMap = [
+                    'Department of Computer and Electronics Engineering' => 'DCEE',
+                    'Department of Information Technology' => 'DIT',
+                    'Department of Civil Engineering' => 'DCE',
+                    'Department of Industrial Engineering and Technology' => 'DIET',
+                    'Department of Mechanical and Electronics Engineering' => 'DMEE',
+                    // Add more mappings as needed
+                ];
+                
+                $voterDeptUpper = $deptMap[$voterDept1] ?? $voterDeptUpper;
+            }
+            
+            $deptAllowed = in_array($voterDeptUpper, $allowed_departments, true);
+            error_log("Department Allowed: " . ($deptAllowed ? 'Yes' : 'No') . " (Voter Dept: " . $voterDeptUpper . ")");
+        } else {
+            error_log("Department Allowed: Yes (no department filter)");
+        }
+    }
+
+    // NOTE: For faculty elections we *could* also respect allowed_departments here if needed,
+    // e.g. only certain academic departments within a college.
+    if ($electionTargetPos === 'faculty') {
+        // Optional: if allowed_departments is set and not ALL, restrict by department code.
+        if (!empty($allowed_departments) && !in_array('ALL', $allowed_departments, true)) {
+            $voterDept1 = trim($voter_department1 ?? '');
+            $voterDeptUpper = 'General'; // Default value
+            
+            if (!empty($voterDept1)) {
+                // Try to map full department name to abbreviation
+                $deptMap = [
+                    'Department of Computer and Electronics Engineering' => 'DCEE',
+                    'Department of Information Technology' => 'DIT',
+                    'Department of Civil Engineering' => 'DCE',
+                    'Department of Industrial Engineering and Technology' => 'DIET',
+                    'Department of Mechanical and Electronics Engineering' => 'DMEE',
+                    // Add more mappings as needed
+                ];
+                
+                $voterDeptUpper = $deptMap[$voterDept1] ?? $voterDeptUpper;
+            }
+            
+            if (!in_array($voterDeptUpper, $allowed_departments, true)) {
+                $collegeAllowed = false;
+            }
+        }
+    }
+
+    if ($collegeAllowed && $courseAllowed && $statusAllowed) {
+        $filtered_elections[] = $election;
+        error_log("Election ADDED to filtered list: " . $election['title']);
+    } else {
+        error_log("Election NOT ADDED - Failed conditions: " . $election['title']);
     }
 }
 
-// DEBUG: Log final filtered elections count
-error_log("Total filtered elections: " . count($filtered_elections));
-
+// ===== DONE FILTERING, PASS TO VIEW =====
 include 'voters_sidebar.php';
 ?>
 <!DOCTYPE html>
@@ -830,93 +791,103 @@ include 'voters_sidebar.php';
               ];
               
               // ===== VOTER TURNOUT CALCULATION =====
-              // Get total eligible voters for this election
               $conditions = ["role = 'voter'"];
-              $params = [];
+              $params     = [];
 
-              if ($election['target_position'] === 'coop') {
-                // For COOP elections - only users with both is_coop_member=1 AND migs_status=1
-                $conditions[] = "is_coop_member = 1";
-                $conditions[] = "migs_status = 1";
+              $targetPosTurnout = strtolower($election['target_position'] ?? 'all');
+              $scopeTypeTurnout = $election['election_scope_type'] ?? null;
+              $scopeIdTurnout   = isset($election['owner_scope_id']) ? (int)$election['owner_scope_id'] : 0;
+
+              if ($targetPosTurnout === 'coop') {
+                  // COOP elections - MIGS only
+                  $conditions[] = "is_coop_member = 1";
+                  $conditions[] = "migs_status = 1";
               } else {
-                // For other elections - apply position filter first
-                if ($election['target_position'] !== 'All') {
-                    if ($election['target_position'] === 'faculty') {
-                        $conditions[] = "position = 'academic'";
-                    } else if ($election['target_position'] === 'non-academic') {
-                        $conditions[] = "position = 'non-academic'";
-                    } else {
-                        $conditions[] = "position = '" . $election['target_position'] . "'";
-                    }
-                }
-                
-                // Get allowed filters from election
-                $allowed_colleges = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_colleges'] ?? ''))));
-                $allowed_departments = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_departments'] ?? ''))));
-                $allowed_courses = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_courses'] ?? ''))));
-                $allowed_status = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status'] ?? ''))));
-                
-                // For non-academic elections, use allowed_departments instead of allowed_colleges
-                if ($election['target_position'] === 'non-academic') {
-                    // Apply department filter if specified
-                    if (!empty($allowed_departments) && !in_array('ALL', $allowed_departments)) {
-                        $placeholders = implode(',', array_fill(0, count($allowed_departments), '?'));
-                        $conditions[] = "UPPER(department) IN ($placeholders)";
-                        $params = array_merge($params, $allowed_departments);
-                    }
-                } else {
-                    // For other positions (student, faculty), use allowed_colleges
-                    if (!empty($allowed_colleges) && !in_array('ALL', $allowed_colleges)) {
-                        $placeholders = implode(',', array_fill(0, count($allowed_colleges), '?'));
-                        $conditions[] = "UPPER(department) IN ($placeholders)";
-                        $params = array_merge($params, $allowed_colleges);
-                    }
-                }
-                
-                // Apply course filter if specified (mainly for students)
-                if (!empty($allowed_courses) && !in_array('ALL', $allowed_courses)) {
-                    // Create reverse course map: short_code => array of full names (in lowercase)
-                    $reverse_course_map = [];
-                    foreach ($course_map as $full_name => $short_code) {
-                        $reverse_course_map[strtoupper($short_code)][] = strtolower($full_name);
-                    }
+                  // Position filter
+                  if ($targetPosTurnout !== 'all') {
+                      if ($targetPosTurnout === 'faculty') {
+                          $conditions[] = "position = 'academic'";
+                      } elseif ($targetPosTurnout === 'non-academic') {
+                          $conditions[] = "position = 'non-academic'";
+                      } elseif ($targetPosTurnout === 'others') {
+                          // "others" = employees: academic + non-academic
+                          $conditions[] = "(position = 'academic' OR position = 'non-academic')";
+                      } else {
+                          $conditions[] = "position = ?";
+                          $params[]     = $targetPosTurnout;
+                      }
+                  }
 
-                    $course_list = [];
-                    foreach ($allowed_courses as $course) {
-                        if (isset($reverse_course_map[$course])) {
-                            $course_list = array_merge($course_list, $reverse_course_map[$course]);
-                        }
-                        // If the course is not in the map, add it as is (in case it's already a full name)
-                        else {
-                            $course_list[] = strtolower($course);
-                        }
-                    }
+                  // Filters from election row
+                  $allowed_colleges    = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_colleges']    ?? ''))));
+                  $allowed_departments = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_departments'] ?? ''))));
+                  $allowed_courses     = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_courses']     ?? ''))));
+                  $allowed_status      = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status']      ?? ''))));
 
-                    if (!empty($course_list)) {
-                        $placeholders = implode(',', array_fill(0, count($course_list), '?'));
-                        $conditions[] = "LOWER(course) IN ($placeholders)";
-                        $params = array_merge($params, $course_list);
-                    }
-                }
-                
-                // Apply status filter if specified (mainly for faculty and non-academic)
-                if (!empty($allowed_status) && !in_array('ALL', $allowed_status)) {
-                    $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
-                    $conditions[] = "UPPER(status) IN ($placeholders)";
-                    $params = array_merge($params, $allowed_status);
-                }
+                  // Dept vs college rules
+                  if (in_array($targetPosTurnout, ['non-academic', 'others'], true)) {
+                      // Non-academic & Others → departments
+                      if (!empty($allowed_departments) && !in_array('ALL', $allowed_departments, true)) {
+                          $placeholders = implode(',', array_fill(0, count($allowed_departments), '?'));
+                          $conditions[] = "UPPER(department) IN ($placeholders)";
+                          $params       = array_merge($params, $allowed_departments);
+                      }
+                  } else {
+                      // Student / Faculty → colleges
+                      if (!empty($allowed_colleges) && !in_array('ALL', $allowed_colleges, true)) {
+                          $placeholders = implode(',', array_fill(0, count($allowed_colleges), '?'));
+                          $conditions[] = "UPPER(department) IN ($placeholders)";
+                          $params       = array_merge($params, $allowed_colleges);
+                      }
+                  }
+
+                  // Courses (students)
+                  if (!empty($allowed_courses) && !in_array('ALL', $allowed_courses, true)) {
+                      $reverse_course_map = [];
+                      foreach ($course_map as $full_name => $short_code) {
+                          $reverse_course_map[strtoupper($short_code)][] = strtolower($full_name);
+                      }
+
+                      $course_list = [];
+                      foreach ($allowed_courses as $course) {
+                          if (isset($reverse_course_map[$course])) {
+                              $course_list = array_merge($course_list, $reverse_course_map[$course]);
+                          } else {
+                              $course_list[] = strtolower($course);
+                          }
+                      }
+
+                      if (!empty($course_list)) {
+                          $placeholders = implode(',', array_fill(0, count($course_list), '?'));
+                          $conditions[] = "LOWER(course) IN ($placeholders)";
+                          $params       = array_merge($params, $course_list);
+                      }
+                  }
+
+                  // Status (faculty & non-acad)
+                  if (!empty($allowed_status) && !in_array('ALL', $allowed_status, true)) {
+                      $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
+                      $conditions[] = "UPPER(status) IN ($placeholders)";
+                      $params       = array_merge($params, $allowed_status);
+                  }
+
+                  // Scope-based turnout for org elections
+                  if (in_array($scopeTypeTurnout, ['Non-Academic-Student', 'Others-Default'], true) && $scopeIdTurnout > 0) {
+                      $conditions[] = "owner_scope_id = ?";
+                      $params[]     = $scopeIdTurnout;
+                  }
               }
 
               // Build and execute the query
-              $sql = "SELECT COUNT(*) as total FROM users WHERE " . implode(' AND ', $conditions);
-              $stmt = $pdo->prepare($sql);
-              $stmt->execute($params);
-              $totalVoters = $stmt->fetch()['total'];
+              $sqlTotal = "SELECT COUNT(*) as total FROM users WHERE " . implode(' AND ', $conditions);
+              $stmtTotal = $pdo->prepare($sqlTotal);
+              $stmtTotal->execute($params);
+              $totalVoters = (int)($stmtTotal->fetch()['total'] ?? 0);
 
-              // FIXED: Get total votes cast - Use DISTINCT to count each voter only once
-              $stmt = $pdo->prepare("SELECT COUNT(DISTINCT voter_id) as voted FROM votes WHERE election_id = ?");
-              $stmt->execute([$election['election_id']]);
-              $votesCast = $stmt->fetch()['voted'];
+              // Get total votes cast - DISTINCT voter_id
+              $stmtVotes = $pdo->prepare("SELECT COUNT(DISTINCT voter_id) as voted FROM votes WHERE election_id = ?");
+              $stmtVotes->execute([$election['election_id']]);
+              $votesCast = (int)($stmtVotes->fetch()['voted'] ?? 0);
 
               // Calculate turnout percentage
               $turnout = $totalVoters > 0 ? round(($votesCast / $totalVoters) * 100, 1) : 0;
@@ -1187,7 +1158,7 @@ include 'voters_sidebar.php';
     // Set default view to ongoing elections
     document.addEventListener('DOMContentLoaded', () => {
       // Check if password change is required - FIXED: Only check forcePasswordChange value
-      const forcePasswordChange = <?= $forcePasswordChange ?>;
+      const forcePasswordChange = <?= $force_password_flag ?>;
       
       if (forcePasswordChange === 1) {
         document.getElementById('forcePasswordChangeModal').classList.remove('hidden');
@@ -1486,7 +1457,7 @@ include 'voters_sidebar.php';
     
     function closePasswordModal() {
       // Prevent closing if password change is required
-      const forcePasswordChange = <?= $forcePasswordChange ?>;
+      const forcePasswordChange = <?= $force_password_flag ?>;
       if (forcePasswordChange === 1) {
         return;
       }
