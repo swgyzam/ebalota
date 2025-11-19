@@ -61,7 +61,7 @@ if ($_SESSION['role'] === 'admin') {
 
         case 'Non-Academic-Student':
             // Non-Academic Student Admin – org-based student admins
-            $redirectUrl = "admin_dashboard_nonacad_students.php";
+            $redirectUrl = "admin_dashboard_non_acad_students.php";
             break;
 
         default:
