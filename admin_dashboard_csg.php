@@ -1,8 +1,3 @@
-
-
-Here's the complete updated code with all the requested changes:
-
-```php
 <?php
 session_start();
 date_default_timezone_set('Asia/Manila');

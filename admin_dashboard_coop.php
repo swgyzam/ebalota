@@ -1,9 +1,4 @@
-
-
-Here's the full updated code with the Year Range Selector functionality integrated into the COOP Admin dashboard:
-
-```php
-//<?php
+<?php
 session_start();
 date_default_timezone_set('Asia/Manila');
 
