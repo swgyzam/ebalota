@@ -1,16 +1,21 @@
-<?php
+
+
+Here's the full updated code with the Year Range Selector functionality integrated into the COOP Admin dashboard:
+
+```php
+//<?php
 session_start();
 date_default_timezone_set('Asia/Manila');
 
 // --- DB Connection ---
- $host = 'localhost';
- $db = 'evoting_system';
- $user = 'root';
- $pass = '';
- $charset = 'utf8mb4';
+$host = 'localhost';
+$db = 'evoting_system';
+$user = 'root';
+$pass = '';
+$charset = 'utf8mb4';
 
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
@@ -24,52 +29,75 @@ try {
     die("Database connection failed: " . $e->getMessage());
 }
 
-// --- Auth check ---
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+// --- Auth + scope check (NEW MODEL) ---
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
     header('Location: login.php');
     exit();
 }
 
- $userId = $_SESSION['user_id'];
+$userId        = (int) $_SESSION['user_id'];
+$scopeCategory = $_SESSION['scope_category'] ?? '';
+$adminStatus   = $_SESSION['admin_status']   ?? 'inactive';
 
-// Get user info including scope
- $stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = ?");
- $stmt->execute([$userId]);
- $userInfo = $stmt->fetch();
+// New world: COOP dashboard is only for Others-COOP scope
+if ($scopeCategory !== 'Others-COOP') {
+    // Optional legacy fallback: allow old admins with assigned_scope = 'COOP'
+    $legacyScope = strtoupper(trim($_SESSION['assigned_scope'] ?? ''));
+    if ($legacyScope !== 'COOP') {
+        header('Location: admin_dashboard_redirect.php');
+        exit();
+    }
+}
 
- $role = $userInfo['role'] ?? '';
- $scope = strtoupper(trim($userInfo['assigned_scope'] ?? ''));
-
-// Valid scopes - now includes COOP
- $validScopes = ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC', 'COOP'];
-
-// Verify this is the correct scope for this dashboard
-if (!in_array($scope, $validScopes)) {
-    header('Location: admin_dashboard_redirect.php');
+if ($adminStatus !== 'active') {
+    header('Location: login.php?error=Your admin account is inactive.');
     exit();
 }
 
-// Check if this is COOP Admin
- $isCoopAdmin = ($scope === 'COOP');
+// From this point on, this dashboard is treated as COOP admin
+$isCoopAdmin = true;
+
+// --- Resolve COOP scope seat (admin_scopes) ---
+$scopeId = null;
+
+if ($scopeCategory === 'Others-COOP') {
+    $scopeStmt = $pdo->prepare("
+        SELECT scope_id
+        FROM admin_scopes
+        WHERE user_id   = :uid
+          AND scope_type = 'Others-COOP'
+        LIMIT 1
+    ");
+    $scopeStmt->execute([':uid' => $userId]);
+    if ($row = $scopeStmt->fetch()) {
+        $scopeId = (int) $row['scope_id'];
+    }
+}
 
 // --- Debug: Check COOP members count ---
- $stmt = $pdo->prepare("SELECT COUNT(*) as coop_count FROM users WHERE role = 'voter' AND is_coop_member = 1 AND migs_status = 1");
- $stmt->execute();
- $coopCount = $stmt->fetch()['coop_count'];
+$stmt = $pdo->prepare("SELECT COUNT(*) as coop_count FROM users WHERE role = 'voter' AND is_coop_member = 1 AND migs_status = 1");
+$stmt->execute();
+$coopCount = $stmt->fetch()['coop_count'];
 error_log("Total COOP members: " . $coopCount);
 
 // --- Debug: Check elections assigned to admin ---
- $stmt = $pdo->prepare("SELECT COUNT(*) as election_count FROM elections WHERE assigned_admin_id = ?");
- $stmt->execute([$userId]);
- $electionCount = $stmt->fetch()['election_count'];
+$stmt = $pdo->prepare("SELECT COUNT(*) as election_count FROM elections WHERE assigned_admin_id = ?");
+$stmt->execute([$userId]);
+$electionCount = $stmt->fetch()['election_count'];
 error_log("Elections assigned to admin: " . $electionCount);
 
 // --- Get available years for dropdown ---
- $stmt = $pdo->query("SELECT DISTINCT YEAR(created_at) as year FROM users WHERE role = 'voter' AND is_coop_member = 1 AND migs_status = 1 ORDER BY year DESC");
- $availableYears = $stmt->fetchAll(PDO::FETCH_COLUMN);
- $currentYear = date('Y');
- $selectedYear = isset($_GET['year']) ? $_GET['year'] : $currentYear;
- $previousYear = $selectedYear - 1;
+$stmt = $pdo->query("SELECT DISTINCT YEAR(created_at) as year FROM users WHERE role = 'voter' AND is_coop_member = 1 AND migs_status = 1 ORDER BY year DESC");
+$availableYears = $stmt->fetchAll(PDO::FETCH_COLUMN);
+$currentYear = (int)date('Y');
+$selectedYear = isset($_GET['year']) ? (int)$_GET['year'] : $currentYear;  // ✅ FIXED: added (int)
+$previousYear = $selectedYear - 1;
+
+// Ensure current year is ALWAYS included even if no voters exist
+if (!in_array($currentYear, $availableYears)) {
+    $availableYears[] = $currentYear;
+    rsort($availableYears); // Keep descending order
+}
 
 // --- Fetch dashboard stats ---
 
@@ -85,31 +113,78 @@ if ($isCoopAdmin) {
     WHERE role = 'voter' AND is_coop_member = 1 AND migs_status = 1 AND UPPER(TRIM(department)) = ?");
     $stmt->execute([$scope]);
 }
- $total_voters = $stmt->fetch()['total_voters'];
+$total_voters = $stmt->fetch()['total_voters'];
 
-// Total Elections (FIXED - using only assigned_admin_id)
- $stmt = $pdo->prepare("SELECT COUNT(*) as total_elections
-FROM elections
-WHERE assigned_admin_id = ?");
- $stmt->execute([$userId]);
- $total_elections = $stmt->fetch()['total_elections'];
+// --- Total & ongoing elections for this COOP scope (NEW MODEL) ---
+if ($scopeId !== null) {
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) AS total_elections
+        FROM elections
+        WHERE election_scope_type = 'Others-COOP'
+          AND owner_scope_id      = ?
+    ");
+    $stmt->execute([$scopeId]);
+    $total_elections = (int) ($stmt->fetch()['total_elections'] ?? 0);
 
-// Ongoing Elections (FIXED - using only assigned_admin_id)
- $stmt = $pdo->prepare("SELECT COUNT(*) as ongoing_elections
-FROM elections
-WHERE status = 'ongoing' AND assigned_admin_id = ?");
- $stmt->execute([$userId]);
- $ongoing_elections = $stmt->fetch()['ongoing_elections'];
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) AS ongoing_elections
+        FROM elections
+        WHERE election_scope_type = 'Others-COOP'
+          AND owner_scope_id      = ?
+          AND status              = 'ongoing'
+    ");
+    $stmt->execute([$scopeId]);
+    $ongoing_elections = (int) ($stmt->fetch()['ongoing_elections'] ?? 0);
+
+    // Optional: scoped elections list (if gagamitin sa UI)
+    $electionStmt = $pdo->prepare("
+        SELECT *
+        FROM elections
+        WHERE election_scope_type = 'Others-COOP'
+          AND owner_scope_id      = ?
+        ORDER BY start_datetime DESC
+    ");
+    $electionStmt->execute([$scopeId]);
+    $elections = $electionStmt->fetchAll();
+
+} else {
+    // Fallback: walang scope seat (very legacy case) – keep old behavior
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) AS total_elections
+        FROM elections
+        WHERE assigned_admin_id = ?
+    ");
+    $stmt->execute([$userId]);
+    $total_elections = (int) ($stmt->fetch()['total_elections'] ?? 0);
+
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) AS ongoing_elections
+        FROM elections
+        WHERE status = 'ongoing'
+          AND assigned_admin_id = ?
+    ");
+    $stmt->execute([$userId]);
+    $ongoing_elections = (int) ($stmt->fetch()['ongoing_elections'] ?? 0);
+
+    $electionStmt = $pdo->prepare("
+        SELECT *
+        FROM elections
+        WHERE assigned_admin_id = ?
+        ORDER BY start_datetime DESC
+    ");
+    $electionStmt->execute([$userId]);
+    $elections = $electionStmt->fetchAll();
+}
 
 // --- Fetch elections for display (FIXED - using only assigned_admin_id) ---
- $electionStmt = $pdo->prepare("SELECT * FROM elections
+$electionStmt = $pdo->prepare("SELECT * FROM elections
 WHERE assigned_admin_id = ?
 ORDER BY start_datetime DESC");
- $electionStmt->execute([$userId]);
- $elections = $electionStmt->fetchAll();
+$electionStmt->execute([$userId]);
+$elections = $electionStmt->fetchAll();
 
 // --- Get all colleges for dropdown ---
- $allColleges = [];
+$allColleges = [];
 if ($isCoopAdmin) {
     $stmt = $pdo->query("SELECT DISTINCT department as college_name FROM users WHERE role = 'voter' AND is_coop_member = 1 AND migs_status = 1 ORDER BY college_name");
     $allColleges = $stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -118,7 +193,7 @@ if ($isCoopAdmin) {
 }
 
 // Department abbreviation mapping
- $departmentAbbrevMap = [
+$departmentAbbrevMap = [
     'College of Agriculture, Food, Environment and Natural Resources' => 'CAFENR',
     'College of Engineering and Information Technology' => 'CEIT',
     'College of Arts and Sciences' => 'CAS',
@@ -134,7 +209,7 @@ if ($isCoopAdmin) {
 ];
 
 // College full name mapping
- $collegeFullNameMap = [
+$collegeFullNameMap = [
     'CAFENR' => 'College of Agriculture, Food, Environment and Natural Resources',
     'CEIT' => 'College of Engineering and Information Technology',
     'CAS' => 'College of Arts and Sciences',
@@ -233,62 +308,167 @@ if ($isCoopAdmin) {
     $collegeStatusBar = array_values($agg);
 }
 
-// --- Fetch Voter Turnout Analytics Data (FIXED) ---
- $turnoutDataByYear = [];
+// --- Fetch Voter Turnout Analytics Data (NEW, scope-based) ---
+$turnoutDataByYear = [];
+$turnoutYears      = [];
 
-// Get all years that have elections assigned to this admin (FIXED)
- $stmt = $pdo->prepare("SELECT DISTINCT YEAR(start_datetime) as year FROM elections 
-                        WHERE assigned_admin_id = ?
-                        ORDER BY year DESC");
- $stmt->execute([$userId]);
- $turnoutYears = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-foreach ($turnoutYears as $year) {
-    // Get distinct voters who voted in elections assigned to this admin (FIXED)
-    $stmt = $pdo->prepare("SELECT COUNT(DISTINCT v.voter_id) as total_voted 
-                           FROM votes v 
-                           JOIN elections e ON v.election_id = e.election_id 
-                           WHERE e.assigned_admin_id = ? AND YEAR(e.start_datetime) = ?");
-    $stmt->execute([$userId, $year]);
-    $totalVoted = $stmt->fetch()['total_voted'];
+if ($scopeId !== null) {
+    // Years that have COOP-scope elections
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT YEAR(start_datetime) AS year
+        FROM elections
+        WHERE election_scope_type = 'Others-COOP'
+          AND owner_scope_id      = ?
+        ORDER BY year ASC
+    ");
+    $stmt->execute([$scopeId]);
+    $turnoutYears = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     
-    // Get total voters as of December 31 of this year (FIXED)
-    if ($isCoopAdmin) {
-        $stmt = $pdo->prepare("SELECT COUNT(*) as total_eligible 
-                               FROM users 
-                               WHERE role = 'voter' AND is_coop_member = 1 AND migs_status = 1 
-                               AND (created_at <= ? OR created_at IS NULL)");
-        $stmt->execute([$year . '-12-31 23:59:59']);
-    } else {
-        $stmt = $pdo->prepare("SELECT COUNT(*) as total_eligible 
-                               FROM users 
-                               WHERE role = 'voter' AND is_coop_member = 1 AND migs_status = 1 AND UPPER(TRIM(department)) = ? 
-                               AND (created_at <= ? OR created_at IS NULL)");
-        $stmt->execute([$scope, $year . '-12-31 23:59:59']);
+    // ✅ ADD: Ensure current year is ALWAYS included even if no elections exist
+    $currentYear = (int)date('Y');
+    if (!in_array($currentYear, $turnoutYears)) {
+        $turnoutYears[] = $currentYear;
     }
-    $totalEligible = $stmt->fetch()['total_eligible'];
     
-    // Calculate turnout rate
-    $turnoutRate = ($totalEligible > 0) ? round(($totalVoted / $totalEligible) * 100, 1) : 0;
+    // ✅ ADD: Also include previous year for comparison
+    $prevYear = $currentYear - 1;
+    if (!in_array($prevYear, $turnoutYears)) {
+        $turnoutYears[] = $prevYear;
+    }
     
-    // Also get the number of elections assigned to this admin in this year (FIXED)
-    $stmt = $pdo->prepare("SELECT COUNT(*) as election_count 
-                           FROM elections 
-                           WHERE assigned_admin_id = ? AND YEAR(start_datetime) = ?");
-    $stmt->execute([$userId, $year]);
-    $electionCount = $stmt->fetch()['election_count'];
+    sort($turnoutYears);
+
+    foreach ($turnoutYears as $year) {
+        // Distinct COOP voters who voted in this scope's elections that year
+        $stmt = $pdo->prepare("
+            SELECT COUNT(DISTINCT v.voter_id) AS total_voted
+            FROM votes v
+            JOIN elections e ON v.election_id = e.election_id
+            WHERE e.election_scope_type = 'Others-COOP'
+              AND e.owner_scope_id      = ?
+              AND YEAR(e.start_datetime) = ?
+        ");
+        $stmt->execute([$scopeId, $year]);
+        $totalVoted = (int) ($stmt->fetch()['total_voted'] ?? 0);
+
+        // Eligible COOP voters as of Dec 31 that year
+        $yearEnd = sprintf('%04d-12-31 23:59:59', $year);
+        if ($isCoopAdmin) {
+            $stmt = $pdo->prepare("SELECT COUNT(*) as total_eligible 
+                                   FROM users 
+                                   WHERE role = 'voter' AND is_coop_member = 1 AND migs_status = 1 
+                                   AND (created_at <= ? OR created_at IS NULL)");
+            $stmt->execute([$yearEnd]);
+        } else {
+            $stmt = $pdo->prepare("SELECT COUNT(*) as total_eligible 
+                                   FROM users 
+                                   WHERE role = 'voter' AND is_coop_member = 1 AND migs_status = 1 AND UPPER(TRIM(department)) = ? 
+                                   AND (created_at <= ? OR created_at IS NULL)");
+            $stmt->execute([$scope, $yearEnd]);
+        }
+        $totalEligible = $stmt->fetch()['total_eligible'];
+
+        $turnoutRate = ($totalEligible > 0)
+            ? round(($totalVoted / $totalEligible) * 100, 1)
+            : 0.0;
+
+        // Number of elections for this scope & year
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) AS election_count
+            FROM elections
+            WHERE election_scope_type = 'Others-COOP'
+              AND owner_scope_id      = ?
+              AND YEAR(start_datetime) = ?
+        ");
+        $stmt->execute([$scopeId, $year]);
+        $electionCount = (int) ($stmt->fetch()['election_count'] ?? 0);
+
+        $turnoutDataByYear[$year] = [
+            'year'           => $year,
+            'total_voted'    => $totalVoted,
+            'total_eligible' => $totalEligible,
+            'turnout_rate'   => $turnoutRate,
+            'election_count' => $electionCount,
+        ];
+    }
+} else {
+    // Fallback: no scope seat (very old admins) — keep previous assigned_admin_id logic
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT YEAR(start_datetime) AS year
+        FROM elections
+        WHERE assigned_admin_id = ?
+        ORDER BY year ASC
+    ");
+    $stmt->execute([$userId]);
+    $turnoutYears = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     
-    $turnoutDataByYear[$year] = [
-        'year' => $year,
-        'total_voted' => $totalVoted,
-        'total_eligible' => $totalEligible,
-        'turnout_rate' => $turnoutRate,
-        'election_count' => $electionCount
-    ];
+    // ✅ ADD: Ensure current year is ALWAYS included even if no elections exist
+    $currentYear = (int)date('Y');
+    if (!in_array($currentYear, $turnoutYears)) {
+        $turnoutYears[] = $currentYear;
+    }
+    
+    // ✅ ADD: Also include previous year for comparison
+    $prevYear = $currentYear - 1;
+    if (!in_array($prevYear, $turnoutYears)) {
+        $turnoutYears[] = $prevYear;
+    }
+    
+    sort($turnoutYears);
+
+    foreach ($turnoutYears as $year) {
+        $stmt = $pdo->prepare("
+            SELECT COUNT(DISTINCT v.voter_id) AS total_voted
+            FROM votes v
+            JOIN elections e ON v.election_id = e.election_id
+            WHERE e.assigned_admin_id = ?
+              AND YEAR(e.start_datetime) = ?
+        ");
+        $stmt->execute([$userId, $year]);
+        $totalVoted = (int) ($stmt->fetch()['total_voted'] ?? 0);
+
+        // Get total voters as of December 31 of this year (FIXED)
+        $yearEnd = sprintf('%04d-12-31 23:59:59', $year);
+        if ($isCoopAdmin) {
+            $stmt = $pdo->prepare("SELECT COUNT(*) as total_eligible 
+                                   FROM users 
+                                   WHERE role = 'voter' AND is_coop_member = 1 AND migs_status = 1 
+                                   AND (created_at <= ? OR created_at IS NULL)");
+            $stmt->execute([$yearEnd]);
+        } else {
+            $stmt = $pdo->prepare("SELECT COUNT(*) as total_eligible 
+                                   FROM users 
+                                   WHERE role = 'voter' AND is_coop_member = 1 AND migs_status = 1 AND UPPER(TRIM(department)) = ? 
+                                   AND (created_at <= ? OR created_at IS NULL)");
+            $stmt->execute([$scope, $yearEnd]);
+        }
+        $totalEligible = $stmt->fetch()['total_eligible'];
+
+        $turnoutRate = ($totalEligible > 0)
+            ? round(($totalVoted / $totalEligible) * 100, 1)
+            : 0.0;
+
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) AS election_count
+            FROM elections
+            WHERE assigned_admin_id = ?
+              AND YEAR(start_datetime) = ?
+        ");
+        $stmt->execute([$userId, $year]);
+        $electionCount = (int) ($stmt->fetch()['election_count'] ?? 0);
+
+        $turnoutDataByYear[$year] = [
+            'year'           => $year,
+            'total_voted'    => $totalVoted,
+            'total_eligible' => $totalEligible,
+            'turnout_rate'   => $turnoutRate,
+            'election_count' => $electionCount,
+        ];
+    }
 }
 
 // Add previous year if not exists (for comparison only)
- $prevYear = $selectedYear - 1;
+$prevYear = $selectedYear - 1;
 if (!isset($turnoutDataByYear[$prevYear])) {
     $turnoutDataByYear[$prevYear] = [
         'year' => $prevYear,
@@ -301,9 +481,9 @@ if (!isset($turnoutDataByYear[$prevYear])) {
 }
 
 // Calculate year-over-year growth for turnout
- $years = array_keys($turnoutDataByYear);
+$years = array_keys($turnoutDataByYear);
 sort($years);
- $previousYear = null;
+$previousYear = null;
 foreach ($years as $year) {
     if ($previousYear !== null) {
         $prevTurnout = $turnoutDataByYear[$previousYear]['turnout_rate'];
@@ -316,28 +496,96 @@ foreach ($years as $year) {
     $previousYear = $year;
 }
 
+// --- Year range filtering for turnout analytics ---
+$allTurnoutYears = array_keys($turnoutDataByYear);
+sort($allTurnoutYears);
+
+$defaultYear = (int)date('Y');
+$minYear = $allTurnoutYears ? min($allTurnoutYears) : $defaultYear;
+$maxYear = $allTurnoutYears ? max($allTurnoutYears) : $defaultYear;
+
+// Read range from query string (e.g., ?from_year=2021&to_year=2024)
+$fromYear = isset($_GET['from_year']) ? (int)$_GET['from_year'] : $minYear;
+$toYear   = isset($_GET['to_year'])   ? (int)$_GET['to_year']   : $maxYear;
+
+// Clamp to known bounds
+if ($fromYear < $minYear) $fromYear = $minYear;
+if ($toYear   > $maxYear) $toYear   = $maxYear;
+if ($toYear < $fromYear)  $toYear   = $fromYear;
+
+// Build range [fromYear..toYear], ensuring missing years appear with zeros
+$turnoutRangeData = [];
+for ($y = $fromYear; $y <= $toYear; $y++) {
+    if (isset($turnoutDataByYear[$y])) {
+        $turnoutRangeData[$y] = $turnoutDataByYear[$y];
+    } else {
+        $turnoutRangeData[$y] = [
+            'total_voted'    => 0,
+            'total_eligible' => 0,
+            'turnout_rate'   => 0,
+            'growth_rate'    => 0,
+            'election_count' => 0
+        ];
+    }
+}
+
+// Recompute growth_rate within the selected range
+$prevY = null;
+foreach ($turnoutRangeData as $y => &$data) {
+    if ($prevY === null) {
+        $data['growth_rate'] = 0;
+    } else {
+        $prevRate = $turnoutRangeData[$prevY]['turnout_rate'] ?? 0;
+        $data['growth_rate'] = $prevRate > 0 ? round(($data['turnout_rate'] - $prevRate) / $prevRate * 100, 1) : 0;
+    }
+    $prevY = $y;
+}
+unset($data);
+
 // --- College Turnout Data (for COOP Admin) ---
- $collegeTurnoutData = [];
+$collegeTurnoutData = [];
 if ($isCoopAdmin) {
-    $stmt = $pdo->prepare("
-        SELECT
-        u.department as college_name,
-        COUNT(DISTINCT u.user_id) as eligible_count,
-        COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) as voted_count
-        FROM users u
-        LEFT JOIN (
-            SELECT DISTINCT voter_id
-            FROM votes
-            WHERE election_id IN (
-                SELECT election_id FROM elections
-                WHERE assigned_admin_id = ? AND YEAR(start_datetime) = ?
-            )
-        ) v ON u.user_id = v.voter_id
-        WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
-        GROUP BY college_name
-        ORDER BY college_name
-    ");
-    $stmt->execute([$userId, $selectedYear]);
+    if ($scopeId !== null) {
+        $stmt = $pdo->prepare("
+            SELECT
+            u.department as college_name,
+            COUNT(DISTINCT u.user_id) as eligible_count,
+            COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) as voted_count
+            FROM users u
+            LEFT JOIN (
+                SELECT DISTINCT voter_id
+                FROM votes
+                WHERE election_id IN (
+                    SELECT election_id FROM elections
+                    WHERE election_scope_type = 'Others-COOP' AND owner_scope_id = ? AND YEAR(start_datetime) = ?
+                )
+            ) v ON u.user_id = v.voter_id
+            WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
+            GROUP BY college_name
+            ORDER BY college_name
+        ");
+        $stmt->execute([$scopeId, $selectedYear]);
+    } else {
+        $stmt = $pdo->prepare("
+            SELECT
+            u.department as college_name,
+            COUNT(DISTINCT u.user_id) as eligible_count,
+            COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) as voted_count
+            FROM users u
+            LEFT JOIN (
+                SELECT DISTINCT voter_id
+                FROM votes
+                WHERE election_id IN (
+                    SELECT election_id FROM elections
+                    WHERE assigned_admin_id = ? AND YEAR(start_datetime) = ?
+                )
+            ) v ON u.user_id = v.voter_id
+            WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
+            GROUP BY college_name
+            ORDER BY college_name
+        ");
+        $stmt->execute([$userId, $selectedYear]);
+    }
     $collegeResults = $stmt->fetchAll();
     
     foreach ($collegeResults as $row) {
@@ -352,28 +600,51 @@ if ($isCoopAdmin) {
 }
 
 // --- Position Turnout Data (for COOP Admin) ---
- $positionTurnoutData = [];
+$positionTurnoutData = [];
 if ($isCoopAdmin) {
-    $stmt = $pdo->prepare("
-        SELECT
-        u.department as college_name,
-        u.position,
-        COUNT(DISTINCT u.user_id) as eligible_count,
-        COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) as voted_count
-        FROM users u
-        LEFT JOIN (
-            SELECT DISTINCT voter_id
-            FROM votes
-            WHERE election_id IN (
-                SELECT election_id FROM elections
-                WHERE assigned_admin_id = ? AND YEAR(start_datetime) = ?
-            )
-        ) v ON u.user_id = v.voter_id
-        WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
-        GROUP BY college_name, position
-        ORDER BY college_name, position
-    ");
-    $stmt->execute([$userId, $selectedYear]);
+    if ($scopeId !== null) {
+        $stmt = $pdo->prepare("
+            SELECT
+            u.department as college_name,
+            u.position,
+            COUNT(DISTINCT u.user_id) as eligible_count,
+            COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) as voted_count
+            FROM users u
+            LEFT JOIN (
+                SELECT DISTINCT voter_id
+                FROM votes
+                WHERE election_id IN (
+                    SELECT election_id FROM elections
+                    WHERE election_scope_type = 'Others-COOP' AND owner_scope_id = ? AND YEAR(start_datetime) = ?
+                )
+            ) v ON u.user_id = v.voter_id
+            WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
+            GROUP BY college_name, position
+            ORDER BY college_name, position
+        ");
+        $stmt->execute([$scopeId, $selectedYear]);
+    } else {
+        $stmt = $pdo->prepare("
+            SELECT
+            u.department as college_name,
+            u.position,
+            COUNT(DISTINCT u.user_id) as eligible_count,
+            COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) as voted_count
+            FROM users u
+            LEFT JOIN (
+                SELECT DISTINCT voter_id
+                FROM votes
+                WHERE election_id IN (
+                    SELECT election_id FROM elections
+                    WHERE assigned_admin_id = ? AND YEAR(start_datetime) = ?
+                )
+            ) v ON u.user_id = v.voter_id
+            WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
+            GROUP BY college_name, position
+            ORDER BY college_name, position
+        ");
+        $stmt->execute([$userId, $selectedYear]);
+    }
     $positionResults = $stmt->fetchAll();
     
     foreach ($positionResults as $row) {
@@ -391,34 +662,44 @@ if ($isCoopAdmin) {
 /* ==========================================================
 STATUS TURNOUT DATA (FIXED)
 ========================================================== */
- $statusTurnoutData = [];
+$statusTurnoutData = [];
 
 // First, get all distinct voters who voted in any elections assigned to this admin in this year (FIXED)
- $stmt = $pdo->prepare("
-  SELECT DISTINCT v.voter_id
-  FROM votes v
-  JOIN elections e ON v.election_id = e.election_id
-  WHERE e.assigned_admin_id = ? AND YEAR(e.start_datetime) = ?
-");
- $stmt->execute([$userId, $selectedYear]);
- $votedIds = array_column($stmt->fetchAll(), 'voter_id');
- $votedSet = array_flip($votedIds);
+if ($scopeId !== null) {
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT v.voter_id
+        FROM votes v
+        JOIN elections e ON v.election_id = e.election_id
+        WHERE e.election_scope_type = 'Others-COOP' AND e.owner_scope_id = ? AND YEAR(e.start_datetime) = ?
+    ");
+    $stmt->execute([$scopeId, $selectedYear]);
+} else {
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT v.voter_id
+        FROM votes v
+        JOIN elections e ON v.election_id = e.election_id
+        WHERE e.assigned_admin_id = ? AND YEAR(e.start_datetime) = ?
+    ");
+    $stmt->execute([$userId, $selectedYear]);
+}
+$votedIds = array_column($stmt->fetchAll(), 'voter_id');
+$votedSet = array_flip($votedIds);
 
 // Get all status data first without grouping
- $stmt = $pdo->prepare("
-  SELECT
-  u.user_id,
-  u.department as college_name,
-  u.position,
-  u.status
-  FROM users u
-  WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
-  AND (u.status IS NOT NULL AND u.status <> '' OR 1=1)"); // Allow for NULL status
- $stmt->execute();
- $rows = $stmt->fetchAll();
+$stmt = $pdo->prepare("
+    SELECT
+    u.user_id,
+    u.department as college_name,
+    u.position,
+    u.status
+    FROM users u
+    WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
+    AND (u.status IS NOT NULL AND u.status <> '' OR 1=1)"); // Allow for NULL status
+$stmt->execute();
+$rows = $stmt->fetchAll();
 
 // Group by status names
- $statusGroups = [];
+$statusGroups = [];
 foreach ($rows as $row) {
     $college = $row['college_name'] ?? 'UNKNOWN';
     $position = $row['position'];
@@ -480,7 +761,7 @@ if ($isCoopAdmin) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="assets/img/weblogo.png" type="image/png">
-  <title>eBalota - <?= $pageTitle ?></title>
+  <title>eBalota - <?= htmlspecialchars($pageTitle) ?></title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -598,7 +879,7 @@ if ($isCoopAdmin) {
 <?php include 'sidebar.php'; ?>
 <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:var(--cvsu-green-dark);">
   <h1 class="text-2xl font-bold text-white">
-    <?= $pageTitle ?>
+    <?= htmlspecialchars($pageTitle) ?>
   </h1>
   <div class="text-white">
     <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -670,7 +951,7 @@ if ($isCoopAdmin) {
             <select id="detailedCollegeSelect" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
               <option value="all" selected>All Colleges/Departments</option>
               <?php foreach ($allColleges as $college): ?>
-                <option value="<?= $college ?>"><?= $college ?></option>
+                <option value="<?= htmlspecialchars($college) ?>"><?= htmlspecialchars($college) ?></option>
               <?php endforeach; ?>
             </select>
           </div>
@@ -965,7 +1246,7 @@ if ($isCoopAdmin) {
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <?php foreach ($turnoutDataByYear as $year => $data):
+              <?php foreach ($turnoutRangeData as $year => $data):
                 $isPositive = ($data['growth_rate'] ?? 0) > 0;
                 $trendIcon = $isPositive ? 'fa-arrow-up' : (($data['growth_rate'] ?? 0) < 0 ? 'fa-arrow-down' : 'fa-minus');
                 $trendColor = $isPositive ? 'text-green-600' : (($data['growth_rate'] ?? 0) < 0 ? 'text-red-600' : 'text-gray-600');
@@ -1027,6 +1308,32 @@ if ($isCoopAdmin) {
         </div>
         <div id="turnoutBreakdownTable" class="mt-6 overflow-x-auto"></div>
       </div>
+      
+      <!-- Year Range Selector -->
+      <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h3 class="font-medium text-blue-800 mb-2">Turnout Analysis – Year Range</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label for="fromYear" class="block text-sm font-medium text-blue-800">From year</label>
+                <select id="fromYear" name="from_year" class="mt-1 p-2 border rounded w-full">
+                    <?php foreach ($allTurnoutYears as $y): ?>
+                        <option value="<?= $y ?>" <?= ($y == $fromYear) ? 'selected' : '' ?>><?= $y ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label for="toYear" class="block text-sm font-medium text-blue-800">To year</label>
+                <select id="toYear" name="to_year" class="mt-1 p-2 border rounded w-full">
+                    <?php foreach ($allTurnoutYears as $y): ?>
+                        <option value="<?= $y ?>" <?= ($y == $toYear) ? 'selected' : '' ?>><?= $y ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </div>
+        <p class="text-xs text-blue-700 mt-2">
+            Select a start and end year to compare turnout. Years with no elections in this range will appear with zero values.
+        </p>
+      </div>
     </div>
   </div>
 
@@ -1046,8 +1353,8 @@ document.addEventListener('DOMContentLoaded', function() {
   let electionsVsTurnoutChartInstance = null;
   
   // Data from PHP
-  const turnoutYears = <?= json_encode(array_keys($turnoutDataByYear)) ?>;
-  const turnoutRates = <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?>;
+  const turnoutYears = <?= json_encode(array_keys($turnoutRangeData)) ?>;
+  const turnoutRates = <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?>;
   const statusTurnoutData = <?= json_encode($statusTurnoutData) ?>;
   
   // College and position data for filtering
@@ -1172,12 +1479,12 @@ document.addEventListener('DOMContentLoaded', function() {
   /* Elections vs Turnout */
   const chartData = {
     elections:{ year:{
-      labels: <?= json_encode(array_keys($turnoutDataByYear)) ?>,
-      electionCounts: <?= json_encode(array_column($turnoutDataByYear, 'election_count')) ?>,
-      turnoutRates: <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?>
+      labels: <?= json_encode(array_keys($turnoutRangeData)) ?>,
+      electionCounts: <?= json_encode(array_column($turnoutRangeData, 'election_count')) ?>,
+      turnoutRates: <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?>
     }},
     voters:{
-      year:{ labels: <?= json_encode(array_keys($turnoutDataByYear)) ?>, eligibleCounts: <?= json_encode(array_column($turnoutDataByYear, 'total_eligible')) ?>, turnoutRates: <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?> },
+      year:{ labels: <?= json_encode(array_keys($turnoutRangeData)) ?>, eligibleCounts: <?= json_encode(array_column($turnoutRangeData, 'total_eligible')) ?>, turnoutRates: <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?> },
       <?php if ($isCoopAdmin): ?>
       college: <?= json_encode($collegeTurnoutData) ?>,
       position: <?= json_encode($positionTurnoutData) ?>,
@@ -1996,6 +2303,25 @@ document.addEventListener('DOMContentLoaded', function() {
       detailedCollegeLabel.classList.add('label-disabled');
     <?php endif; ?>
   }
+  
+  // Year range selectors for turnout analytics
+  const fromYearSelect = document.getElementById('fromYear');
+  const toYearSelect   = document.getElementById('toYear');
+
+  function submitYearRange() {
+    if (!fromYearSelect || !toYearSelect) return;
+    const from = fromYearSelect.value;
+    const to   = toYearSelect.value;
+
+    const url = new URL(window.location.href);
+    if (from) url.searchParams.set('from_year', from); else url.searchParams.delete('from_year');
+    if (to)   url.searchParams.set('to_year', to);     else url.searchParams.delete('to_year');
+
+    window.location.href = url.toString();
+  }
+
+  fromYearSelect?.addEventListener('change', submitYearRange);
+  toYearSelect?.addEventListener('change', submitYearRange);
 });
 </script>
 

@@ -8,15 +8,15 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
-// Scope info from session
-$scope_category   = $_SESSION['scope_category']   ?? '';
-$assigned_scope   = $_SESSION['assigned_scope']   ?? ''; // college code (e.g., CEIT)
-$assigned_scope_1 = $_SESSION['assigned_scope_1'] ?? ''; // e.g., "Multiple: BSIT, BSCS"
-$scope_details    = $_SESSION['scope_details']    ?? [];
-$admin_status     = $_SESSION['admin_status']     ?? 'inactive';
+// Scope info from session — this dashboard is for Academic-Student (college student admins)
+ $scope_category   = $_SESSION['scope_category']   ?? '';
+ $assigned_scope   = $_SESSION['assigned_scope']   ?? ''; // college code (e.g., CEIT)
+ $assigned_scope_1 = $_SESSION['assigned_scope_1'] ?? ''; // e.g., "Multiple: BSIT, BSCS"
+ $scope_details    = $_SESSION['scope_details']    ?? [];
+ $admin_status     = $_SESSION['admin_status']     ?? 'inactive';
 
-// Validate College Admin categories only
-if (!in_array($scope_category, ['Academic-Student', 'Academic-Faculty'], true)) {
+// Validate: Academic-Student admins only (faculty admins use admin_dashboard_faculty.php)
+if ($scope_category !== 'Academic-Student') {
     header('Location: admin_dashboard_redirect.php');
     exit();
 }
@@ -27,14 +27,14 @@ if ($admin_status !== 'active') {
 }
 
 // --- DB Connection ---
-$host    = 'localhost';
-$db      = 'evoting_system';
-$user    = 'root';
-$pass    = '';
-$charset = 'utf8mb4';
+ $host    = 'localhost';
+ $db      = 'evoting_system';
+ $user    = 'root';
+ $pass    = '';
+ $charset = 'utf8mb4';
 
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
-$options = [
+ $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+ $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
@@ -47,7 +47,7 @@ try {
 }
 
 // --- COURSE MAP: canonical code => full name ---
-$courseMap = [
+ $courseMap = [
     'BSCS'  => 'Bachelor of Science in Computer Science',
     'BSIT'  => 'Bachelor of Science in Information Technology',
     'BSCpE' => 'Bachelor of Science in Computer Engineering',
@@ -102,7 +102,7 @@ $courseMap = [
 ];
 
 // College full names
-$collegeFullNameMap = [
+ $collegeFullNameMap = [
     'CAFENR'  => 'College of Agriculture, Food, Environment and Natural Resources',
     'CEIT'    => 'College of Engineering and Information Technology',
     'CAS'     => 'College of Arts and Sciences',
@@ -117,7 +117,7 @@ $collegeFullNameMap = [
     'GS-OLC'  => 'Graduate School and Open Learning College',
 ];
 
-$collegeFullName = $collegeFullNameMap[$assigned_scope] ?? $assigned_scope;
+ $collegeFullName = $collegeFullNameMap[$assigned_scope] ?? $assigned_scope;
 
 // --- Normalization helpers ----------------------------------------
 
@@ -241,33 +241,21 @@ function getCanonicalCourseDisplay(string $raw, array $courseMap): string {
     return $courseMap[$code] ?? $code;
 }
 
-// --- Scope: allowed courses & departments --------------------------
+// --- Scope: allowed courses only (Academic-Student) --------------------------
 
-$allowedCourseCodes = [];
-$allowedDepartments = [];
+ $allowedCourseCodes = [];
 
-// Academic-Student: COURSE scope
-if ($scope_category === 'Academic-Student') {
-    if (!empty($assigned_scope_1) && $assigned_scope_1 !== 'All') {
-        // EXAMPLE: "Multiple: BSIT, BSCS"
-        $rawCourseScope = $assigned_scope_1;
-        // Strip leading labels like "Courses: Multiple:" or "Multiple:"
-        $rawCourseScope = preg_replace('/^(Courses?:\s*)?Multiple:\s*/i', '', $rawCourseScope);
-        // Now "BSIT, BSCS"
-        $allowedCourseCodes = array_filter(array_map('trim', explode(',', $rawCourseScope)));
-    } elseif (!empty($scope_details['courses']) && is_array($scope_details['courses'])) {
-        $allowedCourseCodes = $scope_details['courses']; // may be codes or full names
-    } else {
-        $allowedCourseCodes = []; // empty = all courses in college
-    }
-} elseif ($scope_category === 'Academic-Faculty') {
-    if (!empty($assigned_scope_1) && $assigned_scope_1 !== 'All') {
-        $allowedDepartments = array_filter(array_map('trim', explode(',', $assigned_scope_1)));
-    } elseif (!empty($scope_details['departments']) && is_array($scope_details['departments'])) {
-        $allowedDepartments = $scope_details['departments'];
-    } else {
-        $allowedDepartments = [];
-    }
+// Academic-Student: COURSE scope for this college
+if (!empty($assigned_scope_1) && $assigned_scope_1 !== 'All') {
+    // Example: "Multiple: BSIT, BSCS"
+    $rawCourseScope = preg_replace('/^(Courses?:\s*)?Multiple:\s*/i', '', $assigned_scope_1);
+    $allowedCourseCodes = array_filter(array_map('trim', explode(',', $rawCourseScope)));
+} elseif (!empty($scope_details['courses']) && is_array($scope_details['courses'])) {
+    // If scope_details has courses from admin_scopes, prefer that
+    $allowedCourseCodes = $scope_details['courses']; // may be codes or full names
+} else {
+    // Empty = all courses in this college
+    $allowedCourseCodes = [];
 }
 
 /**
@@ -275,10 +263,8 @@ if ($scope_category === 'Academic-Student') {
  */
 function fetchScopedStudents(
     PDO $pdo,
-    string $scope_category,
     string $assigned_scope,
-    array $allowedCourseCodes,
-    array $allowedDepartments
+    array $allowedCourseCodes
 ): array {
     $sql = "SELECT user_id, department, department1, course, status, created_at
             FROM users
@@ -294,13 +280,6 @@ function fetchScopedStudents(
         $params[]     = $assigned_scope;
     }
 
-    // Academic-Faculty: filter by department1 if needed
-    if ($scope_category === 'Academic-Faculty' && !empty($allowedDepartments)) {
-        $placeholders = implode(',', array_fill(0, count($allowedDepartments), '?'));
-        $conditions[] = "department1 IN ($placeholders)";
-        $params       = array_merge($params, $allowedDepartments);
-    }
-
     if ($conditions) {
         $sql .= ' AND ' . implode(' AND ', $conditions);
     }
@@ -309,9 +288,9 @@ function fetchScopedStudents(
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
 
-    // Academic-Student: filter by allowed course list
-    if ($scope_category === 'Academic-Student' && !empty($allowedCourseCodes)) {
-        // 🔧 VERY IMPORTANT: normalize allowed list (handles "BSIT" + "BS Information Technology" etc.)
+    // Academic-Student: filter by allowed course list, if any
+    if (!empty($allowedCourseCodes)) {
+        // Normalize allowed list to course codes
         $normalizedAllowedSet = [];
         foreach ($allowedCourseCodes as $c) {
             $normalizedAllowedSet[] = strtoupper(normalize_course_code($c));
@@ -329,45 +308,43 @@ function fetchScopedStudents(
 
 // --- Master scoped dataset: ALL stats will be based on this --------
 
-$scopedStudents = fetchScopedStudents(
+ $scopedStudents = fetchScopedStudents(
     $pdo,
-    $scope_category,
     $assigned_scope,
-    $allowedCourseCodes,
-    $allowedDepartments
+    $allowedCourseCodes
 );
 
-$userId       = $_SESSION['user_id'];
-$total_voters = count($scopedStudents);
+ $userId       = $_SESSION['user_id'];
+ $total_voters = count($scopedStudents);
 
 // --- Election counts -----------------------------------------------
 
-$stmt = $pdo->prepare("SELECT COUNT(*) AS total_elections
+ $stmt = $pdo->prepare("SELECT COUNT(*) AS total_elections
                        FROM elections
                        WHERE assigned_admin_id = ?");
-$stmt->execute([$userId]);
-$total_elections = (int) $stmt->fetch()['total_elections'];
+ $stmt->execute([$userId]);
+ $total_elections = (int) $stmt->fetch()['total_elections'];
 
-$stmt = $pdo->prepare("SELECT COUNT(*) AS ongoing_elections
+ $stmt = $pdo->prepare("SELECT COUNT(*) AS ongoing_elections
                        FROM elections
                        WHERE status = 'ongoing'
                          AND assigned_admin_id = ?");
-$stmt->execute([$userId]);
-$ongoing_elections = (int) $stmt->fetch()['ongoing_elections'];
+ $stmt->execute([$userId]);
+ $ongoing_elections = (int) $stmt->fetch()['ongoing_elections'];
 
 // --- Date/time ranges ----------------------------------------------
 
-$currentYear       = (int) date('Y');
-$selectedYear      = isset($_GET['year']) && ctype_digit($_GET['year']) ? (int) $_GET['year'] : $currentYear;
-$currentMonthStart = date('Y-m-01');
-$currentMonthEnd   = date('Y-m-t');
-$lastMonthStart    = date('Y-m-01', strtotime('-1 month'));
-$lastMonthEnd      = date('Y-m-t', strtotime('-1 month'));
+ $currentYear       = (int) date('Y');
+ $selectedYear      = isset($_GET['year']) && ctype_digit($_GET['year']) ? (int) $_GET['year'] : $currentYear;
+ $currentMonthStart = date('Y-m-01');
+ $currentMonthEnd   = date('Y-m-t');
+ $lastMonthStart    = date('Y-m-01', strtotime('-1 month'));
+ $lastMonthEnd      = date('Y-m-t', strtotime('-1 month'));
 
 // --- New / last month voters (scoped) ------------------------------
 
-$newVoters       = 0;
-$lastMonthVoters = 0;
+ $newVoters       = 0;
+ $lastMonthVoters = 0;
 foreach ($scopedStudents as $s) {
     $createdDate = substr($s['created_at'], 0, 10);
     if ($createdDate >= $currentMonthStart && $createdDate <= $currentMonthEnd) {
@@ -380,7 +357,7 @@ foreach ($scopedStudents as $s) {
 
 // --- Group by department -------------------------------------------
 
-$votersByDepartment = [];
+ $votersByDepartment = [];
 foreach ($scopedStudents as $s) {
     $deptName = $s['department1'] ?: $s['department'] ?: 'Unspecified';
     if (!isset($votersByDepartment[$deptName])) {
@@ -388,7 +365,7 @@ foreach ($scopedStudents as $s) {
     }
     $votersByDepartment[$deptName]++;
 }
-$votersByDepartment = array_map(
+ $votersByDepartment = array_map(
     fn($count, $name) => ['department_name' => $name, 'count' => $count],
     $votersByDepartment,
     array_keys($votersByDepartment)
@@ -397,7 +374,7 @@ usort($votersByDepartment, fn($a, $b) => $b['count'] <=> $a['count']);
 
 // --- Group by course -----------------------------------------------
 
-$tempCourseCounts = [];
+ $tempCourseCounts = [];
 foreach ($scopedStudents as $s) {
     $code = normalize_course_code($s['course'] ?? '');
     if (!isset($tempCourseCounts[$code])) {
@@ -405,7 +382,7 @@ foreach ($scopedStudents as $s) {
     }
     $tempCourseCounts[$code]++;
 }
-$votersByCourse = [];
+ $votersByCourse = [];
 foreach ($tempCourseCounts as $code => $count) {
     $votersByCourse[] = ['course' => $code, 'count' => $count];
 }
@@ -413,44 +390,45 @@ usort($votersByCourse, fn($a, $b) => $b['count'] <=> $a['count']);
 
 // --- Status distribution -------------------------------------------
 
-$statusCounts = [];
+ $statusCounts = [];
 foreach ($scopedStudents as $s) {
     $st = $s['status'] ?? 'Unspecified';
     if ($st === '') $st = 'Unspecified';
     if (!isset($statusCounts[$st])) $statusCounts[$st] = 0;
     $statusCounts[$st]++;
 }
-$byStatus = [];
+ $byStatus = [];
 foreach ($statusCounts as $status => $count) {
     $byStatus[] = ['status' => $status, 'count' => $count];
 }
 
 // --- Growth rate ---------------------------------------------------
 
-$growthRate = ($lastMonthVoters > 0)
+ $growthRate = ($lastMonthVoters > 0)
     ? round((($newVoters - $lastMonthVoters) / $lastMonthVoters) * 100, 1)
     : 0.0;
 
 // --- Turnout analytics (per year) ---------------------------------
 
-$stmt = $pdo->prepare("SELECT DISTINCT YEAR(start_datetime) AS year
+ $stmt = $pdo->prepare("SELECT DISTINCT YEAR(start_datetime) AS year
                        FROM elections
                        WHERE assigned_admin_id = ?
-                       ORDER BY year DESC");
-$stmt->execute([$userId]);
-$turnoutYears = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+                       ORDER BY year ASC");
+ $stmt->execute([$userId]);
+ $turnoutYears = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
 
-$turnoutDataByYear = [];
+ $turnoutDataByYear = [];
 
+// Build full per-year metrics for all years that have elections
 foreach ($turnoutYears as $year) {
-    // total voted
+    // total voted (distinct students who voted in this admin's elections this year)
     $stmt = $pdo->prepare("SELECT COUNT(DISTINCT v.voter_id) AS total_voted
                            FROM votes v
                            JOIN elections e ON v.election_id = e.election_id
                            WHERE e.assigned_admin_id = ?
                              AND YEAR(e.start_datetime) = ?");
     $stmt->execute([$userId, $year]);
-    $totalVoted = (int) $stmt->fetch()['total_voted'];
+    $totalVoted = (int) ($stmt->fetch()['total_voted'] ?? 0);
 
     // total eligible in scopedStudents as of year end
     $yearEnd       = sprintf('%04d-12-31 23:59:59', $year);
@@ -465,13 +443,13 @@ foreach ($turnoutYears as $year) {
         ? round(($totalVoted / $totalEligible) * 100, 1)
         : 0.0;
 
-    // election count
+    // election count for that year
     $stmt = $pdo->prepare("SELECT COUNT(*) AS election_count
                            FROM elections
                            WHERE assigned_admin_id = ?
                              AND YEAR(start_datetime) = ?");
     $stmt->execute([$userId, $year]);
-    $electionCount = (int) $stmt->fetch()['election_count'];
+    $electionCount = (int) ($stmt->fetch()['election_count'] ?? 0);
 
     $turnoutDataByYear[$year] = [
         'year'           => $year,
@@ -482,54 +460,82 @@ foreach ($turnoutYears as $year) {
     ];
 }
 
-// ensure previous year exists
-$prevYear = $selectedYear - 1;
-if (!isset($turnoutDataByYear[$prevYear])) {
-    $turnoutDataByYear[$prevYear] = [
-        'year'           => $prevYear,
-        'total_voted'    => 0,
-        'total_eligible' => 0,
-        'turnout_rate'   => 0,
-        'election_count' => 0,
-        'growth_rate'    => 0,
-    ];
+// === Year range filtering for turnout analytics (faculty-style) ===
+
+// All years we have data for
+ $allTurnoutYears = array_keys($turnoutDataByYear);
+sort($allTurnoutYears);
+
+// If walang data pa, gumamit ng current year as safe default
+ $defaultYear = (int)date('Y');
+ $minYear = $allTurnoutYears ? min($allTurnoutYears) : $defaultYear;
+ $maxYear = $allTurnoutYears ? max($allTurnoutYears) : $defaultYear;
+
+// Read range from query string (e.g., ?from_year=2021&to_year=2024)
+ $fromYear = isset($_GET['from_year']) && ctype_digit($_GET['from_year'])
+    ? (int)$_GET['from_year']
+    : $minYear;
+ $toYear   = isset($_GET['to_year']) && ctype_digit($_GET['to_year'])
+    ? (int)$_GET['to_year']
+    : $maxYear;
+
+// Clamp to known bounds
+if ($fromYear < $minYear) $fromYear = $minYear;
+if ($toYear   > $maxYear) $toYear   = $maxYear;
+if ($toYear   < $fromYear) $toYear  = $fromYear;
+
+// Build range [fromYear..toYear], ensuring missing years appear with zeros
+ $turnoutRangeData = [];
+for ($y = $fromYear; $y <= $toYear; $y++) {
+    if (isset($turnoutDataByYear[$y])) {
+        $turnoutRangeData[$y] = $turnoutDataByYear[$y];
+    } else {
+        $turnoutRangeData[$y] = [
+            'year'           => $y,
+            'total_voted'    => 0,
+            'total_eligible' => 0,
+            'turnout_rate'   => 0.0,
+            'election_count' => 0,
+        ];
+    }
 }
 
-// YoY growth_rate
-$years           = array_keys($turnoutDataByYear);
-sort($years);
-$previousYearKey = null;
-foreach ($years as $year) {
-    if ($previousYearKey !== null) {
-        $prevTurnout    = $turnoutDataByYear[$previousYearKey]['turnout_rate'];
-        $currentTurnout = $turnoutDataByYear[$year]['turnout_rate'];
-        $gr = ($prevTurnout > 0)
-            ? round((($currentTurnout - $prevTurnout) / $prevTurnout) * 100, 1)
-            : 0.0;
-        $turnoutDataByYear[$year]['growth_rate'] = $gr;
+// Recompute growth_rate within the selected range
+ $prevY = null;
+foreach ($turnoutRangeData as $y => &$data) {
+    if ($prevY === null) {
+        $data['growth_rate'] = 0.0;
     } else {
-        $turnoutDataByYear[$year]['growth_rate'] = 0;
+        $prevRate = $turnoutRangeData[$prevY]['turnout_rate'] ?? 0;
+        $data['growth_rate'] = $prevRate > 0
+            ? round(($data['turnout_rate'] - $prevRate) / $prevRate * 100, 1)
+            : 0.0;
     }
-    $previousYearKey = $year;
+    $prevY = $y;
 }
+unset($data);
+
+// Summary cards still use single selected year (via ?year=...)
+ $currentYearTurnout  = $turnoutDataByYear[$selectedYear]     ?? null;
+ $previousYearTurnout = $turnoutDataByYear[$selectedYear - 1] ?? null;
 
 // --- Department turnout (selected year) ----------------------------
 
-$departmentTurnoutData = [];
+ $departmentTurnoutData = [];
 
-$stmt = $pdo->prepare("
+ $stmt = $pdo->prepare("
     SELECT DISTINCT v.voter_id
     FROM votes v
     JOIN elections e ON v.election_id = e.election_id
     WHERE e.assigned_admin_id = ?
       AND YEAR(e.start_datetime) = ?
 ");
-$stmt->execute([$userId, $selectedYear]);
-$votedIds = array_column($stmt->fetchAll(), 'voter_id');
-$votedSet = array_flip($votedIds);
+ $stmt->execute([$userId, $selectedYear]);
+ $votedIds = array_column($stmt->fetchAll(), 'voter_id');
+ $votedSet = array_flip($votedIds);
 
-$deptBuckets     = [];
-$yearEndSelected = sprintf('%04d-12-31 23:59:59', $selectedYear);
+ $deptBuckets     = [];
+ $yearEndSelected = sprintf('%04d-12-31 23:59:59', $selectedYear);
 
 foreach ($scopedStudents as $s) {
     if ($s['created_at'] > $yearEndSelected) continue;
@@ -558,8 +564,8 @@ foreach ($deptBuckets as $dept => $c) {
 
 // --- Course turnout (selected year) -------------------------------
 
-$courseTurnoutData = [];
-$courseBuckets     = [];
+ $courseTurnoutData = [];
+ $courseBuckets     = [];
 
 foreach ($scopedStudents as $s) {
     if ($s['created_at'] > $yearEndSelected) continue;
@@ -604,7 +610,7 @@ function formatScopeForDisplay(string $category, string $scope, string $scope1, 
     }
 }
 
-$scopeDisplay = formatScopeForDisplay($scope_category, $assigned_scope, $assigned_scope_1, $scope_details);
+ $scopeDisplay = formatScopeForDisplay($scope_category, $assigned_scope, $assigned_scope_1, $scope_details);
 ?>
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
@@ -951,19 +957,12 @@ $scopeDisplay = formatScopeForDisplay($scope_category, $assigned_scope, $assigne
           <div class="flex items-center">
             <label for="turnoutYearSelector" class="mr-2 text-gray-700 font-medium">Select Year:</label>
             <select id="turnoutYearSelector" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
-              <?php foreach ($turnoutYears as $year): ?>
-                <option value="<?= $year ?>" <?= $year == $selectedYear ? 'selected' : '' ?>>
-                  <?= $year ?>
-                </option>
+              <?php foreach (array_keys($turnoutDataByYear) as $year): ?>
+                <option value="<?= $year ?>" <?= $year == $selectedYear ? 'selected' : '' ?>><?= $year ?></option>
               <?php endforeach; ?>
             </select>
           </div>
         </div>
-
-        <?php
-          $currentYearTurnout  = $turnoutDataByYear[$selectedYear]     ?? null;
-          $previousYearTurnout = $turnoutDataByYear[$selectedYear - 1] ?? null;
-        ?>
 
         <!-- Turnout summary cards -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -1053,7 +1052,7 @@ $scopeDisplay = formatScopeForDisplay($scope_category, $assigned_scope, $assigne
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-200">
-                <?php foreach ($turnoutDataByYear as $year => $data):
+                <?php foreach ($turnoutRangeData as $year => $data):
                   $isPositive = ($data['growth_rate'] ?? 0) > 0;
                   $trendIcon  = $isPositive ? 'fa-arrow-up' : (($data['growth_rate'] ?? 0) < 0 ? 'fa-arrow-down' : 'fa-minus');
                   $trendColor = $isPositive ? 'text-green-600' : (($data['growth_rate'] ?? 0) < 0 ? 'text-red-600' : 'text-gray-600');
@@ -1107,6 +1106,32 @@ $scopeDisplay = formatScopeForDisplay($scope_category, $assigned_scope, $assigne
             <canvas id="electionsVsTurnoutChart"></canvas>
           </div>
           <div id="turnoutBreakdownTable" class="mt-6 overflow-x-auto"></div>
+          
+          <!-- Year Range Selector -->
+          <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 class="font-medium text-blue-800 mb-2">Turnout Analysis – Year Range</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="fromYear" class="block text-sm font-medium text-blue-800">From year</label>
+                <select id="fromYear" name="from_year" class="mt-1 p-2 border rounded w-full">
+                  <?php foreach ($allTurnoutYears as $y): ?>
+                    <option value="<?= $y ?>" <?= ($y == $fromYear) ? 'selected' : '' ?>><?= $y ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div>
+                <label for="toYear" class="block text-sm font-medium text-blue-800">To year</label>
+                <select id="toYear" name="to_year" class="mt-1 p-2 border rounded w-full">
+                  <?php foreach ($allTurnoutYears as $y): ?>
+                    <option value="<?= $y ?>" <?= ($y == $toYear) ? 'selected' : '' ?>><?= $y ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+            </div>
+            <p class="text-xs text-blue-700 mt-2">
+              Select a start and end year to compare turnout. Years with no elections in this range will appear with zero values.
+            </p>
+          </div>
         </div>
 
       </div> <!-- /Turnout section -->
@@ -1128,7 +1153,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // Year selector for turnout
   const turnoutYearSelector = document.getElementById('turnoutYearSelector');
   turnoutYearSelector?.addEventListener('change', function() {
-    window.location.href = window.location.pathname + '?year=' + this.value;
+    const url = new URL(window.location.href);
+    url.searchParams.set('year', this.value);
+    window.location.href = url.toString();
   });
 
   let departmentChartInstance = null;
@@ -1141,8 +1168,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const departmentCounts = <?= json_encode(array_column($votersByDepartment, 'count')) ?>;
   const courseLabelsRaw  = <?= json_encode(array_column($votersByCourse, 'course')) ?>;
   const courseCounts     = <?= json_encode(array_column($votersByCourse, 'count')) ?>;
-  const turnoutYearsJS   = <?= json_encode(array_keys($turnoutDataByYear)) ?>;
-  const turnoutRatesJS   = <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?>;
+  const turnoutYearsJS   = <?= json_encode(array_keys($turnoutRangeData)) ?>;
+  const turnoutRatesJS   = <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?>;
   const departmentTurnoutData = <?= json_encode($departmentTurnoutData) ?>;
   const courseTurnoutData     = <?= json_encode($courseTurnoutData) ?>;
   const courseMapJS      = <?= json_encode($courseMap) ?>;
@@ -1420,16 +1447,16 @@ document.addEventListener('DOMContentLoaded', function() {
   const chartData = {
     elections: {
       year: {
-        labels: <?= json_encode(array_keys($turnoutDataByYear)) ?>,
-        electionCounts: <?= json_encode(array_column($turnoutDataByYear, 'election_count')) ?>,
-        turnoutRates:   <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?>
+        labels: <?= json_encode(array_keys($turnoutRangeData)) ?>,
+        electionCounts: <?= json_encode(array_column($turnoutRangeData, 'election_count')) ?>,
+        turnoutRates:   <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?>
       }
     },
     voters: {
       year: {
-        labels: <?= json_encode(array_keys($turnoutDataByYear)) ?>,
-        eligibleCounts: <?= json_encode(array_column($turnoutDataByYear, 'total_eligible')) ?>,
-        turnoutRates:   <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?>
+        labels: <?= json_encode(array_keys($turnoutRangeData)) ?>,
+        eligibleCounts: <?= json_encode(array_column($turnoutRangeData, 'total_eligible')) ?>,
+        turnoutRates:   <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?>
       },
       department: departmentTurnoutData,
       course:     courseTurnoutData
@@ -1832,6 +1859,25 @@ document.addEventListener('DOMContentLoaded', function() {
     currentBreakdown = this.value;
     renderElectionsVsTurnout();
   });
+
+  // Year range selectors for turnout analytics
+  const fromYearSelect = document.getElementById('fromYear');
+  const toYearSelect   = document.getElementById('toYear');
+
+  function submitYearRange() {
+    if (!fromYearSelect || !toYearSelect) return;
+    const from = fromYearSelect.value;
+    const to   = toYearSelect.value;
+
+    const url = new URL(window.location.href);
+    if (from) url.searchParams.set('from_year', from); else url.searchParams.delete('from_year');
+    if (to)   url.searchParams.set('to_year', to);     else url.searchParams.delete('to_year');
+
+    window.location.href = url.toString();
+  }
+
+  fromYearSelect?.addEventListener('change', submitYearRange);
+  toYearSelect?.addEventListener('change', submitYearRange);
 });
 </script>
 </body>

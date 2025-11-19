@@ -917,7 +917,7 @@ else if ($scopeCategory === 'Non-Academic-Employee' || $assignedScope === 'NON-A
 
 // 7) COOP Admin - COOP members
 //    NOTE: hide Others-Default members
-else if ($assignedScope === 'COOP') {
+else if ($scopeCategory === 'Others-COOP' || $assignedScope === 'COOP') {
 
     $conditions[] = "is_coop_member = 1";
     $conditions[] = "is_other_member = 0";  // DO NOT include Others-Default pool
@@ -966,7 +966,7 @@ else if ($assignedScope === 'COOP') {
 }
 
 // 8) CSG Admin - all students (GLOBAL ONLY: exclude org-specific Non-Academic-Student uploads)
-else if ($assignedScope === 'CSG ADMIN') {
+else if ($scopeCategory === 'Special-Scope' || $assignedScope === 'CSG ADMIN') {
 
     $conditions[] = "position = 'student'";
     // EXCLUDE org-owned student voters (Non-Academic-Student CSV uploads)
@@ -1022,6 +1022,15 @@ else if ($assignedScope === 'CSG ADMIN') {
     $filterOptions['courses'] = array_map(function($course) use ($mappingSystem) {
         return getMappedValue($mappingSystem['courses'], $course, $course);
     }, $filterOptions['courses']);
+}
+
+// 9) SAFETY FALLBACK – if admin role but no specific scope branch matched,
+//    do NOT show any voters (misconfigured admin / missing admin_scopes row).
+else if ($currentRole === 'admin') {
+    // Prevent accidental global access
+    $conditions[] = '1 = 0';
+    // Minimal columns; adjust if you like
+    $columns = ['Photo', 'Name', 'Actions'];
 }
 
 /* ==========================================================
@@ -1254,9 +1263,9 @@ if (
                 } else {
                     echo "Non-Academic staff";
                 }
-              } else if ($assignedScope === 'COOP') {
+              } else if ($scopeCategory === 'Others-COOP' || $assignedScope === 'COOP') {
                 echo "COOP members";
-              } else if ($assignedScope === 'CSG ADMIN') {
+              } else if ($scopeCategory === 'Special-Scope' || $assignedScope === 'CSG ADMIN') {
                 echo "All student voters (Global only)";
               } else {
                 if ($scopeCategory === 'Academic-Faculty' && in_array($assignedScope, [
@@ -1299,7 +1308,7 @@ if (
           <a href="admin_restrict_users.php" class="btn-danger text-white px-4 py-2 rounded font-semibold transition">
             <i class="fas fa-user-slash mr-2"></i>Restrict Users
           </a>
-          <?php if ($assignedScope === 'COOP'): ?>
+          <?php if ($scopeCategory === 'Others-COOP' || $assignedScope === 'COOP'): ?>
             <a href="admin_migs_status.php" class="btn-info text-white px-4 py-2 rounded font-semibold transition">
               <i class="fas fa-id-card mr-2"></i>MIGS Status
             </a>
@@ -1552,7 +1561,7 @@ if (
                   <!-- Actions -->
                   <td class="py-3 px-4 text-center">
                     <div class="flex flex-col space-y-2">
-                      <?php if ($assignedScope !== 'COOP'): ?>
+                      <?php if (!($scopeCategory === 'Others-COOP' || $assignedScope === 'COOP')): ?>
                         <button 
                           onclick='triggerEditUser(<?= $user["user_id"] ?>)'
                           class="btn-edit text-white px-3 py-1 rounded text-sm font-medium inline-flex items-center justify-center w-full"
@@ -1561,7 +1570,7 @@ if (
                         </button>
                       <?php endif; ?>
                       
-                      <?php if ($assignedScope === 'COOP'): ?>
+                      <?php if ($scopeCategory === 'Others-COOP' || $assignedScope === 'COOP'): ?>
                         <a href="admin_toggle_migs.php?user_id=<?= $user['user_id'] ?>" 
                            class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-sm font-medium inline-flex items-center justify-center w-full"
                            onclick="return confirm('Are you sure you want to toggle MIGS status for this user?');">

@@ -3,14 +3,14 @@ session_start();
 date_default_timezone_set('Asia/Manila');
 
 // --- DB Connection ---
- $host = 'localhost';
- $db = 'evoting_system';
- $user = 'root';
- $pass = '';
- $charset = 'utf8mb4';
+$host = 'localhost';
+$db = 'evoting_system';
+$user = 'root';
+$pass = '';
+$charset = 'utf8mb4';
 
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
@@ -28,12 +28,12 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
- $userId         = (int) $_SESSION['user_id'];
- $scope_category = $_SESSION['scope_category']   ?? '';
- $assigned_scope = $_SESSION['assigned_scope']   ?? '';   // college code (e.g. CEIT)
- $assigned_scope_1 = $_SESSION['assigned_scope_1'] ?? ''; // e.g. "DCE, DCEE" or "All"
- $scope_details  = $_SESSION['scope_details']    ?? [];
- $admin_status   = $_SESSION['admin_status']     ?? 'inactive';
+$userId         = (int) $_SESSION['user_id'];
+$scope_category = $_SESSION['scope_category']   ?? '';
+$assigned_scope = $_SESSION['assigned_scope']   ?? '';   // college code (e.g. CEIT)
+$assigned_scope_1 = $_SESSION['assigned_scope_1'] ?? ''; // e.g. "DCE, DCEE" or "All"
+$scope_details  = $_SESSION['scope_details']    ?? [];
+$admin_status   = $_SESSION['admin_status']     ?? 'inactive';
 
 // This dashboard is ONLY for Academic-Faculty admins
 if ($scope_category !== 'Academic-Faculty') {
@@ -47,13 +47,13 @@ if ($admin_status !== 'active') {
 }
 
 // Keep using $scope as "college code" so old code still works
- $scope = strtoupper(trim($assigned_scope));
+$scope = strtoupper(trim($assigned_scope));
 
 // OLD "FACULTY ASSOCIATION" global scope is no longer supported here
- $isFacultyAdmin = false;
+$isFacultyAdmin = false;
 
 // Build department scope (new scopes)
- $allowedDepartments = [];
+$allowedDepartments = [];
 
 // Prefer JSON from admin_scopes.scope_details (departments array)
 if (!empty($scope_details) && !empty($scope_details['departments']) && is_array($scope_details['departments'])) {
@@ -64,29 +64,29 @@ if (!empty($scope_details) && !empty($scope_details['departments']) && is_array(
 }
 
 // --- Get this admin's faculty scope_id from admin_scopes ---
- $scopeId = null;
+$scopeId = null;
 
- $scopeStmt = $pdo->prepare("
+$scopeStmt = $pdo->prepare("
     SELECT scope_id
     FROM admin_scopes
     WHERE user_id   = :uid
       AND scope_type = 'Academic-Faculty'
     LIMIT 1
 ");
- $scopeStmt->execute([':uid' => $userId]);
+$scopeStmt->execute([':uid' => $userId]);
 if ($row = $scopeStmt->fetch()) {
     $scopeId = (int) $row['scope_id'];
 }
 
 // --- Get available years for dropdown ---
- $stmt = $pdo->query("SELECT DISTINCT YEAR(created_at) as year FROM users WHERE role = 'voter' AND position = 'academic' ORDER BY year DESC");
- $availableYears = $stmt->fetchAll(PDO::FETCH_COLUMN);
- $currentYear = date('Y');
- $selectedYear = isset($_GET['year']) ? $_GET['year'] : $currentYear;
- $previousYear = $selectedYear - 1;
+$stmt = $pdo->query("SELECT DISTINCT YEAR(created_at) as year FROM users WHERE role = 'voter' AND position = 'academic' ORDER BY year DESC");
+$availableYears = $stmt->fetchAll(PDO::FETCH_COLUMN);
+$currentYear = date('Y');
+$selectedYear = isset($_GET['year']) ? $_GET['year'] : $currentYear;
+$previousYear = $selectedYear - 1;
 
 // --- Department/Course abbreviation mapping ---
- $deptCourseAbbrevMap = [
+$deptCourseAbbrevMap = [
     'Department of Animal Science' => 'DAS',
     'Department of Crop Science' => 'DCS',
     'Department of Food Science and Technology' => 'DFST',
@@ -121,18 +121,18 @@ if ($row = $scopeStmt->fetch()) {
 ];
 
 // --- Get all faculty within this admin's scope for analytics ---
- $scopedFaculty = [];
+$scopedFaculty = [];
 
 // First, get all faculty in the college
- $stmt = $pdo->prepare("
+$stmt = $pdo->prepare("
     SELECT user_id, first_name, last_name, email, department, department1, status, created_at
     FROM users
     WHERE role = 'voter'
       AND position = 'academic'
       AND UPPER(TRIM(department)) = ?
 ");
- $stmt->execute([$scope]);
- $allFaculty = $stmt->fetchAll();
+$stmt->execute([$scope]);
+$allFaculty = $stmt->fetchAll();
 
 // Filter by department if needed
 if (empty($allowedDepartments)) {
@@ -153,7 +153,7 @@ if (empty($allowedDepartments)) {
 // --- Fetch dashboard stats ---
 
 // Total faculty voters in this admin's scope
- $total_voters = count($scopedFaculty);
+$total_voters = count($scopedFaculty);
 
 // Total Elections for this faculty scope (new model)
 if ($scopeId !== null) {
@@ -197,10 +197,10 @@ if ($scopeId !== null) {
 }
 
 // --- Get all colleges for dropdown ---
- $allColleges = [$scope];
+$allColleges = [$scope];
 
 // Department abbreviation mapping
- $departmentAbbrevMap = [
+$departmentAbbrevMap = [
     'College of Agriculture, Food, Environment and Natural Resources' => 'CAFENR',
     'College of Engineering and Information Technology' => 'CEIT',
     'College of Arts and Sciences' => 'CAS',
@@ -216,7 +216,7 @@ if ($scopeId !== null) {
 ];
 
 // College full name mapping
- $collegeFullNameMap = [
+$collegeFullNameMap = [
     'CAFENR' => 'College of Agriculture, Food, Environment and Natural Resources',
     'CEIT' => 'College of Engineering and Information Technology',
     'CAS' => 'College of Arts and Sciences',
@@ -236,7 +236,7 @@ if ($scopeId !== null) {
 // =========================
 
 // Get voters distribution by department
- $votersByDepartment = [];
+$votersByDepartment = [];
 foreach ($scopedFaculty as $faculty) {
     $deptName = $faculty['department1'] ?: 'General';
     if (!isset($votersByDepartment[$deptName])) {
@@ -246,7 +246,7 @@ foreach ($scopedFaculty as $faculty) {
 }
 
 // Convert to the format expected by the donut chart
- $votersByDepartment = array_map(function($count, $deptName) {
+$votersByDepartment = array_map(function($count, $deptName) {
     return ['department_name' => $deptName, 'count' => $count];
 }, array_values($votersByDepartment), array_keys($votersByDepartment));
 
@@ -255,7 +255,7 @@ foreach ($scopedFaculty as $faculty) {
 // =========================
 
 // Build department bar data
- $collegeDepartmentBar = [];
+$collegeDepartmentBar = [];
 foreach ($scopedFaculty as $faculty) {
     $deptName = $faculty['department1'] ?: 'General';
     $abbrev = $deptCourseAbbrevMap[$deptName] ?? $deptName;
@@ -269,10 +269,10 @@ foreach ($scopedFaculty as $faculty) {
     }
     $collegeDepartmentBar[$abbrev]['count']++;
 }
- $collegeDepartmentBar = array_values($collegeDepartmentBar);
+$collegeDepartmentBar = array_values($collegeDepartmentBar);
 
 // Build status bar data
- $collegeStatusBar = [];
+$collegeStatusBar = [];
 foreach ($scopedFaculty as $faculty) {
     if (!empty($faculty['status'])) {
         $statusName = $faculty['status'];
@@ -286,11 +286,11 @@ foreach ($scopedFaculty as $faculty) {
         $collegeStatusBar[$statusName]['count']++;
     }
 }
- $collegeStatusBar = array_values($collegeStatusBar);
+$collegeStatusBar = array_values($collegeStatusBar);
 
 // --- Fetch Voter Turnout Analytics Data (scope-based) ---
- $turnoutDataByYear = [];
- $turnoutYears      = [];
+$turnoutDataByYear = [];
+$turnoutYears      = [];
 
 if ($scopeId !== null) {
     // Get all years that have elections for this faculty scope
@@ -352,7 +352,7 @@ if ($scopeId !== null) {
 }
 
 // Add previous year if not exists (for comparison only)
- $prevYear = $selectedYear - 1;
+$prevYear = $selectedYear - 1;
 if (!isset($turnoutDataByYear[$prevYear])) {
     $turnoutDataByYear[$prevYear] = [
         'year' => $prevYear,
@@ -365,9 +365,9 @@ if (!isset($turnoutDataByYear[$prevYear])) {
 }
 
 // Calculate year-over-year growth for turnout
- $years = array_keys($turnoutDataByYear);
+$years = array_keys($turnoutDataByYear);
 sort($years);
- $previousYear = null;
+$previousYear = null;
 foreach ($years as $year) {
     if ($previousYear !== null) {
         $prevTurnout = $turnoutDataByYear[$previousYear]['turnout_rate'];
@@ -383,10 +383,10 @@ foreach ($years as $year) {
 /* ==========================================================
 STATUS TURNOUT DATA (UPDATED)
 ========================================================== */
- $statusTurnoutData = [];
+$statusTurnoutData = [];
 
 // First, get all distinct voters who voted in any elections assigned to this admin in this year
- $stmt = $pdo->prepare("
+$stmt = $pdo->prepare("
    SELECT DISTINCT v.voter_id
    FROM votes v
    JOIN elections e ON v.election_id = e.election_id
@@ -394,12 +394,12 @@ STATUS TURNOUT DATA (UPDATED)
      AND e.owner_scope_id = ?
      AND YEAR(e.start_datetime) = ?
 ");
- $stmt->execute([$scopeId, $selectedYear]);
- $votedIds = array_column($stmt->fetchAll(), 'voter_id');
- $votedSet = array_flip($votedIds);
+$stmt->execute([$scopeId, $selectedYear]);
+$votedIds = array_column($stmt->fetchAll(), 'voter_id');
+$votedSet = array_flip($votedIds);
 
 // Group by status names using our scoped faculty data
- $statusGroups = [];
+$statusGroups = [];
 foreach ($scopedFaculty as $faculty) {
     if (!empty($faculty['status'])) {
         $college = $faculty['department'];
@@ -445,10 +445,56 @@ usort($statusTurnoutData, function($a, $b) {
     return $b['eligible_count'] <=> $a['eligible_count'];
 });
 
+// --- Year range filtering for turnout analytics ---
+
+$allTurnoutYears = array_keys($turnoutDataByYear);
+sort($allTurnoutYears);
+
+$defaultYear = (int)date('Y');
+$minYear = $allTurnoutYears ? min($allTurnoutYears) : $defaultYear;
+$maxYear = $allTurnoutYears ? max($allTurnoutYears) : $defaultYear;
+
+// Read range from query string (e.g., ?from_year=2021&to_year=2024)
+$fromYear = isset($_GET['from_year']) ? (int)$_GET['from_year'] : $minYear;
+$toYear   = isset($_GET['to_year'])   ? (int)$_GET['to_year']   : $maxYear;
+
+// Clamp to known bounds
+if ($fromYear < $minYear) $fromYear = $minYear;
+if ($toYear   > $maxYear) $toYear   = $maxYear;
+if ($toYear < $fromYear)  $toYear   = $fromYear;
+
+// Build range [fromYear..toYear], ensuring missing years appear with zeros
+$turnoutRangeData = [];
+for ($y = $fromYear; $y <= $toYear; $y++) {
+    if (isset($turnoutDataByYear[$y])) {
+        $turnoutRangeData[$y] = $turnoutDataByYear[$y];
+    } else {
+        $turnoutRangeData[$y] = [
+            'total_voted'    => 0,
+            'total_eligible' => 0,
+            'turnout_rate'   => 0,
+            'growth_rate'    => 0,
+        ];
+    }
+}
+
+// Recompute growth_rate within the selected range
+$prevY = null;
+foreach ($turnoutRangeData as $y => &$data) {
+    if ($prevY === null) {
+        $data['growth_rate'] = 0;
+    } else {
+        $prevRate = $turnoutRangeData[$prevY]['turnout_rate'] ?? 0;
+        $data['growth_rate'] = $prevRate > 0 ? round(($data['turnout_rate'] - $prevRate) / $prevRate * 100, 1) : 0;
+    }
+    $prevY = $y;
+}
+unset($data);
+
 // Set page title based on scope
- $pageTitle = htmlspecialchars($collegeFullNameMap[$scope] ?? $scope) . " ADMIN DASHBOARD";
- $pageSubtitle = htmlspecialchars($collegeFullNameMap[$scope] ?? $scope);
- $collegeFullName = $collegeFullNameMap[$scope] ?? $scope;
+$pageTitle = htmlspecialchars($collegeFullNameMap[$scope] ?? $scope) . " ADMIN DASHBOARD";
+$pageSubtitle = htmlspecialchars($collegeFullNameMap[$scope] ?? $scope);
+$collegeFullName = $collegeFullNameMap[$scope] ?? $scope;
 ?>
 
 <!DOCTYPE html>
@@ -862,7 +908,7 @@ usort($statusTurnoutData, function($a, $b) {
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <?php foreach ($turnoutDataByYear as $year => $data):
+              <?php foreach ($turnoutRangeData as $year => $data):
                 $isPositive = ($data['growth_rate'] ?? 0) > 0;
                 $trendIcon = $isPositive ? 'fa-arrow-up' : (($data['growth_rate'] ?? 0) < 0 ? 'fa-arrow-down' : 'fa-minus');
                 $trendColor = $isPositive ? 'text-green-600' : (($data['growth_rate'] ?? 0) < 0 ? 'text-red-600' : 'text-gray-600');
@@ -914,6 +960,32 @@ usort($statusTurnoutData, function($a, $b) {
         </div>
         <div id="turnoutBreakdownTable" class="mt-6 overflow-x-auto"></div>
       </div>
+      
+      <!-- Year Range Selector -->
+      <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h3 class="font-medium text-blue-800 mb-2">Turnout Analysis – Year Range</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="fromYear" class="block text-sm font-medium text-blue-800">From year</label>
+            <select id="fromYear" name="from_year" class="mt-1 p-2 border rounded w-full">
+              <?php foreach ($allTurnoutYears as $y): ?>
+                <option value="<?= $y ?>" <?= ($y == $fromYear) ? 'selected' : '' ?>><?= $y ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div>
+            <label for="toYear" class="block text-sm font-medium text-blue-800">To year</label>
+            <select id="toYear" name="to_year" class="mt-1 p-2 border rounded w-full">
+              <?php foreach ($allTurnoutYears as $y): ?>
+                <option value="<?= $y ?>" <?= ($y == $toYear) ? 'selected' : '' ?>><?= $y ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        </div>
+        <p class="text-xs text-blue-700 mt-2">
+          Select a start and end year to compare turnout. Years with no elections in this range will appear with zero values.
+        </p>
+      </div>
     </div>
   </div>
 
@@ -933,8 +1005,8 @@ document.addEventListener('DOMContentLoaded', function() {
   let electionsVsTurnoutChartInstance = null;
   
   // Data from PHP
-  const turnoutYears = <?= json_encode(array_keys($turnoutDataByYear)) ?>;
-  const turnoutRates = <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?>;
+  const turnoutYears = <?= json_encode(array_keys($turnoutRangeData)) ?>;
+  const turnoutRates = <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?>;
   const statusTurnoutData = <?= json_encode($statusTurnoutData) ?>;
   
   // College and department data for filtering
@@ -1088,12 +1160,12 @@ document.addEventListener('DOMContentLoaded', function() {
   /* Elections vs Turnout */
   const chartData = {
     elections:{ year:{
-      labels: <?= json_encode(array_keys($turnoutDataByYear)) ?>,
-      electionCounts: <?= json_encode(array_column($turnoutDataByYear, 'election_count')) ?>,
-      turnoutRates: <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?>
+      labels: <?= json_encode(array_keys($turnoutRangeData)) ?>,
+      electionCounts: <?= json_encode(array_column($turnoutRangeData, 'election_count')) ?>,
+      turnoutRates: <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?>
     }},
     voters:{
-      year:{ labels: <?= json_encode(array_keys($turnoutDataByYear)) ?>, eligibleCounts: <?= json_encode(array_column($turnoutDataByYear, 'total_eligible')) ?>, turnoutRates: <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?> },
+      year:{ labels: <?= json_encode(array_keys($turnoutRangeData)) ?>, eligibleCounts: <?= json_encode(array_column($turnoutRangeData, 'total_eligible')) ?>, turnoutRates: <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?> },
       status: <?= json_encode($statusTurnoutData) ?>
     }
   };
@@ -1507,6 +1579,25 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize with default values
     handleDetailedBreakdownChange();
   }
+  
+  // Year range selectors for turnout analytics
+  const fromYearSelect = document.getElementById('fromYear');
+  const toYearSelect   = document.getElementById('toYear');
+
+  function submitYearRange() {
+    if (!fromYearSelect || !toYearSelect) return;
+    const from = fromYearSelect.value;
+    const to   = toYearSelect.value;
+
+    const url = new URL(window.location.href);
+    if (from) url.searchParams.set('from_year', from); else url.searchParams.delete('from_year');
+    if (to)   url.searchParams.set('to_year', to);     else url.searchParams.delete('to_year');
+
+    window.location.href = url.toString();
+  }
+
+  fromYearSelect?.addEventListener('change', submitYearRange);
+  toYearSelect?.addEventListener('change', submitYearRange);
 });
 </script>
 

@@ -38,7 +38,6 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'voter') {
     // Colleges
     'cafenr' => 'CAFENR',
     'college of agriculture, food and natural resources' => 'CAFENR',
-    'college of agriculture, food and natural resources' => 'CAFENR',
     'caf enr' => 'CAFENR',
 
     'cas'   => 'CAS',
@@ -89,96 +88,324 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'voter') {
     'nae it'     => 'NAEIT',
 ];
 
- $course_map = [
-    // CEIT
-    'bsit'  => 'BSIT',
-    'bscs'  => 'BSCS',
-    'bscpe' => 'BSCpE',
-    'bsece' => 'BSECE',
-    'bsce'  => 'BSCE',
-    'bsme'  => 'BSME',
-    'bsee'  => 'BSEE',
-    'bsie'  => 'BSIE',
-    'bsarch'=> 'BSArch',
+// Faculty department full-name → code (used when comparing to allowed_departments for faculty elections)
+ $faculty_department_map = [
+    // CAFENR
+    'department of animal science'                          => 'DAS',
+    'department of crop science'                            => 'DCS',
+    'department of food science and technology'             => 'DFST',
+    'department of forestry and environmental science'      => 'DFES',
+    'department of agricultural economics and development'  => 'DAED',
 
     // CAS
-    'bsbio'   => 'BSBio',
-    'bschem'  => 'BSChem',
-    'bsmath'  => 'BSMath',
-    'bsphysics'=> 'BSPhysics',
-    'bspsych' => 'BSPsych',
-    'baels'   => 'BAELS',
-    'bacomm'  => 'BAComm',
-    'bsstat'  => 'BSStat',
-
-    // CAFENR
-    'bsagri'=> 'BSAgri',
-    'bsab'  => 'BSAB',
-    'bses'  => 'BSES',
-    'bsft'  => 'BSFT',
-    'bsfor' => 'BSFor',
-    'bsabe' => 'BSABE',
-    'bae'   => 'BAE',
-    'bsldm' => 'BSLDM',
-
-    // CVMBS
-    'dvm' => 'DVM',
-    'bspv'=> 'BSPV',
-
-    // CED
-    'beed'=> 'BEEd',
-    'bsed'=> 'BSEd',
-    'bpe' => 'BPE',
-    'btle'=> 'BTLE',
-
-    // CEMDS
-    'bsba' => 'BSBA',
-    'bsacc'=> 'BSAcc',
-    'bseco'=> 'BSEco',
-    'bsent'=> 'BSEnt',
-    'bsoa' => 'BSOA',
-
-    // CSPEAR
-    'bpe'   => 'BPE',
-    'bsess' => 'BSESS',
+    'department of biological sciences'                     => 'DBS',
+    'department of physical sciences'                       => 'DPS',
+    'department of languages and mass communication'        => 'DLMC',
+    'department of social sciences'                         => 'DSS',
+    'department of mathematics and statistics'              => 'DMS',
 
     // CCJ
-    'bscrim'=> 'BSCrim',
+    'department of criminal justice'                        => 'DCJ',
+
+    // CEMDS
+    'department of economics'                               => 'DE',
+    'department of business and management'                 => 'DBM',
+    'department of development studies'                     => 'DDS',
+
+    // CED
+    'department of science education'                       => 'DSE',
+    'department of technology and livelihood education'     => 'DTLE',
+    'department of curriculum and instruction'              => 'DCI',
+    'department of human kinetics'                          => 'DHK',
+
+    // CEIT
+    'department of civil engineering'                       => 'DCE',
+    'department of computer and electronics engineering'    => 'DCEE',
+    'department of industrial engineering and technology'   => 'DIET',
+    'department of mechanical and electronics engineering'  => 'DMEE',
+    'department of information technology'                  => 'DIT',
 
     // CON
-    'bsn' => 'BSN',
-
-    // CTHM
-    'bshm'=> 'BSHM',
-    'bstm'=> 'BSTM',
+    'department of nursing'                                => 'DN',
 
     // COM
-    'blis'=> 'BLIS',
+    'department of basic medical sciences'                 => 'DBMS',
+    'department of clinical sciences'                      => 'DCS',
+
+    // CSPEAR
+    'department of physical education and recreation'      => 'DPER',
+
+    // CVMBS
+    'department of veterinary medicine'                    => 'DVM',
+    'department of biomedical sciences'                    => 'DBS',
 
     // GS-OLC
-    'phd' => 'PhD',
-    'ms'  => 'MS',
-    'ma'  => 'MA',
+    'department of various graduate programs'              => 'DVGP',
+];
+
+// Non-academic department full-name → code (for ADMIN, LIBRARY, HR, etc.)
+ $nonacad_department_map = [
+    'administration'                 => 'ADMIN',
+    'admin'                          => 'ADMIN',
+    'administrative'                 => 'ADMIN',
+
+    'finance'                        => 'FINANCE',
+    'financial'                      => 'FINANCE',
+
+    'human resources'                => 'HR',
+    'human resource'                 => 'HR',
+    'hr'                             => 'HR',
+
+    'information technology'         => 'IT',
+    'it'                             => 'IT',
+    'information tech'               => 'IT',
+    'tech support'                   => 'IT',
+
+    'maintenance'                    => 'MAINTENANCE',
+    'maint'                          => 'MAINTENANCE',
+
+    'security'                       => 'SECURITY',
+    'guard'                          => 'SECURITY',
+    'security guard'                 => 'SECURITY',
+
+    'library'                        => 'LIBRARY',
+    'lib'                            => 'LIBRARY',
+
+    'non-academic employees association' => 'NAEA',
+    'naea'                               => 'NAEA',
+
+    'non-academic employee services'     => 'NAES',
+    'naes'                               => 'NAES',
+
+    'non-academic employee management'   => 'NAEM',
+    'naem'                               => 'NAEM',
+
+    'non-academic employee health'       => 'NAEH',
+    'naeh'                               => 'NAEH',
+
+    'non-academic employee it'           => 'NAEIT',
+    'nae it'                             => 'NAEIT',
+];
+
+ $course_map = [
+  // === CEIT ===
+  'bs computer science'               => 'BSCS',
+  'bs cs'                             => 'BSCS',
+  'bachelor of science in computer science' => 'BSCS',
+  'bscs'                              => 'BSCS',
+
+  'bs information technology'         => 'BSIT',
+  'bs it'                             => 'BSIT',
+  'bachelor of science in information technology' => 'BSIT',
+  'bsit'                              => 'BSIT',
+
+  'bs computer engineering'           => 'BSCpE',
+  'bachelor of science in computer engineering' => 'BSCpE',
+  'bscpe'                             => 'BSCpE',
+
+  'bs electronics engineering'        => 'BSECE',
+  'bachelor of science in electronics engineering' => 'BSECE',
+  'bsece'                             => 'BSECE',
+
+  'bs civil engineering'              => 'BSCE',
+  'bachelor of science in civil engineering' => 'BSCE',
+  'bsce'                              => 'BSCE',
+
+  'bs mechanical engineering'         => 'BSME',
+  'bachelor of science in mechanical engineering' => 'BSME',
+  'bsme'                              => 'BSME',
+
+  'bs electrical engineering'         => 'BSEE',
+  'bachelor of science in electrical engineering' => 'BSEE',
+  'bsee'                              => 'BSEE',
+
+  'bs industrial engineering'         => 'BSIE',
+  'bachelor of science in industrial engineering' => 'BSIE',
+  'bsie'                              => 'BSIE',
+
+  'bs architecture'                   => 'BSArch',
+  'bachelor of science in architecture' => 'BSArch',
+  'bsarch'                            => 'BSArch',
+
+
+  // === CAS ===
+  'bs biology'                        => 'BSBio',
+  'bachelor of science in biology'    => 'BSBio',
+  'bsbio'                             => 'BSBio',
+
+  'bs chemistry'                      => 'BSChem',
+  'bachelor of science in chemistry'  => 'BSChem',
+  'bschem'                            => 'BSChem',
+
+  'bs mathematics'                    => 'BSMath',
+  'bachelor of science in mathematics'=> 'BSMath',
+  'bsmath'                            => 'BSMath',
+
+  'bs physics'                        => 'BSPhysics',
+  'bachelor of science in physics'    => 'BSPhysics',
+  'bsphysics'                         => 'BSPhysics',
+
+  'bs psychology'                     => 'BSPsych',
+  'bachelor of science in psychology' => 'BSPsych',
+  'bspsych'                           => 'BSPsych',
+
+  'ba english language studies'       => 'BAELS',
+  'bachelor of arts in english language studies' => 'BAELS',
+  'baels'                             => 'BAELS',
+
+  'ba communication'                  => 'BAComm',
+  'bachelor of arts in communication' => 'BAComm',
+  'bacomm'                            => 'BAComm',
+
+  'bs statistics'                     => 'BSStat',
+  'bachelor of science in statistics' => 'BSStat',
+  'bsstat'                            => 'BSStat',
+
+
+  // === CAFENR ===
+  'bs agriculture'                    => 'BSAgri',
+  'bachelor of science in agriculture'=> 'BSAgri',
+  'bsagri'                            => 'BSAgri',
+
+  'bs agribusiness'                   => 'BSAB',
+  'bachelor of science in agribusiness' => 'BSAB',
+  'bsab'                              => 'BSAB',
+
+  'bs environmental science'          => 'BSES',
+  'bachelor of science in environmental science' => 'BSES',
+  'bses'                              => 'BSES',
+
+  'bs food technology'                => 'BSFT',
+  'bachelor of science in food technology' => 'BSFT',
+  'bsft'                              => 'BSFT',
+
+  'bs forestry'                       => 'BSFor',
+  'bachelor of science in forestry'   => 'BSFor',
+  'bsfor'                             => 'BSFor',
+
+  'bs agricultural and biosystems engineering' => 'BSABE',
+  'bachelor of science in agricultural and biosystems engineering' => 'BSABE',
+  'bsabe'                             => 'BSABE',
+
+  'bachelor of agricultural entrepreneurship' => 'BAE',
+  'bachelor of agricultural engineering'      => 'BAE',
+  'bae'                               => 'BAE',
+
+  'bs land use design and management' => 'BSLDM',
+  'bachelor of science in land use design and management' => 'BSLDM',
+  'bsldm'                             => 'BSLDM',
+
+
+  // === CVMBS ===
+  'doctor of veterinary medicine'     => 'DVM',
+  'dvm'                               => 'DVM',
+
+  'bs pre-veterinary medicine'        => 'BSPV',
+  'bachelor of science in pre-veterinary medicine' => 'BSPV',
+  'bspv'                              => 'BSPV',
+
+
+  // === CED ===
+  'bachelor of elementary education'  => 'BEEd',
+  'beed'                              => 'BEEd',
+
+  'bachelor of secondary education'   => 'BSEd',
+  'bsed'                              => 'BSEd',
+
+  'bachelor of physical education'    => 'BPE',
+  'bpe'                               => 'BPE',
+
+  'bachelor of technology and livelihood education' => 'BTLE',
+  'btle'                              => 'BTLE',
+
+
+  // === CEMDS ===
+  'bs business administration'        => 'BSBA',
+  'bachelor of science in business administration' => 'BSBA',
+  'bsba'                              => 'BSBA',
+
+  'bs accountancy'                    => 'BSAcc',
+  'bachelor of science in accountancy'=> 'BSAcc',
+  'bsacc'                             => 'BSAcc',
+
+  'bs economics'                      => 'BSEco',
+  'bachelor of science in economics'  => 'BSEco',
+  'bseco'                             => 'BSEco',
+
+  'bs entrepreneurship'               => 'BSEnt',
+  'bachelor of science in entrepreneurship' => 'BSEnt',
+  'bsent'                             => 'BSEnt',
+
+  'bs office administration'          => 'BSOA',
+  'bachelor of science in office administration' => 'BSOA',
+  'bsoa'                              => 'BSOA',
+
+
+  // === CSPEAR ===
+  'bachelor of physical education'    => 'BPE',    
+  'bpe'                               => 'BPE',
+
+  'bs exercise and sports sciences'   => 'BSESS',
+  'bachelor of science in exercise and sports sciences' => 'BSESS',
+  'bsess'                             => 'BSESS',
+
+
+  // === CCJ ===
+  'bs criminology'                    => 'BSCrim',
+  'bachelor of science in criminology'=> 'BSCrim',
+  'bscrim'                            => 'BSCrim',
+
+
+  // === CON ===
+  'bs nursing'                        => 'BSN',
+  'bachelor of science in nursing'    => 'BSN',
+  'bsn'                               => 'BSN',
+
+
+  // === CTHM ===
+  'bs hospitality management'         => 'BSHM',
+  'bachelor of science in hospitality management' => 'BSHM',
+  'bshm'                              => 'BSHM',
+
+  'bs tourism management'             => 'BSTM',
+  'bachelor of science in tourism management' => 'BSTM',
+  'bstm'                              => 'BSTM',
+
+
+  // === COM ===
+  'bachelor of library and information science' => 'BLIS',
+  'blis'                              => 'BLIS',
+
+
+  // === GS-OLC ===
+  'doctor of philosophy'              => 'PhD',
+  'phd'                               => 'PhD',
+
+  'master of science'                 => 'MS',
+  'ms'                                => 'MS',
+
+  'master of arts'                    => 'MA',
+  'ma'                                => 'MA',
 ];
 
 // ===== LOAD CURRENT VOTER =====
  $user_id = (int)$_SESSION['user_id'];
 
  $userSql = "
-    SELECT 
-        position,
-        department,
-        course,
-        status,
-        migs_status,
-        force_password_change,
-        is_coop_member,
-        owner_scope_id,
-        is_other_member,
-        department1
-    FROM users
-    WHERE user_id = :uid
-    LIMIT 1
+   SELECT 
+       position,
+       department,
+       course,
+       status,
+       migs_status,
+       force_password_change,
+       is_coop_member,
+       owner_scope_id,
+       is_other_member,
+       department1
+   FROM users
+   WHERE user_id = :uid
+   LIMIT 1
 ";
  $stmtUser = $pdo->prepare($userSql);
  $stmtUser->execute([':uid' => $user_id]);
@@ -210,13 +437,29 @@ if (isset($department_map[$voter_department_lower])) {
     $voter_college_normalized = strtoupper($voter_department_lower);
 }
 
- $voter_course_lower = strtolower(trim($voter_course));
+// Normalize course (supports both full names and codes → canonical code like BSIT, BSCS)
+ $voter_course_raw   = $voter_course ?? '';
+ $voter_course_lower = strtolower(trim($voter_course_raw));
+
+// Try direct match (full name or code)
 if (isset($course_map[$voter_course_lower])) {
     $voter_course_normalized = $course_map[$voter_course_lower];
-} elseif (isset($course_map[strtoupper($voter_course_lower)])) {
-    $voter_course_normalized = $course_map[strtoupper($voter_course_lower)];
 } else {
-    $voter_course_normalized = strtoupper($voter_course_lower);
+    // Normalize spaces (collapse multiple spaces)
+    $key_spaces = preg_replace('/\s+/', ' ', $voter_course_lower);
+
+    if (isset($course_map[$key_spaces])) {
+        $voter_course_normalized = $course_map[$key_spaces];
+    } else {
+        // Remove non-letters (e.g., dots, commas) for very rough matches
+        $key_letters = preg_replace('/[^a-z]/', '', $voter_course_lower);
+        if (isset($course_map[$key_letters])) {
+            $voter_course_normalized = $course_map[$key_letters];
+        } else {
+            // Fallback: just uppercase what we have (will only match if elections also use that format)
+            $voter_course_normalized = strtoupper($voter_course_lower);
+        }
+    }
 }
 
  $voter_status_normalized = strtoupper(trim($voter_status));
@@ -334,11 +577,20 @@ foreach ($all_elections as $election) {
         $deptMatch   = false;
         $statusMatch = false;
 
-        // Department check
+        // Department check (non-academic & others)
         if (empty($allowed_departments) || in_array('ALL', $allowed_departments, true)) {
             $deptMatch = true;
         } else {
-            $voterDeptUpper = strtoupper($voter['department'] ?: $voter_college_normalized);
+            $rawDept   = $voter['department'] ?: $voter_college_normalized;
+            $deptKey   = strtolower(trim($rawDept));
+
+            // Normalize to canonical department code (ADMIN, LIBRARY, HR, etc.)
+            if (isset($nonacad_department_map[$deptKey])) {
+                $voterDeptUpper = $nonacad_department_map[$deptKey];   // canonical code
+            } else {
+                $voterDeptUpper = strtoupper($rawDept); // fallback: treat as already a code
+            }
+
             if (in_array($voterDeptUpper, $allowed_departments, true)) {
                 $deptMatch = true;
             }
@@ -392,23 +644,14 @@ foreach ($all_elections as $election) {
         
         // Log department condition if it was applied
         if (!empty($allowed_departments) && !in_array('ALL', $allowed_departments, true)) {
-            $voterDept1 = trim($voter_department1 ?? '');
+            $voterDept1     = trim($voter_department1 ?? '');
             $voterDeptUpper = 'General'; // Default value
-            
-            if (!empty($voterDept1)) {
-                // Try to map full department name to abbreviation
-                $deptMap = [
-                    'Department of Computer and Electronics Engineering' => 'DCEE',
-                    'Department of Information Technology' => 'DIT',
-                    'Department of Civil Engineering' => 'DCE',
-                    'Department of Industrial Engineering and Technology' => 'DIET',
-                    'Department of Mechanical and Electronics Engineering' => 'DMEE',
-                    // Add more mappings as needed
-                ];
-                
-                $voterDeptUpper = $deptMap[$voterDept1] ?? $voterDeptUpper;
+
+            if ($voterDept1 !== '') {
+                $deptKey        = strtolower($voterDept1);
+                $voterDeptUpper = $faculty_department_map[$deptKey] ?? $voterDeptUpper;
             }
-            
+
             $deptAllowed = in_array($voterDeptUpper, $allowed_departments, true);
             error_log("Department Allowed: " . ($deptAllowed ? 'Yes' : 'No') . " (Voter Dept: " . $voterDeptUpper . ")");
         } else {
@@ -421,23 +664,14 @@ foreach ($all_elections as $election) {
     if ($electionTargetPos === 'faculty') {
         // Optional: if allowed_departments is set and not ALL, restrict by department code.
         if (!empty($allowed_departments) && !in_array('ALL', $allowed_departments, true)) {
-            $voterDept1 = trim($voter_department1 ?? '');
+            $voterDept1     = trim($voter_department1 ?? '');
             $voterDeptUpper = 'General'; // Default value
-            
-            if (!empty($voterDept1)) {
-                // Try to map full department name to abbreviation
-                $deptMap = [
-                    'Department of Computer and Electronics Engineering' => 'DCEE',
-                    'Department of Information Technology' => 'DIT',
-                    'Department of Civil Engineering' => 'DCE',
-                    'Department of Industrial Engineering and Technology' => 'DIET',
-                    'Department of Mechanical and Electronics Engineering' => 'DMEE',
-                    // Add more mappings as needed
-                ];
-                
-                $voterDeptUpper = $deptMap[$voterDept1] ?? $voterDeptUpper;
+
+            if ($voterDept1 !== '') {
+                $deptKey        = strtolower($voterDept1);
+                $voterDeptUpper = $faculty_department_map[$deptKey] ?? $voterDeptUpper;
             }
-            
+
             if (!in_array($voterDeptUpper, $allowed_departments, true)) {
                 $collegeAllowed = false;
             }

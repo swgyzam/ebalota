@@ -3,14 +3,14 @@ session_start();
 date_default_timezone_set('Asia/Manila');
 
 // --- DB Connection ---
- $host    = 'localhost';
- $db      = 'evoting_system';
- $user    = 'root';
- $pass    = '';
- $charset = 'utf8mb4';
+$host    = 'localhost';
+$db      = 'evoting_system';
+$user    = 'root';
+$pass    = '';
+$charset = 'utf8mb4';
 
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
@@ -28,13 +28,15 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin','super
 }
 
 // Get current admin info from session
- $adminRole     = $_SESSION['role'];
- $assignedScope = strtoupper(trim($_SESSION['assigned_scope'] ?? ''));
- $scopeCategory = $_SESSION['scope_category'] ?? ''; // e.g. Academic-Student, Academic-Faculty, Non-Academic-Student, Others-Default, Non-Academic-Employee
+$adminRole      = $_SESSION['role'];
+$assignedScope  = strtoupper(trim($_SESSION['assigned_scope']   ?? ''));  // e.g. CEIT, FACULTY ASSOCIATION
+$assignedScope1 = trim($_SESSION['assigned_scope_1'] ?? '');             // e.g. "Multiple: BSIT, BSCS" or "All"
+$scopeCategory  = $_SESSION['scope_category']   ?? '';                   // e.g. Academic-Student, Academic-Faculty, Non-Academic-Student, Others-Default, Non-Academic-Employee
 
 // Resolve this admin's scope seat (admin_scopes), if applicable
- $myScopeId   = null;
- $myScopeType = null;
+$myScopeId       = null;
+$myScopeType     = null;
+$myScopeDetails  = [];
 
 if ($adminRole === 'admin' && !empty($scopeCategory)) {
     $scopeStmt = $pdo->prepare("
@@ -52,6 +54,13 @@ if ($adminRole === 'admin' && !empty($scopeCategory)) {
     if ($scopeRow) {
         $myScopeId   = (int)$scopeRow['scope_id'];
         $myScopeType = $scopeRow['scope_type'];
+
+        if (!empty($scopeRow['scope_details'])) {
+            $decoded = json_decode($scopeRow['scope_details'], true);
+            if (is_array($decoded)) {
+                $myScopeDetails = $decoded;
+            }
+        }
     }
 }
 
@@ -77,26 +86,218 @@ if ($adminRole === 'super_admin') {
     $adminType = 'general_admin';
 }
 
-// NEW: refine adminType semantics using scope_category (override old assigned_scope logic)
+// NEW: refine adminType semantics using scope_category (override old assigned_scope logic).
+// Legacy assigned_scope mapping stays above as a fallback for older admins.
 if ($scopeCategory === 'Non-Academic-Student') {
-    // Org-based student admins still use student CSV format
+    // Org-based student admins: student CSV format
     $adminType = 'admin_students';
+
 } elseif ($scopeCategory === 'Others-Default') {
-    // Others-Default admins use COOP-like CSV format
-    $adminType = 'admin_non_academic'; // Still use admin_non_academic for processing, but with custom format
-} elseif ($scopeCategory === 'Academic-Faculty') {
-    // Academic-Faculty admins should use faculty/academic CSV format
-    $adminType = 'admin_academic';
-} elseif ($scopeCategory === 'Non-Academic-Employee') {
-    // Non-Academic-Employee admins use non-academic CSV format
+    // Others-Default admins: employee CSV, but with owner_scope_id + is_other_member = 1
     $adminType = 'admin_non_academic';
+
+} elseif ($scopeCategory === 'Academic-Faculty') {
+    // Academic-Faculty admins: faculty/academic CSV
+    $adminType = 'admin_academic';
+
+} elseif ($scopeCategory === 'Non-Academic-Employee') {
+    // Non-Academic-Employee admins: non-academic CSV
+    $adminType = 'admin_non_academic';
+
+} elseif ($scopeCategory === 'Others-COOP') {
+    // COOP admin using new scope system
+    $adminType = 'admin_coop';
+
+} elseif ($scopeCategory === 'Special-Scope') {
+    // CSG Admin (global students)
+    $adminType = 'admin_students';
+}
+
+// ---------------------------------------------------------------------
+// Build scope-aware summary for instructions (human readable)
+// ---------------------------------------------------------------------
+$scopeSummaryHtml = '';
+
+if ($adminRole === 'super_admin') {
+    $scopeSummaryHtml = '
+        <div class="mt-2 bg-blue-100 text-blue-900 p-3 rounded text-sm">
+            <p><strong>Scope:</strong> You are a super admin and can upload voters for any position, college, department, and course.</p>
+            <p class="mt-1 text-xs text-blue-900/80">
+                <strong>Note:</strong> For students and academic staff, use <em>codes</em> in the CSV (e.g., <code>CEIT</code>, <code>DIT</code>, <code>BSIT</code>).
+                The system automatically converts these codes into full names when saving to the database.
+            </p>
+        </div>
+    ';
+} else {
+
+    // Helper: pretty course scope from assigned_scope1
+    $courseScopeDisplay = '';
+    if ($assignedScope1 !== '' && strcasecmp($assignedScope1, 'All') !== 0) {
+        $clean = preg_replace('/^(Courses?:\s*)?Multiple:\s*/i', '', $assignedScope1);
+        $parts = array_filter(array_map('trim', explode(',', $clean)));
+        if (!empty($parts)) {
+            $courseScopeDisplay = implode(', ', $parts);
+        }
+    }
+
+    // Helper: pretty departments from myScopeDetails
+    $deptScopeDisplay = '';
+    if (!empty($myScopeDetails['departments']) && is_array($myScopeDetails['departments'])) {
+        $deptCodes = array_filter(array_map('trim', $myScopeDetails['departments']));
+        if (!empty($deptCodes)) {
+            $deptScopeDisplay = implode(', ', $deptCodes);
+        }
+    }
+
+    if ($scopeCategory === 'Academic-Student') {
+        $collegeCode = $assignedScope ?: ($myScopeDetails['college'] ?? '');
+        $courseText  = 'All courses in this college';
+        if ($courseScopeDisplay !== '') {
+            $courseText = $courseScopeDisplay;
+        } elseif (!empty($myScopeDetails['courses']) && is_array($myScopeDetails['courses'])) {
+            $courseText = implode(', ', $myScopeDetails['courses']);
+        }
+
+        $scopeSummaryHtml = '
+            <div class="mt-2 bg-blue-100 text-blue-900 p-3 rounded text-sm">
+                <p><strong>Your upload scope:</strong></p>
+                <ul class="list-disc pl-5">
+                    <li>Allowed position: <code>student</code> only.</li>
+                    <li>College scope (code): <code>' . htmlspecialchars($collegeCode) . '</code>.</li>
+                    <li>Course scope (codes): <code>' . htmlspecialchars($courseText) . '</code>.</li>
+                    <li>Rows with different positions/colleges/courses will be rejected during processing.</li>
+                </ul>
+                <p class="mt-2 text-xs text-blue-900/80">
+                    <strong>IMPORTANT:</strong> In the CSV, use <em>codes</em> only for:
+                    <code>college</code> (e.g., <code>CEIT</code>), 
+                    <code>department</code> (e.g., <code>DIT</code>, <code>DCEE</code>), and 
+                    <code>course</code> (e.g., <code>BSIT</code>, <code>BSCS</code>).
+                    The system will automatically convert these codes into full department and course names in the database.
+                </p>
+            </div>
+        ';
+
+    } elseif ($scopeCategory === 'Academic-Faculty') {
+        $collegeCode = $assignedScope ?: ($myScopeDetails['college'] ?? '');
+        $deptText    = 'All departments in this college';
+        if ($deptScopeDisplay !== '') {
+            $deptText = $deptScopeDisplay;
+        } elseif ($assignedScope1 !== '' && strcasecmp($assignedScope1, 'All') !== 0) {
+            $deptText = $assignedScope1;
+        }
+
+        $scopeSummaryHtml = '
+            <div class="mt-2 bg-blue-100 text-blue-900 p-3 rounded text-sm">
+                <p><strong>Your upload scope:</strong></p>
+                <ul class="list-disc pl-5">
+                    <li>Allowed position: <code>academic</code> (faculty) only.</li>
+                    <li>College scope (code): <code>' . htmlspecialchars($collegeCode) . '</code>.</li>
+                    <li>Department scope (codes): <code>' . htmlspecialchars($deptText) . '</code>.</li>
+                    <li>Rows outside these departments/college will be rejected during processing.</li>
+                </ul>
+                <p class="mt-2 text-xs text-blue-900/80">
+                    <strong>IMPORTANT:</strong> In the CSV, use department <em>codes</em> (e.g., <code>DIT</code>, <code>DCEE</code>, <code>DMS</code>) 
+                    in the <code>department</code> column. The system automatically converts these codes to full department names in the database.
+                </p>
+            </div>
+        ';
+
+    } elseif ($scopeCategory === 'Non-Academic-Employee') {
+        $deptText = $deptScopeDisplay !== '' ? $deptScopeDisplay : 'Your assigned non-academic departments';
+
+        $scopeSummaryHtml = '
+            <div class="mt-2 bg-blue-100 text-blue-900 p-3 rounded text-sm">
+                <p><strong>Your upload scope:</strong></p>
+                <ul class="list-disc pl-5">
+                    <li>Allowed position: <code>non-academic</code> only.</li>
+                    <li>Department scope (codes): <code>' . htmlspecialchars($deptText) . '</code>.</li>
+                    <li>Rows with other positions or departments will be rejected during processing.</li>
+                </ul>
+                <p class="mt-2 text-xs text-blue-900/80">
+                    For non-academic staff, use department codes like <code>ADMIN</code>, <code>FINANCE</code>, <code>LIBRARY</code>, <code>NAEA</code>.
+                </p>
+            </div>
+        ';
+
+    } elseif ($scopeCategory === 'Non-Academic-Student') {
+        $scopeSummaryHtml = '
+            <div class="mt-2 bg-blue-100 text-blue-900 p-3 rounded text-sm">
+                <p><strong>Your upload scope:</strong></p>
+                <ul class="list-disc pl-5">
+                    <li>Allowed position: <code>student</code> only.</li>
+                    <li>College, department, and course can be any valid values (multi-college org members are allowed).</li>
+                    <li>All uploaded students will belong <strong>only to your organization scope</strong> and will be visible/manageable by you.</li>
+                </ul>
+                <p class="mt-2 text-xs text-blue-900/80">
+                    Use college and course codes (e.g., <code>CEIT</code>, <code>BSIT</code>) in the CSV. The system converts them into full names internally.
+                </p>
+            </div>
+        ';
+
+    } elseif ($scopeCategory === 'Others-Default') {
+        $scopeSummaryHtml = '
+            <div class="mt-2 bg-blue-100 text-blue-900 p-3 rounded text-sm">
+                <p><strong>Your upload scope:</strong></p>
+                <ul class="list-disc pl-5">
+                    <li>Allowed positions: <code>academic</code> (faculty) and <code>non-academic</code> staff.</li>
+                    <li>All uploaded rows will be tagged as <code>Others-Default</code> members under your scope and will set <code>is_other_member = 1</code>.</li>
+                    <li>Students are not allowed in this upload.</li>
+                </ul>
+                <p class="mt-2 text-xs text-blue-900/80">
+                    For academic rows, use department codes (e.g., <code>DIT</code>, <code>DCEE</code>); for non-academic rows, use department codes like <code>ADMIN</code>, <code>LIBRARY</code>.
+                    The system converts academic department codes to full names.
+                </p>
+            </div>
+        ';
+
+    } elseif ($scopeCategory === 'Others-COOP') {
+        $scopeSummaryHtml = '
+            <div class="mt-2 bg-blue-100 text-blue-900 p-3 rounded text-sm">
+                <p><strong>Your upload scope:</strong></p>
+                <ul class="list-disc pl-5">
+                    <li>Allowed positions: <code>academic</code> and <code>non-academic</code>.</li>
+                    <li>All uploaded rows must be COOP members (<code>is_coop_member = 1</code>).</li>
+                    <li>Rows with other positions or non-COOP members will be rejected during processing.</li>
+                </ul>
+                <p class="mt-2 text-xs text-blue-900/80">
+                    For academic COOP members, use department codes (e.g., <code>DIT</code>, <code>DBS</code>) in the CSV; the system will store full department names.
+                </p>
+            </div>
+        ';
+
+    } elseif ($scopeCategory === 'Special-Scope') {
+        // CSG Admin
+        $scopeSummaryHtml = '
+            <div class="mt-2 bg-blue-100 text-blue-900 p-3 rounded text-sm">
+                <p><strong>Your upload scope:</strong></p>
+                <ul class="list-disc pl-5">
+                    <li>Allowed position: <code>student</code> only (global CSG voters).</li>
+                    <li>Students uploaded here will be treated as <strong>global students</strong> (not tied to any organization scope).</li>
+                    <li>Org-specific student members belong under Non-Academic-Student admins, not here.</li>
+                </ul>
+                <p class="mt-2 text-xs text-blue-900/80">
+                    Use college, department, and course <em>codes</em> (e.g., <code>CEIT</code>, <code>DIT</code>, <code>BSIT</code>); the system will expand them to full names.
+                </p>
+            </div>
+        ';
+    } else {
+        // Generic admin (fallback)
+        $scopeSummaryHtml = '
+            <div class="mt-2 bg-blue-100 text-blue-900 p-3 rounded text-sm">
+                <p><strong>Your upload scope:</strong> generic admin — please follow the column rules below. Additional scope-based validation may apply.</p>
+                <p class="mt-1 text-xs text-blue-900/80">
+                    For consistency, use college/department/course codes in the CSV; the system maps these into full names where needed.
+                </p>
+            </div>
+        ';
+    }
 }
 
 // ---------------------------------------------------------------------
 // Build instructions + CSV examples
 // ---------------------------------------------------------------------
- $instructions = '';
- $csvExample   = '';
+$instructions = '';
+$csvExample   = '';
 
 switch ($adminType) {
 
@@ -106,76 +307,91 @@ switch ($adminType) {
         // 2) Org-based Non-Academic-Student admins
         if ($scopeCategory === 'Non-Academic-Student') {
             // Non-Academic - Student Admin: org-based student voters
-            $instructions = '
+            $instructions  = '
                 <h3 class="font-semibold text-blue-800 mb-2">Instructions for Non-Academic Student Organization Members:</h3>
                 <ul class="list-disc pl-5 text-blue-700 space-y-1">
                     <li>Upload a CSV file containing student members of <strong>your organization/scope</strong>.</li>
                     <li>The CSV must have these columns in order:
                         <code>first_name, last_name, email, position, student_number, college, department, course</code>
                     </li>
-                    <li><strong>position</strong> should be set to <code>student</code> for all rows.</li>
+                    <li><strong>position</strong> must be <code>student</code> for all rows.</li>
+                    <li><strong>college</strong> must use the college <em>code</em> (e.g., <code>CEIT</code>, <code>CAS</code>).</li>
+                    <li><strong>department</strong> must use the academic department <em>code</em> (e.g., <code>DIT</code>, <code>DCEE</code>, <code>DMS</code>).</li>
+                    <li><strong>course</strong> must use the course <em>code</em> (e.g., <code>BSIT</code>, <code>BSCS</code>, <code>BSAGRI</code>).</li>
                     <li>All uploaded students will be added with role <code>voter</code> and position <code>student</code>.</li>
-                    <li>These members will be tied to <strong>your scope</strong> (owner_scope_id) so only your org admin can manage them.</li>
-                    <li><strong>Note:</strong> college/department/course are for reference and filtering; scope ownership will still follow your assigned org scope.</li>
+                    <li>Ownership: all uploaded students will be tied <strong>only to your organization scope</strong> (owner_scope_id) so only your org admin can manage them.</li>
                 </ul>
             ';
-            // Keep same column order as legacy student format (important for process_users_csv.php)
+            // Append scope summary block
+            $instructions .= $scopeSummaryHtml;
+
             $csvExample = '
-                <h3 class="font-semibold text-yellow-800 mb-2">Non-Academic Student Org CSV Format Example:</h3>
+                <h3 class="font-semibold text-yellow-800 mb-2">Non-Academic Student Org CSV Format Example (using codes):</h3>
                 <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">first_name,last_name,email,position,student_number,college,department,course
-Raven,Kyle,raven.kyle@example.com,student,202200151,CEIT,Department of Information Technology,BS Information Technology
-Jam,Benito,jam.benito@example.com,student,202200146,CEIT,Department of Information Technology,BS Information Technology</pre>
+Raven,Kyle,raven.kyle@example.com,student,202200151,CEIT,DIT,BSIT
+Jam,Benito,jam.benito@example.com,student,202200146,CEIT,DCEE,BSCS</pre>
             ';
         } else {
             // Default: college-level student admins / CSG ADMIN
-            $instructions = '
+            $instructions  = '
                 <h3 class="font-semibold text-blue-800 mb-2">Instructions for Student Voters:</h3>
                 <ul class="list-disc pl-5 text-blue-700 space-y-1">
                     <li>Upload a CSV file containing student voters to add to the system.</li>
                     <li>The CSV must have these columns in order:
                         <code>first_name, last_name, email, position, student_number, college, department, course</code>
                     </li>
-                    <li><strong>position</strong> should be set to <code>student</code> for all rows.</li>
+                    <li><strong>position</strong> must be <code>student</code> for all rows.</li>
+                    <li><strong>college</strong> must be the college <em>code</em> (e.g., <code>CEIT</code>, <code>CAS</code>, <code>CAFENR</code>).</li>
+                    <li><strong>department</strong> must be the academic department <em>code</em> (e.g., <code>DIT</code>, <code>DCE</code>, <code>DBS</code>). These will be stored as full department names.</li>
+                    <li><strong>course</strong> must be the course <em>code</em> (e.g., <code>BSIT</code>, <code>BSCS</code>, <code>BSN</code>). These will be stored as full course names.</li>
                     <li>Passwords will be automatically generated for each student.</li>
                     <li>Students will be added with the role <code>voter</code> and position <code>student</code>.</li>
-                    <li>Only students that match your assigned college and course scope will be processed.</li>
-                    <li><strong>Note:</strong> is_coop_member will automatically be set to 0.</li>
+                    <li>Scope-based validation will ensure that only students matching your allowed college/course scope are accepted.</li>
+                    <li><strong>Note:</strong> <code>is_coop_member</code> will automatically be set to 0 for student uploads.</li>
                 </ul>
             ';
+            // Append scope summary block
+            $instructions .= $scopeSummaryHtml;
+
             $csvExample = '
-                <h3 class="font-semibold text-yellow-800 mb-2">Student CSV Format Example:</h3>
+                <h3 class="font-semibold text-yellow-800 mb-2">Student CSV Format Example (using codes):</h3>
                 <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">first_name,last_name,email,position,student_number,college,department,course
-John,Doe,john.doe@example.com,student,20231001,CEIT,Department of Computer and Electronics Engineering,BS Computer Science
-Jane,Smith,jane.smith@example.com,student,20231002,CAS,Department of Biological Sciences,BS Psychology</pre>
+John,Doe,john.doe@example.com,student,20231001,CEIT,DCEE,BSCS
+Jane,Smith,jane.smith@example.com,student,20231002,CAS,DBS,BSPSYCH</pre>
             ';
         }
         break;
 
     case 'admin_academic':
-        $instructions = '
+        $instructions  = '
             <h3 class="font-semibold text-blue-800 mb-2">Instructions for Academic Voters (Faculty):</h3>
             <ul class="list-disc pl-5 text-blue-700 space-y-1">
                 <li>Upload a CSV file containing faculty members to add to the system.</li>
                 <li>The CSV must have these columns in order:
                     <code>first_name, last_name, email, position, employee_number, college, department, status, is_coop_member</code>
                 </li>
-                <li>Passwords will be automatically generated for each faculty member.</li>
-                <li>Faculty will be added with the role <code>voter</code> and position <code>academic</code>.</li>
-                <li>Only faculty from your assigned departments will be processed.</li>
+                <li><strong>position</strong> must be <code>academic</code> for all rows.</li>
+                <li><strong>college</strong> must be the college <em>code</em> (e.g., <code>CEIT</code>, <code>CAS</code>).</li>
+                <li><strong>department</strong> must be the academic department <em>code</em> (e.g., <code>DIT</code>, <code>DCEE</code>, <code>DMS</code>). It will be stored as a full department name.</li>
+                <li><strong>status</strong> can be <code>Regular</code>, <code>Part-time</code>, or <code>Contractual</code> (common variants like "full-time" will be normalized).</li>
+                <li><strong>is_coop_member</strong> should be <code>0</code> or <code>1</code> depending on COOP membership (for standard faculty admins this is usually 0).</li>
+                <li>Scope-based validation will ensure that only faculty from your allowed college/department scope are accepted.</li>
             </ul>
         ';
+        $instructions .= $scopeSummaryHtml;
+
         $csvExample = '
-            <h3 class="font-semibold text-yellow-800 mb-2">Academic CSV Format Example:</h3>
+            <h3 class="font-semibold text-yellow-800 mb-2">Academic CSV Format Example (using codes):</h3>
             <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">first_name,last_name,email,position,employee_number,college,department,status,is_coop_member
-John,Doe,john.doe@example.com,academic,1001,CEIT,Department of Computer and Electronics Engineering,regular,0
-Jane,Smith,jane.smith@example.com,academic,1002,CAS,Department of Biological Sciences,regular,1</pre>
+John,Doe,john.doe@example.com,academic,1001,CEIT,DCEE,Regular,0
+Jane,Smith,jane.smith@example.com,academic,1002,CAS,DBS,Part-time,1</pre>
         ';
         break;
 
     case 'admin_non_academic':
         if ($scopeCategory === 'Others-Default') {
-            // Others-Default: faculty + non-ac employees, with owner_scope_id & is_other_member
-            $instructions = '
+            // Others-Default: faculty + non-ac employees under association-like scope
+            $instructions  = '
                 <h3 class="font-semibold text-blue-800 mb-2">Instructions for Others - Default Admin (Faculty & Non-Academic Employees):</h3>
                 <ul class="list-disc pl-5 text-blue-700 space-y-1">
                     <li>Upload a CSV file containing <strong>faculty and/or non-academic employees</strong> who belong to your scope.</li>
@@ -183,89 +399,138 @@ Jane,Smith,jane.smith@example.com,academic,1002,CAS,Department of Biological Sci
                         <code>first_name, last_name, email, position, employee_number, college, department, status, is_other_member</code>
                     </li>
                     <li><strong>position</strong> should be <code>academic</code> for faculty and <code>non-academic</code> for staff.</li>
-                    <li><strong>college</strong>:
-                        <ul class="list-disc pl-5">
-                            <li>For faculty: set to the college code (e.g., <code>CEIT</code>, <code>CAS</code>).</li>
-                            <li>For non-academic staff: you may leave college blank or use an appropriate office/college code.</li>
+                    <li>For <strong>academic</strong> rows:
+                        <ul class="list-disc pl-6">
+                            <li><code>college</code> = college code (e.g., <code>CEIT</code>, <code>CAS</code>).</li>
+                            <li><code>department</code> = academic department code (e.g., <code>DIT</code>, <code>DCEE</code>, <code>DMS</code>).</li>
                         </ul>
                     </li>
-                    <li>Passwords will be automatically generated for each employee.</li>
-                    <li>All uploaded users will be added with role <code>voter</code> and tied to <strong>your scope</strong> via <code>owner_scope_id</code>, so only your admin can manage them.</li>
-                    <li><strong>is_other_member</strong> will be set to <code>1</code> for all uploaded rows (you can put 1 in the CSV or leave it blank; the system will enforce 1 during processing).</li>
+                    <li>For <strong>non-academic</strong> rows:
+                        <ul class="list-disc pl-6">
+                            <li><code>college</code> may be left blank.</li>
+                            <li><code>department</code> = non-ac department code (e.g., <code>ADMIN</code>, <code>LIBRARY</code>, <code>FINANCE</code>, <code>NAEA</code>).</li>
+                        </ul>
+                    </li>
+                    <li><strong>status</strong> can be <code>Regular</code>, <code>Part-time</code>, or <code>Contractual</code> (variants normalized).</li>
+                    <li><strong>is_other_member</strong> may be 0/1 in the CSV; the system will treat all uploaded rows as Others-Default members and set it to 1 internally.</li>
+                    <li>Password and verification are handled automatically; all users are added as role <code>voter</code>.</li>
                 </ul>
             ';
+            $instructions .= $scopeSummaryHtml;
+
             $csvExample = '
-                <h3 class="font-semibold text-yellow-800 mb-2">Others - Default Employee CSV Format Example:</h3>
+                <h3 class="font-semibold text-yellow-800 mb-2">Others - Default Employee CSV Format Example (using codes):</h3>
                 <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">first_name,last_name,email,position,employee_number,college,department,status,is_other_member
-Juan,DelaCruz,juan.dc@example.com,academic,2001,CEIT,DIT,regular,1
-Maria,Santos,maria.santos@example.com,non-academic,2002,,LIBRARY,contractual,1</pre>
+Juan,DelaCruz,juan.dc@example.com,academic,2001,CEIT,DIT,Regular,1
+Maria,Santos,maria.santos@example.com,non-academic,2002,,LIBRARY,Contractual,1</pre>
             ';
         } else {
-            // Non-Academic-Employee & legacy NON-ACADEMIC: global non-ac staff, no owner_scope_id
-            $instructions = '
+            // Non-Academic-Employee & legacy NON-ACADEMIC: department-scoped non-ac staff
+            $instructions  = '
                 <h3 class="font-semibold text-blue-800 mb-2">Instructions for Non-Academic Employees:</h3>
                 <ul class="list-disc pl-5 text-blue-700 space-y-1">
                     <li>Upload a CSV file containing non-academic staff to add to the system.</li>
                     <li>The CSV must have these columns in order:
                         <code>first_name, last_name, email, position, employee_number, department, status, is_coop_member</code>
                     </li>
-                    <li><strong>position</strong> should be set to <code>non-academic</code> for all rows.</li>
-                    <li>Passwords will be automatically generated for each employee.</li>
-                    <li>Non-academic staff will be added with the role <code>voter</code> and position <code>non-academic</code>.</li>
-                    <li>These users are <strong>not</strong> tied to an owner scope; visibility is based on their department (per your Non-Academic-Employee scope settings).</li>
+                    <li><strong>position</strong> must be <code>non-academic</code> for all rows.</li>
+                    <li><strong>department</strong> must be a non-ac department code: e.g., <code>ADMIN</code>, <code>FINANCE</code>, <code>HR</code>, <code>IT</code>, <code>LIBRARY</code>, <code>NAEA</code>.</li>
+                    <li><strong>status</strong> can be <code>Regular</code>, <code>Part-time</code>, or <code>Contractual</code> (variants normalized).</li>
+                    <li><strong>is_coop_member</strong> should be 0/1 depending on COOP membership (if applicable).</li>
+                    <li>Scope-based validation will ensure that only staff from your allowed department scope are accepted.</li>
                 </ul>
             ';
+            $instructions .= $scopeSummaryHtml;
+
             $csvExample = '
-                <h3 class="font-semibold text-yellow-800 mb-2">Non-Academic CSV Format Example:</h3>
+                <h3 class="font-semibold text-yellow-800 mb-2">Non-Academic CSV Format Example (using department codes):</h3>
                 <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">first_name,last_name,email,position,employee_number,department,status,is_coop_member
-John,Doe,john.doe@example.com,non-academic,1001,ADMIN,regular,0
-Jane,Smith,jane.smith@example.com,non-academic,1002,LIBRARY,part-time,1</pre>
+John,Doe,john.doe@example.com,non-academic,1001,ADMIN,Regular,0
+Jane,Smith,jane.smith@example.com,non-academic,1002,LIBRARY,Part-time,1</pre>
             ';
         }
         break;
 
     case 'admin_coop':
-        $instructions = '
+        $instructions  = '
             <h3 class="font-semibold text-blue-800 mb-2">Instructions for COOP Members:</h3>
             <ul class="list-disc pl-5 text-blue-700 space-y-1">
                 <li>Upload a CSV file containing COOP members to add to the system.</li>
                 <li>The CSV must have these columns in order:
                     <code>first_name, last_name, email, position, employee_number, college, department, status, is_coop_member</code>
                 </li>
-                <li>Passwords will be automatically generated for each COOP member.</li>
-                <li>COOP members will be added with the role <code>voter</code>.</li>
-                <li><strong>For academic staff:</strong> college is required (e.g., CEIT, CAS).</li>
-                <li><strong>For non-academic staff:</strong> leave college field empty.</li>
-                <li><strong>Note:</strong> is_coop_member should be set to 1 for all rows.</li>
+                <li><strong>position</strong> must be <code>academic</code> or <code>non-academic</code>.</li>
+                <li>For <strong>academic COOP</strong> members:
+                    <ul class="list-disc pl-6">
+                        <li><code>college</code> = college code (e.g., <code>CEIT</code>, <code>CAS</code>).</li>
+                        <li><code>department</code> = academic department code (e.g., <code>DIT</code>, <code>DMS</code>, <code>DBS</code>).</li>
+                    </ul>
+                </li>
+                <li>For <strong>non-academic COOP</strong> members:
+                    <ul class="list-disc pl-6">
+                        <li><code>college</code> can be left blank.</li>
+                        <li><code>department</code> = non-ac department code (e.g., <code>ADMIN</code>, <code>LIBRARY</code>).</li>
+                    </ul>
+                </li>
+                <li><strong>status</strong> must be a valid employment status (Regular, Part-time, Contractual, or variants).</li>
+                <li><strong>is_coop_member</strong> should be 1 for all rows (non-1 values will be rejected or normalized).</li>
+                <li>COOP members are added as <code>voter</code> accounts with their appropriate position.</li>
             </ul>
         ';
+        $instructions .= $scopeSummaryHtml;
+
         $csvExample = '
-            <h3 class="font-semibold text-yellow-800 mb-2">COOP CSV Format Example:</h3>
+            <h3 class="font-semibold text-yellow-800 mb-2">COOP CSV Format Example (using department codes):</h3>
             <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">first_name,last_name,email,position,employee_number,college,department,status,is_coop_member
-John,Doe,john.doe@example.com,academic,1001,CEIT,Department of Computer and Electronics Engineering,regular,1
-Jane,Smith,jane.smith@example.com,non-academic,1002,,Administration,part-time,1</pre>
+John,Doe,john.doe@example.com,academic,1001,CEIT,DIT,Regular,1
+Jane,Smith,jane.smith@example.com,non-academic,1002,,ADMIN,Part-time,1</pre>
         ';
         break;
 
     case 'super_admin':
     default: // For general admin / fallback
-        $instructions = '
+        $instructions  = '
             <h3 class="font-semibold text-blue-800 mb-2">Instructions:</h3>
             <ul class="list-disc pl-5 text-blue-700 space-y-1">
                 <li>Upload a CSV file containing users to add to the system.</li>
                 <li>The CSV must have these columns in order:
                     <code>first_name, last_name, email, position, student_number, employee_number, college, department, course, status, is_coop_member</code>
                 </li>
-                <li>Passwords will be automatically generated for each user.</li>
-                <li>Users will be added with the role <code>voter</code>.</li>
-                <li>Leave fields blank if not applicable to the user type.</li>
+                <li>Use <code>student</code>, <code>academic</code>, or <code>non-academic</code> in the <code>position</code> column.</li>
+                <li>For <strong>students</strong>:
+                    <ul class="list-disc pl-6">
+                        <li><code>college</code> = college code (e.g., <code>CEIT</code>).</li>
+                        <li><code>department</code> = academic department code (e.g., <code>DIT</code>).</li>
+                        <li><code>course</code> = course code (e.g., <code>BSIT</code>, <code>BSCS</code>).</li>
+                    </ul>
+                </li>
+                <li>For <strong>academic</strong> staff:
+                    <ul class="list-disc pl-6">
+                        <li><code>college</code> = college code.</li>
+                        <li><code>department</code> = academic department code.</li>
+                    </ul>
+                </li>
+                <li>For <strong>non-academic</strong> staff:
+                    <ul class="list-disc pl-6">
+                        <li><code>department</code> = non-ac department code (e.g., <code>ADMIN</code>, <code>LIBRARY</code>).</li>
+                        <li><code>college</code> may be left blank.</li>
+                    </ul>
+                </li>
+                <li><strong>status</strong> is required for employees (Regular, Part-time, Contractual).</li>
+                <li>Passwords will be automatically generated; all accounts are created as <code>voter</code> unless otherwise configured.</li>
             </ul>
+            <p class="mt-2 text-xs text-blue-900/80">
+                The system automatically converts college/department/course codes into canonical full names where appropriate (e.g., <code>DIT</code> → <em>Department of Information Technology</em>, <code>BSIT</code> → <em>BS Information Technology</em>).
+            </p>
         ';
+        $instructions .= $scopeSummaryHtml;
+
         $csvExample = '
-            <h3 class="font-semibold text-yellow-800 mb-2">CSV Format Example:</h3>
+            <h3 class="font-semibold text-yellow-800 mb-2">CSV Format Example (mixed positions, using codes):</h3>
             <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">first_name,last_name,email,position,student_number,employee_number,college,department,course,status,is_coop_member
-John,Doe,john.doe@example.com,academic,,1001,CEIT,Department of Computer and Electronics Engineering,,regular,0
-Jane,Smith,jane.smith@example.com,student,20231002,,CAS,Department of Biological Sciences,BS Psychology,,0</pre>
+John,Doe,john.doe@example.com,academic,,1001,CEIT,DCEE,,Regular,0
+Jane,Smith,jane.smith@example.com,student,20231002,,CAS,DBS,BSPSYCH,,0
+Mark,Reyes,mark.reyes@example.com,non-academic,,2003,,ADMIN,,Contractual,0</pre>
         ';
         break;
 }
@@ -273,7 +538,7 @@ Jane,Smith,jane.smith@example.com,student,20231002,,CAS,Department of Biological
 // ---------------------------------------------------------------------
 // File upload handling
 // ---------------------------------------------------------------------
- $message = '';
+$message = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_FILES['csv_file']) && $_FILES['csv_file']['error'] === UPLOAD_ERR_OK) {

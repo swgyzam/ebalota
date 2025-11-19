@@ -5855,3 +5855,91 @@ Array
 )
 
 Update successful for election 220
+Executing with params:
+Array
+(
+    [:title] => CSG ELECTION
+    [:description] => NONE
+    [:start_datetime] => 2025-11-19 21:46:00
+    [:end_datetime] => 2025-11-20 19:00:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 99
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSCS
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1763559917_kokak.jpg
+    [:assigned_admin_id] => 366
+    [:election_id] => 223
+)
+
+Update successful for election 223
+Executing with params:
+Array
+(
+    [:title] => CSG ELECTION
+    [:description] => NONE
+    [:start_datetime] => 2025-11-19 21:50:00
+    [:end_datetime] => 2025-11-20 19:00:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 99
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSCS,BSIT,BSCpE,BSECE,BSCE,BSME,BSEE,BSIE,BSArch
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1763559917_kokak.jpg
+    [:assigned_admin_id] => 366
+    [:election_id] => 223
+)
+
+Update successful for election 223
+Executing with params:
+Array
+(
+    [:title] => CSG ELECTION
+    [:description] => a
+    [:start_datetime] => 2025-11-19 21:52:00
+    [:end_datetime] => 2025-11-20 22:00:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 99
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => 
+    [:assigned_admin_id] => 366
+    [:election_id] => 224
+)
+
+Update successful for election 224
+Executing with params:
+Array
+(
+    [:title] => CSG ELECTION
+    [:description] => a
+    [:start_datetime] => 2025-11-19 21:52:00
+    [:end_datetime] => 2025-11-20 22:00:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 99
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSCS
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => 
+    [:assigned_admin_id] => 366
+    [:election_id] => 224
+)
+
+Update successful for election 224

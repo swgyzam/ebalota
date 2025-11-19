@@ -22,49 +22,148 @@ try {
     die("Database connection failed: " . $e->getMessage());
 }
 
-// --- Auth check ---
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
-    header('Location: login.php');
+// --- Scope from session (NEW model) ---
+ $scope_category   = $_SESSION['scope_category']   ?? '';
+ $assigned_scope   = strtoupper(trim($_SESSION['assigned_scope']   ?? ''));  // legacy, keep for fallback
+ $assigned_scope_1 = trim($_SESSION['assigned_scope_1'] ?? '');
+ $admin_status     = $_SESSION['admin_status']     ?? 'inactive';
+
+// This dashboard is ONLY for Non-Academic-Employee admins (new scope model)
+if ($scope_category !== 'Non-Academic-Employee') {
+    // Legacy fallback: old NON-ACADEMIC global admin
+    if ($assigned_scope !== 'NON-ACADEMIC') {
+        header('Location: admin_dashboard_redirect.php');
+        exit();
+    }
+}
+
+if ($admin_status !== 'active') {
+    header('Location: login.php?error=Your admin account is inactive.');
     exit();
 }
 
-// Get user info including scope
- $stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = ?");
- $stmt->execute([$_SESSION['user_id']]);
- $userInfo = $stmt->fetch();
+// Resolve this admin's scope seat (admin_scopes) for Non-Academic-Employee
+ $scopeId       = null;
+ $myScopeDetails = [];
+ $allowedDeptScopeNonAcad = [];  // department codes like ADMIN, HR, LIBRARY, NAEA, ...
 
- $role = $userInfo['role'] ?? '';
- $scope = strtoupper(trim($userInfo['assigned_scope'] ?? ''));
+if ($scope_category === 'Non-Academic-Employee') {
+    $scopeStmt = $pdo->prepare("
+        SELECT scope_id, scope_type, scope_details
+        FROM admin_scopes
+        WHERE user_id   = :uid
+          AND scope_type = 'Non-Academic-Employee'
+        LIMIT 1
+    ");
+    $scopeStmt->execute([
+        ':uid' => $_SESSION['user_id'],
+    ]);
+    if ($scopeRow = $scopeStmt->fetch()) {
+        $scopeId = (int)$scopeRow['scope_id'];
+        if (!empty($scopeRow['scope_details'])) {
+            $decoded = json_decode($scopeRow['scope_details'], true);
+            if (is_array($decoded)) {
+                $myScopeDetails = $decoded;
+            }
+        }
+    }
 
-// Verify this is the correct scope for this dashboard
-if ($scope !== 'NON-ACADEMIC') {
-    header('Location: admin_dashboard_redirect.php');
-    exit();
+    // Departments from scope_details (codes like ADMIN, LIBRARY, HR, NAEA, etc.)
+    if (!empty($myScopeDetails['departments']) && is_array($myScopeDetails['departments'])) {
+        $allowedDeptScopeNonAcad = array_values(array_filter(array_map('trim', $myScopeDetails['departments'])));
+    }
+    // departments_display = 'All' → walang restriction
+    if (($myScopeDetails['departments_display'] ?? '') === 'All') {
+        $allowedDeptScopeNonAcad = [];
+    }
+}
+
+/* =============================
+   BUILD SCOPE BADGE (NEW)
+   ============================= */
+
+if ($scope_category === 'Non-Academic-Employee') {
+
+    if (!empty($allowedDeptScopeNonAcad)) {
+        // Example: ADMIN, LIBRARY
+        $scopeBadgeText = "Non-Academic Employee — " . implode(", ", $allowedDeptScopeNonAcad);
+    } else {
+        // Means ALL non-academic departments
+        $scopeBadgeText = "Non-Academic Employee — All Departments";
+    }
+
+} else {
+    // Legacy fallback
+    $scopeBadgeText = "Non-Academic (Legacy Global Admin)";
 }
 
 // --- Get available years for dropdown ---
  $stmt = $pdo->query("SELECT DISTINCT YEAR(created_at) as year FROM users WHERE role = 'voter' AND position = 'non-academic' ORDER BY year DESC");
  $availableYears = $stmt->fetchAll(PDO::FETCH_COLUMN);
  $currentYear = date('Y');
- $selectedYear = isset($_GET['year']) ? $_GET['year'] : $currentYear;
+ $selectedYear = isset($_GET['year']) ? (int)$_GET['year'] : (int)date('Y');
 
-// --- Fetch dashboard stats ---
+// --- Build scoped non-academic voters (master dataset) ---
 
-// Total Non-Academic Voters
- $stmt = $pdo->query("SELECT COUNT(*) as total_voters 
-                     FROM users 
-                     WHERE role = 'voter' AND position = 'non-academic'");
- $total_voters = $stmt->fetch()['total_voters'];
+ $scopedNonAcad = [];
 
-// Total Elections (for non-academic admin)
- $stmt = $pdo->query("SELECT COUNT(*) as total_elections FROM elections");
- $total_elections = $stmt->fetch()['total_elections'];
+// Base query: all non-academic voters
+ $sql = "
+    SELECT user_id, department, status, created_at
+    FROM users
+    WHERE role = 'voter'
+      AND position = 'non-academic'
+";
+ $conditions = [];
+ $params     = [];
 
-// Ongoing Elections
- $stmt = $pdo->query("SELECT COUNT(*) as ongoing_elections 
-                     FROM elections 
-                     WHERE status = 'ongoing'");
- $ongoing_elections = $stmt->fetch()['ongoing_elections'];
+// If new Non-Academic-Employee scope with specific departments → filter by department codes
+if ($scope_category === 'Non-Academic-Employee' && !empty($allowedDeptScopeNonAcad)) {
+    $placeholders = implode(',', array_fill(0, count($allowedDeptScopeNonAcad), '?'));
+    $conditions[] = "department IN ($placeholders)";
+    $params       = array_merge($params, $allowedDeptScopeNonAcad);
+}
+
+// Legacy NON-ACADEMIC global admin → no extra filter (can see all)
+if ($conditions) {
+    $sql .= ' AND ' . implode(' AND ', $conditions);
+}
+
+ $stmt = $pdo->prepare($sql);
+ $stmt->execute($params);
+ $scopedNonAcad = $stmt->fetchAll();
+
+// Total voters in this admin's scope
+ $total_voters = count($scopedNonAcad);
+
+// --- Fetch dashboard stats (scope-based, like faculty) ---
+
+// Total Elections for this non-academic scope
+if ($scopeId !== null) {
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) AS total_elections
+        FROM elections
+        WHERE election_scope_type = 'Non-Academic-Employee'
+          AND owner_scope_id      = ?
+    ");
+    $stmt->execute([$scopeId]);
+    $total_elections = (int)($stmt->fetch()['total_elections'] ?? 0);
+
+    // Ongoing Elections for this non-academic scope
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) AS ongoing_elections
+        FROM elections
+        WHERE election_scope_type = 'Non-Academic-Employee'
+          AND owner_scope_id      = ?
+          AND status              = 'ongoing'
+    ");
+    $stmt->execute([$scopeId]);
+    $ongoing_elections = (int)($stmt->fetch()['ongoing_elections'] ?? 0);
+} else {
+    // No scope row found — safest fallback
+    $total_elections   = 0;
+    $ongoing_elections = 0;
+}
 
 // --- Fetch elections for display ---
  $electionStmt = $pdo->query("SELECT * FROM elections ORDER BY start_datetime DESC");
@@ -72,26 +171,37 @@ if ($scope !== 'NON-ACADEMIC') {
 
 // --- Fetch Non-Academic Analytics Data ---
 
-// Get voters distribution by department
- $stmt = $pdo->query("SELECT 
-                        department,
-                        COUNT(*) as count
-                     FROM users 
-                     WHERE role = 'voter' AND position = 'non-academic'
-                     GROUP BY department
-                     ORDER BY count DESC");
- $votersByDepartment = $stmt->fetchAll();
+// Get voters distribution by department (scoped)
+ $votersByDepartment = [];
+foreach ($scopedNonAcad as $u) {
+    $dept = $u['department'] ?: 'Unspecified';
+    if (!isset($votersByDepartment[$dept])) {
+        $votersByDepartment[$dept] = 0;
+    }
+    $votersByDepartment[$dept]++;
+}
+ $votersByDepartment = array_map(
+    fn($count, $name) => ['department' => $name, 'count' => $count],
+    $votersByDepartment,
+    array_keys($votersByDepartment)
+);
+usort($votersByDepartment, fn($a, $b) => $b['count'] <=> $a['count']);
 
-// Get status distribution
- $stmt = $pdo->query("SELECT 
-                        status,
-                        COUNT(*) as count
-                     FROM users 
-                     WHERE role = 'voter' AND position = 'non-academic'
-                       AND status IS NOT NULL AND status != ''
-                     GROUP BY status
-                     ORDER BY count DESC");
- $byStatus = $stmt->fetchAll();
+// Status distribution (scoped)
+ $statusCounts = [];
+foreach ($scopedNonAcad as $u) {
+    $st = $u['status'] ?? 'Unspecified';
+    if ($st === '') $st = 'Unspecified';
+    if (!isset($statusCounts[$st])) {
+        $statusCounts[$st] = 0;
+    }
+    $statusCounts[$st]++;
+}
+ $byStatus = [];
+foreach ($statusCounts as $status => $count) {
+    $byStatus[] = ['status' => $status, 'count' => $count];
+}
+usort($byStatus, fn($a, $b) => $b['count'] <=> $a['count']);
 
 // Define date ranges for current and previous month
  $currentMonthStart = date('Y-m-01');
@@ -99,22 +209,19 @@ if ($scope !== 'NON-ACADEMIC') {
  $lastMonthStart = date('Y-m-01', strtotime('-1 month'));
  $lastMonthEnd = date('Y-m-t', strtotime('-1 month'));
 
-// Get new voters this month
- $stmt = $pdo->prepare("SELECT COUNT(*) as new_voters 
-                      FROM users 
-                      WHERE role = 'voter' AND position = 'non-academic'
-                        AND created_at BETWEEN ? AND ?");
- $stmt->execute([$currentMonthStart, $currentMonthEnd]);
- $newVoters = $stmt->fetch()['new_voters'];
+// Get new voters this month & last month within scopedNonAcad
+ $newVoters       = 0;
+ $lastMonthVoters = 0;
 
-// Get voters count for last month
- $stmt = $pdo->prepare("SELECT COUNT(*) as last_month_voters 
-                      FROM users 
-                      WHERE role = 'voter' AND position = 'non-academic'
-                        AND created_at BETWEEN ? AND ?");
- $stmt->execute([$lastMonthStart, $lastMonthEnd]);
- $result = $stmt->fetch();
- $lastMonthVoters = $result['last_month_voters'] ?? 0;
+foreach ($scopedNonAcad as $u) {
+    $created = substr($u['created_at'], 0, 10); // YYYY-MM-DD
+    if ($created >= $currentMonthStart && $created <= $currentMonthEnd) {
+        $newVoters++;
+    }
+    if ($created >= $lastMonthStart && $created <= $lastMonthEnd) {
+        $lastMonthVoters++;
+    }
+}
 
 // Calculate growth rate for summary card
 if ($lastMonthVoters > 0) {
@@ -123,160 +230,334 @@ if ($lastMonthVoters > 0) {
     $growthRate = 0;
 }
 
-// --- Fetch Voter Turnout Analytics Data ---
+// --- Fetch Voter Turnout Analytics Data (scope-based) ---
  $turnoutDataByYear = [];
+ $turnoutYears      = [];
 
-// Get all years that have non-academic elections
- $stmt = $pdo->query("SELECT DISTINCT YEAR(start_datetime) as year FROM elections WHERE target_position = 'non-academic' ORDER BY year DESC");
- $turnoutYears = $stmt->fetchAll(PDO::FETCH_COLUMN);
+if ($scopeId !== null) {
+    // Get all years that have elections for this non-academic scope
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT YEAR(start_datetime) AS year
+        FROM elections 
+        WHERE election_scope_type = 'Non-Academic-Employee'
+          AND owner_scope_id      = ?
+        ORDER BY year DESC
+    ");
+    $stmt->execute([$scopeId]);
+    $turnoutYears = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-foreach ($turnoutYears as $year) {
-    // Get distinct voters who voted in any non-academic elections in this year
-    $stmt = $pdo->prepare("SELECT COUNT(DISTINCT v.voter_id) as total_voted 
-                           FROM votes v 
-                           JOIN elections e ON v.election_id = e.election_id 
-                           WHERE e.target_position = 'non-academic' 
-                           AND YEAR(e.start_datetime) = ?");
-    $stmt->execute([$year]);
-    $totalVoted = $stmt->fetch()['total_voted'];
+    foreach ($turnoutYears as $year) {
+        // Distinct non-ac voters who voted in this scope's elections that year
+        $stmt = $pdo->prepare("
+            SELECT COUNT(DISTINCT v.voter_id) AS total_voted 
+            FROM votes v 
+            JOIN elections e ON v.election_id = e.election_id 
+            WHERE e.election_scope_type = 'Non-Academic-Employee'
+              AND e.owner_scope_id      = ?
+              AND YEAR(e.start_datetime) = ?
+        ");
+        $stmt->execute([$scopeId, $year]);
+        $totalVoted = (int)($stmt->fetch()['total_voted'] ?? 0);
+        
+        // Eligible voters as of Dec 31 that year (from your scoped non-ac dataset)
+        $yearEnd = $year . '-12-31 23:59:59';
+        $totalEligible = 0;
+        foreach ($scopedNonAcad as $u) {
+            if ($u['created_at'] <= $yearEnd) {
+                $totalEligible++;
+            }
+        }
+        
+        $turnoutRate = ($totalEligible > 0)
+            ? round(($totalVoted / $totalEligible) * 100, 1)
+            : 0;
+        
+        // Number of elections for this scope & year
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) AS election_count 
+            FROM elections 
+            WHERE election_scope_type = 'Non-Academic-Employee'
+              AND owner_scope_id      = ?
+              AND YEAR(start_datetime) = ?
+        ");
+        $stmt->execute([$scopeId, $year]);
+        $electionCount = (int)($stmt->fetch()['election_count'] ?? 0);
+        
+        $turnoutDataByYear[$year] = [
+            'year'           => (int)$year,
+            'total_voted'    => $totalVoted,
+            'total_eligible' => $totalEligible,
+            'turnout_rate'   => $turnoutRate,
+            'election_count' => $electionCount
+        ];
+    }
+} else {
+    // Legacy fallback: global non-academic elections by target_position
+    $stmt = $pdo->query("
+        SELECT DISTINCT YEAR(start_datetime) AS year
+        FROM elections
+        WHERE target_position = 'non-academic'
+        ORDER BY year DESC
+    ");
+    $turnoutYears = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-    // Get total non-academic voters as of December 31 of this year
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total_eligible 
-                           FROM users 
-                           WHERE role = 'voter' AND position = 'non-academic' 
-                           AND created_at <= ?");
-    $stmt->execute([$year . '-12-31 23:59:59']);
-    $totalEligible = $stmt->fetch()['total_eligible'];
+    // Ensure current year is ALWAYS included even if no elections exist
+    $currentYear = (int)date('Y');
+    if (!in_array($currentYear, $turnoutYears)) {
+        $turnoutYears[] = $currentYear;
+    }
 
-    // Calculate turnout rate
-    $turnoutRate = ($totalEligible > 0) ? round(($totalVoted / $totalEligible) * 100, 1) : 0;
+    // Also include previous year for comparison
+    $prevYear = $currentYear - 1;
+    if (!in_array($prevYear, $turnoutYears)) {
+        $turnoutYears[] = $prevYear;
+    }
 
-    // Also get the number of elections in this year
-    $stmt = $pdo->prepare("SELECT COUNT(*) as election_count 
-                           FROM elections 
-                           WHERE YEAR(start_datetime) = ?");
-    $stmt->execute([$year]);
-    $electionCount = $stmt->fetch()['election_count'];
+    sort($turnoutYears);
 
-    $turnoutDataByYear[$year] = [
-        'year' => $year,
-        'total_voted' => $totalVoted,
-        'total_eligible' => $totalEligible,
-        'turnout_rate' => $turnoutRate,
-        'election_count' => $electionCount
-    ];
+
+    foreach ($turnoutYears as $year) {
+        // Legacy global non-acad
+        $stmt = $pdo->prepare("
+            SELECT COUNT(DISTINCT v.voter_id) AS total_voted
+            FROM votes v
+            JOIN elections e ON v.election_id = e.election_id
+            WHERE e.target_position = 'non-academic'
+              AND YEAR(e.start_datetime) = ?
+        ");
+        $stmt->execute([$year]);
+        $totalVoted = (int)($stmt->fetch()['total_voted'] ?? 0);
+
+        // Eligible voters as of Dec 31 that year (within scopedNonAcad)
+        $yearEnd       = sprintf('%04d-12-31 23:59:59', $year);
+        $totalEligible = 0;
+        foreach ($scopedNonAcad as $u) {
+            if ($u['created_at'] <= $yearEnd) {
+                $totalEligible++;
+            }
+        }
+
+        $turnoutRate = ($totalEligible > 0)
+            ? round(($totalVoted / $totalEligible) * 100, 1)
+            : 0.0;
+
+        // Number of elections in this scope & year
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) AS election_count
+            FROM elections
+            WHERE target_position = 'non-academic'
+              AND YEAR(start_datetime) = ?
+        ");
+        $stmt->execute([$year]);
+        $electionCount = (int)($stmt->fetch()['election_count'] ?? 0);
+
+        $turnoutDataByYear[$year] = [
+            'year'           => $year,
+            'total_voted'    => $totalVoted,
+            'total_eligible' => $totalEligible,
+            'turnout_rate'   => $turnoutRate,
+            'election_count' => $electionCount,
+        ];
+    }
 }
 
 // Add previous year if not exists (for comparison only)
  $prevYear = $selectedYear - 1;
 if (!isset($turnoutDataByYear[$prevYear])) {
     $turnoutDataByYear[$prevYear] = [
-        'year' => $prevYear,
-        'total_voted' => 0,
+        'year'           => $prevYear,
+        'total_voted'    => 0,
         'total_eligible' => 0,
-        'turnout_rate' => 0,
+        'turnout_rate'   => 0,
         'election_count' => 0,
-        'growth_rate' => 0
+        'growth_rate'    => 0,
     ];
 }
 
-// Calculate year-over-year growth for turnout
+// Calculate year-over-year growth for turnout (YoY)
  $years = array_keys($turnoutDataByYear);
-sort($years); // sort in ascending order
- $previousYear = null;
+sort($years);
+ $previousYearKey = null;
 foreach ($years as $year) {
-    if ($previousYear !== null) {
-        $prevTurnout = $turnoutDataByYear[$previousYear]['turnout_rate'];
+    if ($previousYearKey !== null) {
+        $prevTurnout    = $turnoutDataByYear[$previousYearKey]['turnout_rate'];
         $currentTurnout = $turnoutDataByYear[$year]['turnout_rate'];
-        
-        if ($prevTurnout > 0) {
-            $growthRate = round((($currentTurnout - $prevTurnout) / $prevTurnout) * 100, 1);
-        } else {
-            // Set to 0 when previous year had 0 turnout
-            $growthRate = 0;
-        }
-        
-        $turnoutDataByYear[$year]['growth_rate'] = $growthRate;
+        $gr = ($prevTurnout > 0)
+            ? round((($currentTurnout - $prevTurnout) / $prevTurnout) * 100, 1)
+            : 0.0;
+        $turnoutDataByYear[$year]['growth_rate'] = $gr;
     } else {
         $turnoutDataByYear[$year]['growth_rate'] = 0;
     }
-    $previousYear = $year;
+    $previousYearKey = $year;
 }
 
-// Set current and previous year turnout data for summary cards based on selected year
-// Get selected year data
- $currentYearTurnout = isset($turnoutDataByYear[$selectedYear]) ? $turnoutDataByYear[$selectedYear] : null;
+// --- Year range filtering for turnout analytics ---
+// Builds a subset $turnoutRangeData used by the chart & table
 
-// Get previous year data (selected year - 1)
- $previousYearTurnout = isset($turnoutDataByYear[$selectedYear - 1]) ? $turnoutDataByYear[$selectedYear - 1] : null;
+ $allTurnoutYears = array_keys($turnoutDataByYear);
+sort($allTurnoutYears);
 
-// --- Compute department turnout data for the selected year ---
+ $defaultYear = (int)date('Y');
+ $currentYear = (int)date('Y');
+ $previousYear = $currentYear - 1;
+ 
+ // ALWAYS default to previous/current-year range
+ $fromYear = isset($_GET['from_year']) ? (int)$_GET['from_year'] : $previousYear;
+ $toYear   = isset($_GET['to_year'])   ? (int)$_GET['to_year']   : $currentYear;
+ 
+ // Clamp based on available years (but allow current year even if no data)
+ $minYear = min(min($allTurnoutYears), $previousYear);
+ $maxYear = max(max($allTurnoutYears), $currentYear);
+ 
+ if ($fromYear < $minYear) $fromYear = $minYear;
+ if ($toYear   > $maxYear) $toYear   = $maxYear;
+ if ($toYear < $fromYear)  $toYear   = $fromYear; 
+
+// Clamp to known bounds
+if ($fromYear < $minYear) $fromYear = $minYear;
+if ($toYear   > $maxYear) $toYear   = $maxYear;
+if ($toYear < $fromYear)  $toYear   = $fromYear;
+
+// Build range [fromYear..toYear], fill missing years with 0
+ $turnoutRangeData = [];
+for ($y = $fromYear; $y <= $toYear; $y++) {
+    if (isset($turnoutDataByYear[$y])) {
+        $turnoutRangeData[$y] = $turnoutDataByYear[$y];
+    } else {
+        $turnoutRangeData[$y] = [
+            'year'           => $y,
+            'total_voted'    => 0,
+            'total_eligible' => 0,
+            'turnout_rate'   => 0,
+            'election_count' => 0,
+            'growth_rate'    => 0,
+        ];
+    }
+}
+
+// Recompute growth_rate within the selected range
+ $prevY = null;
+foreach ($turnoutRangeData as $y => &$data) {
+    if ($prevY === null) {
+        $data['growth_rate'] = 0;
+    } else {
+        $prevRate = $turnoutRangeData[$prevY]['turnout_rate'] ?? 0;
+        $data['growth_rate'] = $prevRate > 0
+            ? round(($data['turnout_rate'] - $prevRate) / $prevRate * 100, 1)
+            : 0;
+    }
+    $prevY = $y;
+}
+unset($data);
+
+/* ==========================================================
+DEPARTMENT TURNOUT DATA (SCOPE-BASED, LIKE FACULTY)
+========================================================== */
+
  $departmentTurnoutData = [];
- $stmt = $pdo->prepare("
-   SELECT 
-       u.department,
-       COUNT(DISTINCT u.user_id) as eligible_count,
-       COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) as voted_count
-   FROM users u
-   LEFT JOIN (
-       SELECT DISTINCT voter_id 
-       FROM votes 
-       WHERE election_id IN (
-           SELECT election_id FROM elections 
-           WHERE target_position = 'non-academic' 
-           AND YEAR(start_datetime) = ?
-       )
-   ) v ON u.user_id = v.voter_id
-   WHERE u.role = 'voter' AND u.position = 'non-academic'
-   GROUP BY u.department
-   ORDER BY u.department
-");
- $stmt->execute([$selectedYear]);
- $deptResults = $stmt->fetchAll();
 
-foreach ($deptResults as $row) {
-    $turnoutRate = ($row['eligible_count'] > 0) ? round(($row['voted_count'] / $row['eligible_count']) * 100, 1) : 0;
+// Build voted set for this admin's non-ac scope & selected year
+ $votedSet = [];
+if (!empty($scopeId)) {
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT v.voter_id
+        FROM votes v
+        JOIN elections e ON v.election_id = e.election_id
+        WHERE e.election_scope_type = 'Non-Academic-Employee'
+          AND e.owner_scope_id      = ?
+          AND YEAR(e.start_datetime) = ?
+    ");
+    $stmt->execute([$scopeId, $selectedYear]);
+    $votedIds = array_column($stmt->fetchAll(), 'voter_id');
+    $votedSet = array_flip($votedIds);
+}
+
+ $deptBuckets     = [];
+ $yearEndSelected = sprintf('%04d-12-31 23:59:59', $selectedYear);
+
+// Use ONLY scoped non-ac voters
+foreach ($scopedNonAcad as $u) {
+    if ($u['created_at'] > $yearEndSelected) {
+        continue; // not yet "eligible" in that year
+    }
+
+    $dept = trim($u['department'] ?? '');
+    if ($dept === '') $dept = 'UNSPECIFIED';
+
+    if (!isset($deptBuckets[$dept])) {
+        $deptBuckets[$dept] = [
+            'eligible_count' => 0,
+            'voted_count'    => 0,
+        ];
+    }
+
+    $deptBuckets[$dept]['eligible_count']++;
+
+    if (isset($votedSet[$u['user_id']])) {
+        $deptBuckets[$dept]['voted_count']++;
+    }
+}
+
+foreach ($deptBuckets as $dept => $c) {
+    $rate = ($c['eligible_count'] > 0)
+        ? round(($c['voted_count'] / $c['eligible_count']) * 100, 1)
+        : 0.0;
     $departmentTurnoutData[] = [
-        'department' => $row['department'],
-        'eligible_count' => (int)$row['eligible_count'],
-        'voted_count' => (int)$row['voted_count'],
-        'turnout_rate' => (float)$turnoutRate
+        'department'     => $dept,
+        'eligible_count' => (int)$c['eligible_count'],
+        'voted_count'    => (int)$c['voted_count'],
+        'turnout_rate'   => (float)$rate,
     ];
 }
 
-// --- Compute status turnout data for the selected year ---
+/* ==========================================================
+STATUS TURNOUT DATA (SCOPE-BASED, LIKE FACULTY)
+========================================================== */
+
  $statusTurnoutData = [];
- $stmt = $pdo->prepare("
-   SELECT 
-       u.status,
-       COUNT(DISTINCT u.user_id) as eligible_count,
-       COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) as voted_count
-   FROM users u
-   LEFT JOIN (
-       SELECT DISTINCT voter_id 
-       FROM votes 
-       WHERE election_id IN (
-           SELECT election_id FROM elections 
-           WHERE target_position = 'non-academic' 
-           AND YEAR(start_datetime) = ?
-       )
-   ) v ON u.user_id = v.voter_id
-   WHERE u.role = 'voter' AND u.position = 'non-academic'
-   GROUP BY u.status
-   ORDER BY u.status
-");
- $stmt->execute([$selectedYear]);
- $statusResults = $stmt->fetchAll();
 
-foreach ($statusResults as $row) {
-    $turnoutRate = ($row['eligible_count'] > 0) ? round(($row['voted_count'] / $row['eligible_count']) * 100, 1) : 0;
+// $votedSet already built above for this year & scope
+
+ $statusBuckets = [];
+foreach ($scopedNonAcad as $u) {
+    if ($u['created_at'] > $yearEndSelected) {
+        continue;
+    }
+
+    $statusName = trim($u['status'] ?? '');
+    if ($statusName === '') $statusName = 'Unspecified';
+
+    if (!isset($statusBuckets[$statusName])) {
+        $statusBuckets[$statusName] = [
+            'eligible_count' => 0,
+            'voted_count'    => 0,
+        ];
+    }
+
+    $statusBuckets[$statusName]['eligible_count']++;
+
+    if (isset($votedSet[$u['user_id']])) {
+        $statusBuckets[$statusName]['voted_count']++;
+    }
+}
+
+foreach ($statusBuckets as $statusName => $c) {
+    $rate = ($c['eligible_count'] > 0)
+        ? round(($c['voted_count'] / $c['eligible_count']) * 100, 1)
+        : 0.0;
     $statusTurnoutData[] = [
-        'status' => $row['status'],
-        'eligible_count' => (int)$row['eligible_count'],
-        'voted_count' => (int)$row['voted_count'],
-        'turnout_rate' => (float)$turnoutRate
+        'status'         => $statusName,
+        'eligible_count' => (int)$c['eligible_count'],
+        'voted_count'    => (int)$c['voted_count'],
+        'turnout_rate'   => (float)$rate,
     ];
 }
+
+// Sort by eligible count DESC (like faculty)
+usort($statusTurnoutData, function($a, $b) {
+    return $b['eligible_count'] <=> $a['eligible_count'];
+});
 
 // Department mapping for full names
  $departmentMap = [
@@ -397,6 +678,17 @@ function getFullDepartmentName($abbr) {
       box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
       transform: translateY(-2px);
     }
+    /* === Scope Badge === */
+    .scope-badge {
+        display: inline-block;
+        background-color: var(--cvsu-green);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: bold;
+        margin-bottom: 0;
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
@@ -408,9 +700,13 @@ function getFullDepartmentName($abbr) {
 <!-- Top Bar -->
 <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color: var(--cvsu-green-dark);">
   <div class="flex items-center space-x-4">
-    <h1 class="text-2xl font-bold text-white">
-      NON-ACADEMIC ADMIN DASHBOARD
-    </h1>
+    <div class="flex flex-col">
+        <span class="scope-badge"><?= htmlspecialchars($scopeBadgeText) ?></span>
+
+        <h1 class="text-2xl font-bold text-white mt-1">
+            NON-ACADEMIC ADMIN DASHBOARD
+        </h1>
+    </div>
   </div>
   <div class="text-white">
     <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -754,7 +1050,7 @@ function getFullDepartmentName($abbr) {
             </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-            <?php foreach ($turnoutDataByYear as $year => $data): 
+            <?php foreach ($turnoutRangeData as $year => $data): 
                 $isPositive = $data['growth_rate'] > 0;
                 $trendIcon = $isPositive ? 'fa-arrow-up' : ($data['growth_rate'] < 0 ? 'fa-arrow-down' : 'fa-minus');
                 $trendColor = $isPositive ? 'text-green-600' : ($data['growth_rate'] < 0 ? 'text-red-600' : 'text-gray-600');
@@ -817,6 +1113,36 @@ function getFullDepartmentName($abbr) {
         <!-- Table container -->
         <div id="turnoutBreakdownTable" class="mt-6 overflow-x-auto"></div>
     </div>
+    
+    <!-- Year Range Selector -->
+    <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h3 class="font-medium text-blue-800 mb-2">Turnout Analysis – Year Range</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="fromYear" class="block text-sm font-medium text-blue-800">From year</label>
+            <select id="fromYear" name="from_year" class="mt-1 p-2 border rounded w-full">
+              <?php 
+              // Generate years from minYear to maxYear
+              for ($y = $minYear; $y <= $maxYear; $y++): ?>
+                <option value="<?= $y ?>" <?= ($y == $fromYear) ? 'selected' : '' ?>><?= $y ?></option>
+              <?php endfor; ?>
+            </select>
+          </div>
+          <div>
+            <label for="toYear" class="block text-sm font-medium text-blue-800">To year</label>
+            <select id="toYear" name="to_year" class="mt-1 p-2 border rounded w-full">
+              <?php 
+              // Generate years from minYear to maxYear
+              for ($y = $minYear; $y <= $maxYear; $y++): ?>
+                <option value="<?= $y ?>" <?= ($y == $toYear) ? 'selected' : '' ?>><?= $y ?></option>
+              <?php endfor; ?>
+            </select>
+          </div>
+        </div>
+        <p class="text-xs text-blue-700 mt-2">
+          Select a start and end year to compare turnout. Years with no elections in this range will appear with zero values.
+        </p>
+    </div>
     </div>
 </main>
 </div>
@@ -855,6 +1181,31 @@ document.addEventListener('DOMContentLoaded', function() {
             window.location.href = window.location.pathname + '?year=' + selectedYear;
         });
     }
+    
+    // Year range selectors for turnout analytics
+    const fromYearSelect = document.getElementById('fromYear');
+    const toYearSelect   = document.getElementById('toYear');
+
+    function submitYearRange() {
+        if (!fromYearSelect || !toYearSelect) return;
+        const from = fromYearSelect.value;
+        const to   = toYearSelect.value;
+
+        const url = new URL(window.location.href);
+        if (from) url.searchParams.set('from_year', from); else url.searchParams.delete('from_year');
+        if (to)   url.searchParams.set('to_year', to);     else url.searchParams.delete('to_year');
+
+        // Keep currently selected single year for summary cards
+        const yearSelect = document.getElementById('turnoutYearSelector');
+        if (yearSelect && yearSelect.value) {
+          url.searchParams.set('year', yearSelect.value);
+        }
+
+        window.location.href = url.toString();
+    }
+
+    fromYearSelect?.addEventListener('change', submitYearRange);
+    toYearSelect?.addEventListener('change', submitYearRange);
     
     let departmentChartInstance = null;
     let statusChartInstance = null;
@@ -1098,8 +1449,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Turnout Trend Chart
         const turnoutTrendCtx = document.getElementById('turnoutTrendChart');
         if (turnoutTrendCtx && !turnoutTrendChartInstance) {
-            const turnoutYears = <?= json_encode(array_keys($turnoutDataByYear)) ?>;
-            const turnoutRates = <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?>;
+            const turnoutYears = <?= json_encode(array_keys($turnoutRangeData)) ?>;
+            const turnoutRates = <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?>;
             
             turnoutTrendChartInstance = new Chart(turnoutTrendCtx, {
                 type: 'line',
@@ -1160,16 +1511,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const chartData = {
             'elections': {
                 'year': {
-                    labels: <?= json_encode(array_keys($turnoutDataByYear)) ?>,
-                    electionCounts: <?= json_encode(array_column($turnoutDataByYear, 'election_count')) ?>,
-                    turnoutRates: <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?>
+                    labels: <?= json_encode(array_keys($turnoutRangeData)) ?>,
+                    electionCounts: <?= json_encode(array_column($turnoutRangeData, 'election_count')) ?>,
+                    turnoutRates: <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?>
                 }
             },
             'voters': {
                 'year': {
-                    labels: <?= json_encode(array_keys($turnoutDataByYear)) ?>,
-                    eligibleCounts: <?= json_encode(array_column($turnoutDataByYear, 'total_eligible')) ?>,
-                    turnoutRates: <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?>
+                    labels: <?= json_encode(array_keys($turnoutRangeData)) ?>,
+                    eligibleCounts: <?= json_encode(array_column($turnoutRangeData, 'total_eligible')) ?>,
+                    turnoutRates: <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?>
                 },
                 'department': <?= json_encode($departmentTurnoutData) ?>,
                 'status': <?= json_encode($statusTurnoutData) ?>

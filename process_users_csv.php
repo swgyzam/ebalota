@@ -1,4 +1,4 @@
-//<?php
+<?php
 session_start();
 date_default_timezone_set('Asia/Manila');
 
@@ -30,8 +30,38 @@ unset($_SESSION['csv_file_path']); // Clear the session
 // Get admin type from session or determine it
  $adminType = $_SESSION['admin_type'] ?? null;
 
+if (!$adminType && $scopeCategoryForCsv) {
+    // Prefer new scope_category-based mapping
+    switch ($scopeCategoryForCsv) {
+        case 'Academic-Student':
+            $adminType = 'admin_students';
+            break;
+        case 'Non-Academic-Student':
+            $adminType = 'admin_students';
+            break;
+        case 'Academic-Faculty':
+            $adminType = 'admin_academic';
+            break;
+        case 'Non-Academic-Employee':
+            $adminType = 'admin_non_academic';
+            break;
+        case 'Others-Default':
+            $adminType = 'admin_non_academic';
+            break;
+        case 'Others-COOP':
+            $adminType = 'admin_coop';
+            break;
+        case 'Special-Scope': // CSG Admin
+            $adminType = 'admin_students';
+            break;
+        default:
+            // fall through to legacy logic
+            break;
+    }
+}
+
 if (!$adminType) {
-    // Determine admin type based on assigned scope
+    // Legacy fallback based on assigned_scope (for older admins)
     if ($adminRole === 'super_admin') {
         $adminType = 'super_admin';
     } else if (in_array($normalizedAssignedScope, ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC'])) {
@@ -64,6 +94,74 @@ try {
     $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (\PDOException $e) {
     die("Database connection failed: " . $e->getMessage());
+}
+
+// ---------------------------------------------------------------------
+// Load admin_scopes for this admin to get scope_details (latest model)
+// ---------------------------------------------------------------------
+ $myScopeDetails          = [];
+ $allowedCourseScopeCodes = []; // for Academic-Student
+ $allowedDeptScopeAcademic = []; // for Academic-Faculty
+ $allowedDeptScopeNonAcad  = []; // for Non-Academic-Employee
+
+if ($adminRole === 'admin' && !empty($scopeCategoryForCsv)) {
+    $scopeStmt = $pdo->prepare("
+        SELECT scope_details
+        FROM admin_scopes
+        WHERE user_id   = :uid
+          AND scope_type = :stype
+        LIMIT 1
+    ");
+    $scopeStmt->execute([
+        ':uid'   => $_SESSION['user_id'],
+        ':stype' => $scopeCategoryForCsv,
+    ]);
+    $scopeRow = $scopeStmt->fetch();
+
+    if ($scopeRow && !empty($scopeRow['scope_details'])) {
+        $decoded = json_decode($scopeRow['scope_details'], true);
+        if (is_array($decoded)) {
+            $myScopeDetails = $decoded;
+        }
+    }
+}
+
+// Build course scope list for Academic-Student admins
+if ($scopeCategoryForCsv === 'Academic-Student') {
+    if (!empty($myScopeDetails['courses']) && is_array($myScopeDetails['courses'])) {
+        foreach ($myScopeDetails['courses'] as $c) {
+            $code = normalizeCourseCodeForCsv($c);
+            if ($code !== '') {
+                $allowedCourseScopeCodes[] = $code;
+            }
+        }
+        $allowedCourseScopeCodes = array_unique($allowedCourseScopeCodes);
+    } elseif (!empty($assignedScope1ForCsv)) {
+        // Fallback to assigned_scope_1 string
+        $allowedCourseScopeCodes = parseCourseScopeList($assignedScope1ForCsv); // already uppercased
+    }
+}
+
+// Build department scope list for Academic-Faculty
+if ($scopeCategoryForCsv === 'Academic-Faculty') {
+    if (!empty($myScopeDetails['departments']) && is_array($myScopeDetails['departments'])) {
+        // For Academic-Faculty, scope_details['departments'] stores full department names
+        $allowedDeptScopeAcademic = array_values(array_filter(array_map('trim', $myScopeDetails['departments'])));
+    }
+    // If departments_display == 'All', we treat as no restriction
+    if (isset($myScopeDetails['departments_display']) && $myScopeDetails['departments_display'] === 'All') {
+        $allowedDeptScopeAcademic = [];
+    }
+}
+
+// Build department scope list for Non-Academic-Employee (codes like ADMIN, LIBRARY, ...)
+if ($scopeCategoryForCsv === 'Non-Academic-Employee') {
+    if (!empty($myScopeDetails['departments']) && is_array($myScopeDetails['departments'])) {
+        $allowedDeptScopeNonAcad = array_values(array_filter(array_map('trim', $myScopeDetails['departments'])));
+    }
+    if (isset($myScopeDetails['departments_display']) && $myScopeDetails['departments_display'] === 'All') {
+        $allowedDeptScopeNonAcad = [];
+    }
 }
 
 // Check if the file exists
@@ -237,53 +335,172 @@ switch ($adminType) {
 ];
 
 // Department mapping for academic staff
+// Keys must be LOWERCASED before lookup (we use strtolower($department_lower)).
  $academicDepartmentMapping = [
-    // CEIT Departments
-    'department of civil engineering' => 'Department of Civil Engineering',
-    'civil engineering department' => 'Department of Civil Engineering',
-    'civil engineering' => 'Department of Civil Engineering',
-    'Department of Civil Engineering' => 'Department of Civil Engineering',
-    
+    // ================= CAFENR =================
+    'department of animal science'                    => 'Department of Animal Science',
+    'animal science department'                       => 'Department of Animal Science',
+    'animal science'                                  => 'Department of Animal Science',
+    'das'                                             => 'Department of Animal Science',
+
+    'department of crop science'                      => 'Department of Crop Science',
+    'crop science department'                         => 'Department of Crop Science',
+    'crop science'                                    => 'Department of Crop Science',
+    'dcs'                                             => 'Department of Crop Science',
+
+    'department of food science and technology'       => 'Department of Food Science and Technology',
+    'food science and technology department'          => 'Department of Food Science and Technology',
+    'food science and technology'                     => 'Department of Food Science and Technology',
+    'dfst'                                            => 'Department of Food Science and Technology',
+
+    'department of forestry and environmental science' => 'Department of Forestry and Environmental Science',
+    'forestry and environmental science department'    => 'Department of Forestry and Environmental Science',
+    'forestry and environmental science'               => 'Department of Forestry and Environmental Science',
+    'dfes'                                             => 'Department of Forestry and Environmental Science',
+
+    'department of agricultural economics and development' => 'Department of Agricultural Economics and Development',
+    'agricultural economics and development department'    => 'Department of Agricultural Economics and Development',
+    'agricultural economics and development'               => 'Department of Agricultural Economics and Development',
+    'daed'                                                 => 'Department of Agricultural Economics and Development',
+
+    // ================= CAS =================
+    'department of biological sciences'               => 'Department of Biological Sciences',
+    'biological sciences department'                  => 'Department of Biological Sciences',
+    'biological sciences'                             => 'Department of Biological Sciences',
+    'dbs'                                             => 'Department of Biological Sciences',
+
+    'department of physical sciences'                 => 'Department of Physical Sciences',
+    'physical sciences department'                    => 'Department of Physical Sciences',
+    'physical sciences'                               => 'Department of Physical Sciences',
+    'dps'                                             => 'Department of Physical Sciences',
+
+    'department of languages and mass communication'  => 'Department of Languages and Mass Communication',
+    'languages and mass communication department'     => 'Department of Languages and Mass Communication',
+    'languages and mass communication'                => 'Department of Languages and Mass Communication',
+    'dlmc'                                            => 'Department of Languages and Mass Communication',
+
+    'department of social sciences'                   => 'Department of Social Sciences',
+    'social sciences department'                      => 'Department of Social Sciences',
+    'social sciences'                                 => 'Department of Social Sciences',
+    'dss'                                             => 'Department of Social Sciences',
+
+    'department of mathematics and statistics'        => 'Department of Mathematics and Statistics',
+    'mathematics and statistics department'           => 'Department of Mathematics and Statistics',
+    'mathematics and statistics'                      => 'Department of Mathematics and Statistics',
+    'dms'                                             => 'Department of Mathematics and Statistics',
+
+    // ================= CCJ =================
+    'department of criminal justice'                  => 'Department of Criminal Justice',
+    'criminal justice department'                     => 'Department of Criminal Justice',
+    'criminal justice'                                => 'Department of Criminal Justice',
+    'dcj'                                             => 'Department of Criminal Justice',
+
+    // ================= CEMDS =================
+    'department of economics'                         => 'Department of Economics',
+    'economics department'                            => 'Department of Economics',
+    'economics'                                       => 'Department of Economics',
+    'dec'                                             => 'Department of Economics',
+
+    'department of business and management'           => 'Department of Business and Management',
+    'business and management department'              => 'Department of Business and Management',
+    'business and management'                         => 'Department of Business and Management',
+    'dbm'                                             => 'Department of Business and Management',
+
+    'department of development studies'               => 'Department of Development Studies',
+    'development studies department'                  => 'Department of Development Studies',
+    'development studies'                             => 'Department of Development Studies',
+    'dds'                                             => 'Department of Development Studies',
+
+    // ================= CED =================
+    'department of science education'                 => 'Department of Science Education',
+    'science education department'                    => 'Department of Science Education',
+    'science education'                               => 'Department of Science Education',
+    'dse'                                             => 'Department of Science Education',
+
+    'department of technology and livelihood education' => 'Department of Technology and Livelihood Education',
+    'technology and livelihood education department'    => 'Department of Technology and Livelihood Education',
+    'technology and livelihood education'               => 'Department of Technology and Livelihood Education',
+    'dtle'                                             => 'Department of Technology and Livelihood Education',
+
+    'department of curriculum and instruction'        => 'Department of Curriculum and Instruction',
+    'curriculum and instruction department'           => 'Department of Curriculum and Instruction',
+    'curriculum and instruction'                      => 'Department of Curriculum and Instruction',
+    'dci'                                             => 'Department of Curriculum and Instruction',
+
+    'department of human kinetics'                    => 'Department of Human Kinetics',
+    'human kinetics department'                       => 'Department of Human Kinetics',
+    'human kinetics'                                  => 'Department of Human Kinetics',
+    'dhk'                                             => 'Department of Human Kinetics',
+
+    // ================= CEIT =================
+    'department of civil engineering'                 => 'Department of Civil Engineering',
+    'civil engineering department'                    => 'Department of Civil Engineering',
+    'civil engineering'                               => 'Department of Civil Engineering',
+    'dce'                                             => 'Department of Civil Engineering',
+
     'department of computer and electronics engineering' => 'Department of Computer and Electronics Engineering',
-    'computer and electronics engineering department' => 'Department of Computer and Electronics Engineering',
-    'computer and electronics engineering' => 'Department of Computer and Electronics Engineering',
-    'Department of Computer and Electronics Engineering' => 'Department of Computer and Electronics Engineering',
-    
+    'computer and electronics engineering department'    => 'Department of Computer and Electronics Engineering',
+    'computer and electronics engineering'               => 'Department of Computer and Electronics Engineering',
+    'dcee'                                              => 'Department of Computer and Electronics Engineering',
+
     'department of industrial engineering and technology' => 'Department of Industrial Engineering and Technology',
-    'industrial engineering and technology department' => 'Department of Industrial Engineering and Technology',
-    'industrial engineering and technology' => 'Department of Industrial Engineering and Technology',
-    'Department of Industrial Engineering and Technology' => 'Department of Industrial Engineering and Technology',
-    
+    'industrial engineering and technology department'    => 'Department of Industrial Engineering and Technology',
+    'industrial engineering and technology'               => 'Department of Industrial Engineering and Technology',
+    'diet'                                               => 'Department of Industrial Engineering and Technology',
+
     'department of mechanical and electronics engineering' => 'Department of Mechanical and Electronics Engineering',
-    'mechanical and electronics engineering department' => 'Department of Mechanical and Electronics Engineering',
-    'mechanical and electronics engineering' => 'Department of Mechanical and Electronics Engineering',
-    'Department of Mechanical and Electronics Engineering' => 'Department of Mechanical and Electronics Engineering',
-    
-    'department of information technology' => 'Department of Information Technology',
-    'information technology department' => 'Department of Information Technology',
-    'information technology' => 'Department of Information Technology',
-    'Department of Information Technology' => 'Department of Information Technology',
-    
-    // CAFENR Departments
-    'department of animal science' => 'Department of Animal Science',
-    'animal science department' => 'Department of Animal Science',
-    'animal science' => 'Department of Animal Science',
-    
-    'department of agriculture' => 'Department of Agriculture',
-    'agriculture department' => 'Department of Agriculture',
-    'agriculture' => 'Department of Agriculture',
-    
-    // CAS Departments
-    'department of biological sciences' => 'Department of Biological Sciences',
-    'biological sciences department' => 'Department of Biological Sciences',
-    'biological sciences' => 'Department of Biological Sciences',
-    'Department of Biological Sciences' => 'Department of Biological Sciences',
-    
-    // CSPEAR Departments
+    'mechanical and electronics engineering department'    => 'Department of Mechanical and Electronics Engineering',
+    'mechanical and electronics engineering'               => 'Department of Mechanical and Electronics Engineering',
+    'dmee'                                                => 'Department of Mechanical and Electronics Engineering',
+
+    'department of information technology'             => 'Department of Information Technology',
+    'information technology department'                => 'Department of Information Technology',
+    'information technology'                           => 'Department of Information Technology',
+    'dit'                                             => 'Department of Information Technology',
+
+    // ================= CON =================
+    'department of nursing'                           => 'Department of Nursing',
+    'nursing department'                              => 'Department of Nursing',
+    'nursing'                                         => 'Department of Nursing',
+    'dn'                                              => 'Department of Nursing',
+
+    // ================= COM =================
+    'department of basic medical sciences'            => 'Department of Basic Medical Sciences',
+    'basic medical sciences department'               => 'Department of Basic Medical Sciences',
+    'basic medical sciences'                          => 'Department of Basic Medical Sciences',
+    'dbms'                                            => 'Department of Basic Medical Sciences',
+
+    'department of clinical sciences'                 => 'Department of Clinical Sciences',
+    'clinical sciences department'                    => 'Department of Clinical Sciences',
+    'clinical sciences'                               => 'Department of Clinical Sciences',
+    'dcs'                                             => 'Department of Clinical Sciences',
+
+    // ================= CSPEAR =================
     'department of physical education and recreation' => 'Department of Physical Education and Recreation',
-    'physical education and recreation department' => 'Department of Physical Education and Recreation',
-    'physical education and recreation' => 'Department of Physical Education and Recreation',
-    'Department of Physical Education and Recreation' => 'Department of Physical Education and Recreation',
+    'physical education and recreation department'    => 'Department of Physical Education and Recreation',
+    'physical education and recreation'               => 'Department of Physical Education and Recreation',
+    'dper'                                           => 'Department of Physical Education and Recreation',
+
+    // ================= CVMBS =================
+    'department of veterinary medicine'               => 'Department of Veterinary Medicine',
+    'veterinary medicine department'                  => 'Department of Veterinary Medicine',
+    'veterinary medicine'                             => 'Department of Veterinary Medicine',
+    'dvm'                                             => 'Department of Veterinary Medicine',
+
+    'department of biomedical sciences'               => 'Department of Biomedical Sciences',
+    'biomedical sciences department'                  => 'Department of Biomedical Sciences',
+    'biomedical sciences'                             => 'Department of Biomedical Sciences',
+    'dbs'                                             => 'Department of Biomedical Sciences',
+
+    // ================= GS-OLC =================
+    'department of various graduate programs'         => 'Department of Various Graduate Programs',
+    'various graduate programs department'            => 'Department of Various Graduate Programs',
+    'various graduate programs'                       => 'Department of Various Graduate Programs',
+    'dvgp'                                            => 'Department of Various Graduate Programs',
+
+    // Fallback "General"
+    'general'                                         => 'General',
+    'gen'                                             => 'General',
 ];
 
 // Department mapping for non-academic staff
@@ -318,6 +535,69 @@ switch ($adminType) {
     'non-academic employees association' => 'NAEA',
     'naea' => 'NAEA',
     'non-academic employees assoc' => 'NAEA',
+];
+
+// Course code → full display name mapping for students
+ $courseCodeToFullName = [
+    // ===== CEIT / Engineering =====
+    'BSIT'      => 'BS Information Technology',
+    'BSCS'      => 'BS Computer Science',
+    'BSCPE'     => 'BS Computer Engineering',
+    'BSECE'     => 'BS Electronics Engineering',
+    'BSCE'      => 'BS Civil Engineering',
+    'BSME'      => 'BS Mechanical Engineering',
+    'BSEE'      => 'BS Electrical Engineering',
+    'BSIE'      => 'BS Industrial Engineering',
+
+    // ===== CAFENR =====
+    'BSAGRI'    => 'BS Agriculture',
+    'BSAB'      => 'BS Agribusiness',
+    'BSES'      => 'BS Environmental Science',
+    'BSFT'      => 'BS Food Technology',
+    'BSFOR'     => 'BS Forestry',
+    'BSABE'     => 'BS Agricultural and Biosystems Engineering',
+    'BAE'       => 'BA Agricultural Entrepreneurship',
+    'BSLDM'     => 'BS Land Use Design and Management',
+
+    // ===== CAS =====
+    'BSBIO'     => 'BS Biology',
+    'BSCHEM'    => 'BS Chemistry',
+    'BSMATH'    => 'BS Mathematics',
+    'BSPHYSICS' => 'BS Physics',
+    'BSPSYCH'   => 'BS Psychology',
+    'BAELS'     => 'BA English Language Studies',
+    'BACOMM'    => 'BA Communication',
+    'BSSTAT'    => 'BS Statistics',
+
+    // ===== CVMBS =====
+    'DVM'       => 'Doctor of Veterinary Medicine',
+    'BSPV'      => 'BS Biology (Pre-Veterinary)',
+
+    // ===== CED =====
+    'BEED'      => 'Bachelor of Elementary Education',
+    'BSED'      => 'Bachelor of Secondary Education',
+    'BPE'       => 'Bachelor of Physical Education',
+    'BTLE'      => 'Bachelor of Technology and Livelihood Education',
+
+    // ===== CEMDS =====
+    'BSBA'      => 'BS Business Administration',
+    'BSACC'     => 'BS Accountancy',
+    'BSECO'     => 'BS Economics',
+    'BSENT'     => 'BS Entrepreneurship',
+    'BSOA'      => 'BS Office Administration',
+
+    // ===== CSPEAR / CCJ / CON / CTHM / COM =====
+    'BSESS'     => 'BS Exercise and Sports Sciences',
+    'BSCRIM'    => 'BS Criminology',
+    'BSN'       => 'BS Nursing',
+    'BSHM'      => 'BS Hospitality Management',
+    'BSTM'      => 'BS Tourism Management',
+    'BLIS'      => 'BLIS',
+
+    // ===== Graduate Programs =====
+    'PHD'       => 'PhD',
+    'MS'        => 'MS',
+    'MA'        => 'MA',
 ];
 
 // Allowed values
@@ -491,28 +771,43 @@ while (($row = fgetcsv($file)) !== FALSE) {
                 continue 2;
             }
             
-            // VALIDATION: For Academic-Student admins with course scope (assigned_scope_1)
+            // VALIDATION: For Academic-Student admins with course scope
             // ensure uploaded course is within allowed course list (e.g. BSIT only).
-            if ($scopeCategoryForCsv === 'Academic-Student' && !empty($assignedScope1ForCsv)) {
-                $allowedCourseCodes = parseCourseScopeList($assignedScope1ForCsv); // e.g. ['BSIT','BSCS']
-                if (!empty($allowedCourseCodes)) {
-                    $courseCode = normalizeCourseCodeForCsv($course);
-                    if (!in_array($courseCode, $allowedCourseCodes, true)) {
-                        $restrictedRows++;
-                        $errorMessages[] = "Row $totalRows: Course '$course' not allowed for your scope. Allowed: " . implode(', ', $allowedCourseCodes) . ".";
-                        continue 2;
-                    }
+            if ($scopeCategoryForCsv === 'Academic-Student' && !empty($allowedCourseScopeCodes)) {
+                $courseCode = normalizeCourseCodeForCsv($course);
+                if (!in_array($courseCode, $allowedCourseScopeCodes, true)) {
+                    $restrictedRows++;
+                    $errorMessages[] = "Row $totalRows: Course '$course' not allowed for your scope. Allowed: " . implode(', ', $allowedCourseScopeCodes) . ".";
+                    continue 2;
                 }
             }
-            
-            // NO COURSE MAPPING - Store as full name to match registration process
-            // The course is already in full name format from the CSV
-            
+
+            // OPTIONAL: Academic-Student department1 (department) must not be empty
+            if ($scopeCategoryForCsv === 'Academic-Student') {
+                if ($department === '') {
+                    $errors++;
+                    $errorMessages[] = "Row $totalRows: Department is required for Academic-Student uploads.";
+                    continue 2;
+                }
+            }
+
+            // Map department code/name → canonical full academic department name (for department1)
+            $department_lower = strtolower($department);
+            if (isset($academicDepartmentMapping[$department_lower])) {
+                $department = $academicDepartmentMapping[$department_lower];
+            }
+
+            // Convert course code → full course name before saving
+            $courseCodeNorm = normalizeCourseCodeForCsv($course);
+            if ($courseCodeNorm !== '' && isset($courseCodeToFullName[$courseCodeNorm])) {
+                $course = $courseCodeToFullName[$courseCodeNorm];
+            }
+
             // Map to database fields
-            $department_db = $college;      // Store college in department field
-            $department1 = $department;     // Store department in department1 field
+            $department_db   = $college;    // Store college code in department
+            $department1     = $department; // Store full department name in department1
             $employee_number = null;
-            
+
             // If this upload is from a Non-Academic-Student admin, tie to their scope
             if ($scopeCategoryForCsv === 'Non-Academic-Student' && $ownerScopeIdForCsv !== null) {
                 $owner_scope_id = (int)$ownerScopeIdForCsv;
@@ -554,13 +849,13 @@ while (($row = fgetcsv($file)) !== FALSE) {
                 continue 2;
             }
             
-            // MAP DEPARTMENT
+            // MAP DEPARTMENT (academic)
             $department_lower = strtolower($department);
             if (isset($academicDepartmentMapping[$department_lower])) {
-                $department = $academicDepartmentMapping[$department_lower];
+                $department = $academicDepartmentMapping[$department_lower]; // canonical full name
             }
             
-            // VALIDATE AND MAP STATUS
+            // VALIDATE & MAP STATUS
             $status_lower = strtolower($status);
             if (isset($statusMapping[$status_lower])) {
                 $status = $statusMapping[$status_lower];
@@ -569,12 +864,21 @@ while (($row = fgetcsv($file)) !== FALSE) {
                 $errorMessages[] = "Row $totalRows: Invalid status '$status'. Only Regular, Part-time, or Contractual are allowed.";
                 continue 2;
             }
+
+            // VALIDATION: Academic-Faculty department scope (if restricted)
+            if ($scopeCategoryForCsv === 'Academic-Faculty' && !empty($allowedDeptScopeAcademic)) {
+                if (!in_array($department, $allowedDeptScopeAcademic, true)) {
+                    $restrictedRows++;
+                    $errorMessages[] = "Row $totalRows: Department '$department' is not allowed for your faculty scope.";
+                    continue 2;
+                }
+            }
             
             // Map to database fields
-            $department_db = $college;      // Store college in department field
-            $department1 = $department;     // Store department in department1 field
-            $student_number = null;
-            $course = null;
+            $department_db   = $college;    // Store college code in department field
+            $department1     = $department; // Store department in department1 field
+            $student_number  = null;
+            $course          = null;
             break;
             
         case 'admin_non_academic':
@@ -694,6 +998,15 @@ while (($row = fgetcsv($file)) !== FALSE) {
                     $errors++;
                     $errorMessages[] = "Row $totalRows: Invalid department '$department'. Department must be one of: " . implode(', ', $allowedNonAcademicDepts);
                     continue 2;
+                }
+
+                // VALIDATION: Non-Academic-Employee department scope (if restricted)
+                if ($scopeCategoryForCsv === 'Non-Academic-Employee' && !empty($allowedDeptScopeNonAcad)) {
+                    if (!in_array($department, $allowedDeptScopeNonAcad, true)) {
+                        $restrictedRows++;
+                        $errorMessages[] = "Row $totalRows: Department '$department' is not allowed for your non-academic scope.";
+                        continue 2;
+                    }
                 }
 
                 // VALIDATE & MAP STATUS
@@ -826,9 +1139,18 @@ while (($row = fgetcsv($file)) !== FALSE) {
                     $errorMessages[] = "Row $totalRows: Invalid college '$college'. College must be one of: " . implode(', ', $allowedColleges);
                     continue 2;
                 }
-                
-                // NO COURSE MAPPING - Store as full name to match registration process
-                // The course is already in full name format from the CSV
+
+                // Map department code/name → full department name (optional, if you want consistency)
+                $department_lower = strtolower($department);
+                if (isset($academicDepartmentMapping[$department_lower])) {
+                    $department = $academicDepartmentMapping[$department_lower];
+                }
+
+                // Convert course code → full course name
+                $courseCodeNorm = normalizeCourseCodeForCsv($course);
+                if ($courseCodeNorm !== '' && isset($courseCodeToFullName[$courseCodeNorm])) {
+                    $course = $courseCodeToFullName[$courseCodeNorm];
+                }
             } elseif ($position === 'academic') {
                 // MAP COLLEGE
                 $college_lower = strtolower($college);
@@ -1284,38 +1606,67 @@ unlink($csvFilePath);
             switch ($adminType) {
                 case 'admin_students':
                     if ($scopeCategoryForCsv === 'Academic-Student') {
-                        echo "As an Academic-Student Admin, you can only upload students from your assigned college (<strong>$assignedScope</strong>) and specific courses.";
+                        echo "As an <strong>Academic-Student Admin</strong>, you can only upload users with position <code>student</code>.<br>";
+                        echo "Rows must have college <strong>" . htmlspecialchars($normalizedAssignedScope) . "</strong>.";
+                        if (!empty($allowedCourseScopeCodes)) {
+                            echo " Courses must be one of: <strong>" . htmlspecialchars(implode(', ', $allowedCourseScopeCodes)) . "</strong>.";
+                        } else {
+                            echo " All courses in that college are allowed.";
+                        }
+                        echo " Department (academic unit) is required for each row.";
                     } elseif ($scopeCategoryForCsv === 'Non-Academic-Student') {
-                        echo "As a Non-Academic-Student Admin, you can upload students from any college/department.";
-                    } elseif ($normalizedAssignedScope === 'CSG ADMIN') {
-                        echo "As a CSG Admin, you can upload students from all colleges.";
+                        echo "As a <strong>Non-Academic-Student Admin</strong>, you can only upload users with position <code>student</code>.<br>";
+                        echo "You may upload students from any college, department, or course, but all uploaded students will be owned by <strong>your organization scope</strong> (tied via <code>owner_scope_id</code>) and visible only to you.";
+                    } elseif ($scopeCategoryForCsv === 'Special-Scope' || $normalizedAssignedScope === 'CSG ADMIN') {
+                        echo "As a <strong>CSG Admin</strong>, you can only upload users with position <code>student</code>.<br>";
+                        echo "Students uploaded here are treated as <strong>global</strong> (no owner_scope_id) and may come from any college or course.";
                     } else {
-                        echo "As a College Admin, you can only upload students from your assigned college: <strong>$assignedScope</strong>.";
+                        echo "As a <strong>Student Admin</strong>, you can only upload users with position <code>student</code>.";
                     }
-                    echo " You can only upload users with position 'student'.";
                     break;
+
                 case 'admin_academic':
                     if ($scopeCategoryForCsv === 'Academic-Faculty') {
-                        echo "As an Academic-Faculty Admin, you can only upload academic staff from your assigned college: <strong>$assignedScope</strong>.";
+                        echo "As an <strong>Academic-Faculty Admin</strong>, you can only upload users with position <code>academic</code> (faculty).<br>";
+                        echo "Rows must have college <strong>" . htmlspecialchars($normalizedAssignedScope) . "</strong>.";
+                        if (!empty($allowedDeptScopeAcademic)) {
+                            echo " Departments must be one of: <strong>" . htmlspecialchars(implode(', ', $allowedDeptScopeAcademic)) . "</strong>.";
+                        } else {
+                            echo " All departments under that college are allowed.";
+                        }
                     } else {
-                        echo "As a Faculty Association Admin, you can only upload users with position 'academic'.";
+                        echo "As a <strong>Faculty Association Admin</strong>, you can only upload users with position <code>academic</code>.";
                     }
                     break;
+
                 case 'admin_non_academic':
                     if ($scopeCategoryForCsv === 'Others-Default') {
-                        echo "As an Others-Default Admin, you can upload users with positions 'academic' or 'non-academic'. You can also claim existing users by linking them to your scope.";
+                        echo "As an <strong>Others-Default Admin</strong>, you can upload users with positions <code>academic</code> or <code>non-academic</code>.<br>";
+                        echo "All uploaded rows will be tagged as Others-Default members (<code>is_other_member = 1</code>) and tied to your <strong>scope seat</strong> via <code>owner_scope_id</code>.";
+                        echo " Students are not allowed in this upload.";
+                    } elseif ($scopeCategoryForCsv === 'Non-Academic-Employee') {
+                        echo "As a <strong>Non-Academic-Employee Admin</strong>, you can only upload users with position <code>non-academic</code>.<br>";
+                        if (!empty($allowedDeptScopeNonAcad)) {
+                            echo "Departments must be one of: <strong>" . htmlspecialchars(implode(', ', $allowedDeptScopeNonAcad)) . "</strong>.";
+                        } else {
+                            echo "Any valid non-academic department is allowed.";
+                        }
                     } else {
-                        echo "As a Non-Academic Admin, you can only upload users with position 'non-academic'.";
+                        echo "As a <strong>Non-Academic Admin</strong>, you can only upload users with position <code>non-academic</code>.";
                     }
                     break;
+
                 case 'admin_coop':
-                    echo "As a COOP Admin, you can only upload users with positions 'academic' or 'non-academic' who are COOP members.";
+                    echo "As a <strong>COOP Admin</strong>, you can only upload users with positions <code>academic</code> or <code>non-academic</code> who are COOP members.<br>";
+                    echo "All rows must effectively have <code>is_coop_member = 1</code>.";
                     break;
+
                 case 'super_admin':
-                    echo "As a Super Admin, you can upload users with any position.";
+                    echo "As a <strong>Super Admin</strong>, you can upload users with any position, college, department, or course. No scope restrictions apply.";
                     break;
+
                 default:
-                    echo "As a General Admin, you can upload users with any position.";
+                    echo "As a <strong>General Admin</strong>, you can upload users with any position, subject to any additional scope validation configured for your account.";
                     break;
             }
             ?>
@@ -1331,6 +1682,9 @@ unlink($csvFilePath);
           </ul>
           <p class="text-sm text-blue-700 mt-2">
             This ensures consistency with users registered through the web form and proper matching with election eligibility criteria.
+          </p>
+          <p class="text-sm text-blue-700 mt-2">
+            <strong>CSV Format:</strong> Use codes for college (CEIT), department (DIT, DCEE, DCE, ...) and course (BSIT, BSCS, ...). The system will automatically convert them to full names when saving to the database.
           </p>
         </div>
       </div>

@@ -1,16 +1,21 @@
+
+
+Here's the complete updated code with all the requested changes:
+
+```php
 <?php
 session_start();
 date_default_timezone_set('Asia/Manila');
 
 // --- DB Connection ---
- $host = 'localhost';
- $db   = 'evoting_system';
- $user = 'root';
- $pass = '';
- $charset = 'utf8mb4';
+$host = 'localhost';
+$db   = 'evoting_system';
+$user = 'root';
+$pass = '';
+$charset = 'utf8mb4';
 
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
@@ -22,40 +27,58 @@ try {
     die("Database connection failed: " . $e->getMessage());
 }
 
-// --- Auth check ---
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+// --- Auth + scope check (NEW MODEL) ---
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
     header('Location: login.php');
     exit();
 }
 
- $userId = $_SESSION['user_id'];
+$userId        = (int) $_SESSION['user_id'];
+$scopeCategory = $_SESSION['scope_category'] ?? '';
+$adminStatus   = $_SESSION['admin_status']   ?? 'inactive';
 
-// Get user info including scope
- $stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = ?");
- $stmt->execute([$userId]);
- $userInfo = $stmt->fetch();
+// New world: CSG dashboard is for Special-Scope (CSG Admin)
+if ($scopeCategory !== 'Special-Scope') {
+    // Optional: legacy fallback kung may lumang "CSG ADMIN" sa assigned_scope
+    $legacyScope = strtoupper(trim($_SESSION['assigned_scope'] ?? ''));
+    if ($legacyScope !== 'CSG ADMIN') {
+        header('Location: admin_dashboard_redirect.php');
+        exit();
+    }
+}
 
- $role = $userInfo['role'] ?? '';
- $scope = strtoupper(trim($userInfo['assigned_scope'] ?? ''));
-
-// Valid scopes - now includes CSG ADMIN
- $validScopes = ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC', 'CSG ADMIN'];
-
-// Verify this is the correct scope for this dashboard
-if (!in_array($scope, $validScopes)) {
-    header('Location: admin_dashboard_redirect.php');
+if ($adminStatus !== 'active') {
+    header('Location: login.php?error=Your admin account is inactive.');
     exit();
 }
 
-// Check if this is CSG Admin
- $isCSGAdmin = ($scope === 'CSG ADMIN');
+// Keep $scope only for display / legacy branches (but file is really CSG-only now)
+$scope      = strtoupper(trim($_SESSION['assigned_scope'] ?? 'CSG ADMIN'));
+$isCSGAdmin = true; // This dashboard is effectively CSG global admin
+
+// --- Resolve CSG scope seat (admin_scopes) ---
+$scopeId = null;
+
+if ($scopeCategory === 'Special-Scope') {
+    $scopeStmt = $pdo->prepare("
+        SELECT scope_id
+        FROM admin_scopes
+        WHERE user_id   = :uid
+          AND scope_type = 'Special-Scope'
+        LIMIT 1
+    ");
+    $scopeStmt->execute([':uid' => $userId]);
+    if ($row = $scopeStmt->fetch()) {
+        $scopeId = (int) $row['scope_id'];
+    }
+}
 
 // --- Get available years for dropdown ---
- $stmt = $pdo->query("SELECT DISTINCT YEAR(created_at) as year FROM users WHERE role = 'voter' AND position = 'student' ORDER BY year DESC");
- $availableYears = $stmt->fetchAll(PDO::FETCH_COLUMN);
- $currentYear = date('Y');
- $selectedYear = isset($_GET['year']) ? $_GET['year'] : $currentYear;
- $previousYear = $selectedYear - 1;
+$stmt = $pdo->query("SELECT DISTINCT YEAR(created_at) as year FROM users WHERE role = 'voter' AND position = 'student' ORDER BY year DESC");
+$availableYears = $stmt->fetchAll(PDO::FETCH_COLUMN);
+$currentYear = date('Y');
+$selectedYear = isset($_GET['year']) ? (int)$_GET['year'] : (int)$currentYear;
+$previousYear = $selectedYear - 1;
 
 // --- Fetch dashboard stats ---
 
@@ -71,31 +94,71 @@ if ($isCSGAdmin) {
     WHERE role = 'voter' AND position = 'student' AND UPPER(TRIM(department)) = ?");
     $stmt->execute([$scope]);
 }
- $total_voters = $stmt->fetch()['total_voters'];
+$total_voters = $stmt->fetch()['total_voters'];
 
-// Total Elections (UPDATED - using assigned_admin_id)
- $stmt = $pdo->prepare("SELECT COUNT(*) as total_elections
-FROM elections
-WHERE assigned_admin_id = ?");
- $stmt->execute([$userId]);
- $total_elections = $stmt->fetch()['total_elections'];
+// --- Total & ongoing elections (NEW: use Special-Scope + owner_scope_id) ---
+if ($scopeId !== null) {
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) AS total_elections
+        FROM elections
+        WHERE election_scope_type = 'Special-Scope'
+          AND owner_scope_id      = ?
+    ");
+    $stmt->execute([$scopeId]);
+    $total_elections = (int) ($stmt->fetch()['total_elections'] ?? 0);
 
-// Ongoing Elections (UPDATED - using assigned_admin_id)
- $stmt = $pdo->prepare("SELECT COUNT(*) as ongoing_elections
-FROM elections
-WHERE status = 'ongoing' AND assigned_admin_id = ?");
- $stmt->execute([$userId]);
- $ongoing_elections = $stmt->fetch()['ongoing_elections'];
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) AS ongoing_elections
+        FROM elections
+        WHERE election_scope_type = 'Special-Scope'
+          AND owner_scope_id      = ?
+          AND status              = 'ongoing'
+    ");
+    $stmt->execute([$scopeId]);
+    $ongoing_elections = (int) ($stmt->fetch()['ongoing_elections'] ?? 0);
 
-// --- Fetch elections for display (UPDATED - using assigned_admin_id) ---
- $electionStmt = $pdo->prepare("SELECT * FROM elections
-WHERE assigned_admin_id = ?
-ORDER BY start_datetime DESC");
- $electionStmt->execute([$userId]);
- $elections = $electionStmt->fetchAll();
+    // Optional: scoped election list (if gagamitin sa UI)
+    $electionStmt = $pdo->prepare("
+        SELECT *
+        FROM elections
+        WHERE election_scope_type = 'Special-Scope'
+          AND owner_scope_id      = ?
+        ORDER BY start_datetime DESC
+    ");
+    $electionStmt->execute([$scopeId]);
+    $elections = $electionStmt->fetchAll();
+
+} else {
+    // Fallback (very legacy): still tie to assigned_admin_id
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) AS total_elections
+        FROM elections
+        WHERE assigned_admin_id = ?
+    ");
+    $stmt->execute([$userId]);
+    $total_elections = (int) ($stmt->fetch()['total_elections'] ?? 0);
+
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) AS ongoing_elections
+        FROM elections
+        WHERE status = 'ongoing'
+          AND assigned_admin_id = ?
+    ");
+    $stmt->execute([$userId]);
+    $ongoing_elections = (int) ($stmt->fetch()['ongoing_elections'] ?? 0);
+
+    $electionStmt = $pdo->prepare("
+        SELECT *
+        FROM elections
+        WHERE assigned_admin_id = ?
+        ORDER BY start_datetime DESC
+    ");
+    $electionStmt->execute([$userId]);
+    $elections = $electionStmt->fetchAll();
+}
 
 // --- Get all colleges for dropdown ---
- $allColleges = [];
+$allColleges = [];
 if ($isCSGAdmin) {
     $stmt = $pdo->query("SELECT DISTINCT department as college_name FROM users WHERE role = 'voter' AND position = 'student' ORDER BY college_name");
     $allColleges = $stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -104,7 +167,7 @@ if ($isCSGAdmin) {
 }
 
 // Department abbreviation mapping
- $departmentAbbrevMap = [
+$departmentAbbrevMap = [
     'College of Agriculture, Food, Environment and Natural Resources' => 'CAFENR',
     'College of Engineering and Information Technology' => 'CEIT',
     'College of Arts and Sciences' => 'CAS',
@@ -120,7 +183,7 @@ if ($isCSGAdmin) {
 ];
 
 // College full name mapping
- $collegeFullNameMap = [
+$collegeFullNameMap = [
     'CAFENR' => 'College of Agriculture, Food, Environment and Natural Resources',
     'CEIT' => 'College of Engineering and Information Technology',
     'CAS' => 'College of Arts and Sciences',
@@ -136,7 +199,7 @@ if ($isCSGAdmin) {
 ];
 
 // Department/Course abbreviation mapping
- $deptCourseAbbrevMap = [
+$deptCourseAbbrevMap = [
     'Department of Information Technology' => 'DIT',
     'Department of Engineering' => 'DE',
     'Department of Computer Science' => 'DCS',
@@ -245,23 +308,65 @@ if ($isCSGAdmin) {
 }
 
 // --- Fetch Voter Turnout Analytics Data (UPDATED) ---
- $turnoutDataByYear = [];
+$turnoutDataByYear = [];
 
 // Get all years that have elections assigned to this admin
- $stmt = $pdo->prepare("SELECT DISTINCT YEAR(start_datetime) as year FROM elections 
-                        WHERE assigned_admin_id = ?
-                        ORDER BY year DESC");
- $stmt->execute([$userId]);
- $turnoutYears = $stmt->fetchAll(PDO::FETCH_COLUMN);
+if ($scopeId !== null) {
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT YEAR(start_datetime) AS year
+        FROM elections
+        WHERE election_scope_type = 'Special-Scope'
+          AND owner_scope_id      = ?
+        ORDER BY year DESC
+    ");
+    $stmt->execute([$scopeId]);
+} else {
+    // Fallback: assigned_admin_id (very legacy)
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT YEAR(start_datetime) AS year
+        FROM elections
+        WHERE assigned_admin_id = ?
+        ORDER BY year DESC
+    ");
+    $stmt->execute([$userId]);
+}
+$turnoutYears = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+
+// FORCE include current year and previous year even if no elections yet
+$currentYearInt = (int)date('Y');  // e.g., 2025
+$prevYearInt    = $currentYearInt - 1;
+
+if (!in_array($currentYearInt, $turnoutYears)) {
+    $turnoutYears[] = $currentYearInt;
+}
+if (!in_array($prevYearInt, $turnoutYears)) {
+    $turnoutYears[] = $prevYearInt;
+}
+sort($turnoutYears); // oldest first (or rsort() for newest first)
 
 foreach ($turnoutYears as $year) {
     // Get distinct voters who voted in elections assigned to this admin
-    $stmt = $pdo->prepare("SELECT COUNT(DISTINCT v.voter_id) as total_voted 
-                           FROM votes v 
-                           JOIN elections e ON v.election_id = e.election_id 
-                           WHERE e.assigned_admin_id = ? AND YEAR(e.start_datetime) = ?");
-    $stmt->execute([$userId, $year]);
-    $totalVoted = $stmt->fetch()['total_voted'];
+    if ($scopeId !== null) {
+        $stmt = $pdo->prepare("
+            SELECT COUNT(DISTINCT v.voter_id) AS total_voted
+            FROM votes v
+            JOIN elections e ON v.election_id = e.election_id
+            WHERE e.election_scope_type = 'Special-Scope'
+              AND e.owner_scope_id      = ?
+              AND YEAR(e.start_datetime) = ?
+        ");
+        $stmt->execute([$scopeId, $year]);
+    } else {
+        $stmt = $pdo->prepare("
+            SELECT COUNT(DISTINCT v.voter_id) AS total_voted
+            FROM votes v
+            JOIN elections e ON v.election_id = e.election_id
+            WHERE e.assigned_admin_id = ?
+              AND YEAR(e.start_datetime) = ?
+        ");
+        $stmt->execute([$userId, $year]);
+    }
+    $totalVoted = (int)($stmt->fetch()['total_voted'] ?? 0);
     
     // Get total students as of December 31 of this year
     if ($isCSGAdmin) {
@@ -277,17 +382,31 @@ foreach ($turnoutYears as $year) {
                                AND created_at <= ?");
         $stmt->execute([$scope, $year . '-12-31 23:59:59']);
     }
-    $totalEligible = $stmt->fetch()['total_eligible'];
+    $totalEligible = (int)$stmt->fetch()['total_eligible'];
     
     // Calculate turnout rate
     $turnoutRate = ($totalEligible > 0) ? round(($totalVoted / $totalEligible) * 100, 1) : 0;
     
     // Also get the number of elections assigned to this admin in this year
-    $stmt = $pdo->prepare("SELECT COUNT(*) as election_count 
-                           FROM elections 
-                           WHERE assigned_admin_id = ? AND YEAR(start_datetime) = ?");
-    $stmt->execute([$userId, $year]);
-    $electionCount = $stmt->fetch()['election_count'];
+    if ($scopeId !== null) {
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) AS election_count
+            FROM elections
+            WHERE election_scope_type = 'Special-Scope'
+              AND owner_scope_id      = ?
+              AND YEAR(start_datetime) = ?
+        ");
+        $stmt->execute([$scopeId, $year]);
+    } else {
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) AS election_count
+            FROM elections
+            WHERE assigned_admin_id = ?
+              AND YEAR(start_datetime) = ?
+        ");
+        $stmt->execute([$userId, $year]);
+    }
+    $electionCount = (int)$stmt->fetch()['election_count'];
     
     $turnoutDataByYear[$year] = [
         'year' => $year,
@@ -298,11 +417,20 @@ foreach ($turnoutYears as $year) {
     ];
 }
 
-// Add previous year if not exists (for comparison only)
- $prevYear = $selectedYear - 1;
-if (!isset($turnoutDataByYear[$prevYear])) {
-    $turnoutDataByYear[$prevYear] = [
-        'year' => $prevYear,
+// Ensure selected year and previous year always exist (zero data if needed)
+if (!isset($turnoutDataByYear[$selectedYear])) {
+    $turnoutDataByYear[$selectedYear] = [
+        'year' => $selectedYear,
+        'total_voted' => 0,
+        'total_eligible' => 0,
+        'turnout_rate' => 0,
+        'election_count' => 0,
+        'growth_rate' => 0
+    ];
+}
+if (!isset($turnoutDataByYear[$previousYear])) {
+    $turnoutDataByYear[$previousYear] = [
+        'year' => $previousYear,
         'total_voted' => 0,
         'total_eligible' => 0,
         'turnout_rate' => 0,
@@ -312,89 +440,208 @@ if (!isset($turnoutDataByYear[$prevYear])) {
 }
 
 // Calculate year-over-year growth for turnout
- $years = array_keys($turnoutDataByYear);
-sort($years);
- $previousYear = null;
+$years = array_keys($turnoutDataByYear);
+rsort($years); // newest first
+$previousYearKey = null;
 foreach ($years as $year) {
-    if ($previousYear !== null) {
-        $prevTurnout = $turnoutDataByYear[$previousYear]['turnout_rate'];
+    if ($previousYearKey !== null) {
+        $prevTurnout = $turnoutDataByYear[$previousYearKey]['turnout_rate'];
         $currentTurnout = $turnoutDataByYear[$year]['turnout_rate'];
         $growthRate = ($prevTurnout > 0) ? round((($currentTurnout - $prevTurnout) / $prevTurnout) * 100, 1) : 0;
         $turnoutDataByYear[$year]['growth_rate'] = $growthRate;
     } else {
         $turnoutDataByYear[$year]['growth_rate'] = 0;
     }
-    $previousYear = $year;
+    $previousYearKey = $year;
 }
 
+// --- Year range filtering for turnout analytics (for charts + table) ---
+$allTurnoutYears = array_keys($turnoutDataByYear);
+sort($allTurnoutYears);
+
+$defaultYear = (int)date('Y');
+$minYear     = $allTurnoutYears ? min($allTurnoutYears) : $defaultYear;
+$maxYear     = $allTurnoutYears ? max($allTurnoutYears) : $defaultYear;
+
+// Read ?from_year= & ?to_year= (if not set, use full range)
+$fromYear = isset($_GET['from_year']) && ctype_digit((string)$_GET['from_year'])
+    ? (int)$_GET['from_year']
+    : $minYear;
+
+$toYear = isset($_GET['to_year']) && ctype_digit((string)$_GET['to_year'])
+    ? (int)$_GET['to_year']
+    : $maxYear;
+
+// Clamp to known bounds
+if ($fromYear < $minYear) $fromYear = $minYear;
+if ($toYear   > $maxYear) $toYear   = $maxYear;
+if ($toYear   < $fromYear) $toYear  = $fromYear;
+
+// Build turnoutRangeData for [fromYear..toYear]
+$turnoutRangeData = [];
+for ($y = $fromYear; $y <= $toYear; $y++) {
+    if (isset($turnoutDataByYear[$y])) {
+        $turnoutRangeData[$y] = $turnoutDataByYear[$y];
+    } else {
+        $turnoutRangeData[$y] = [
+            'year'           => $y,
+            'total_voted'    => 0,
+            'total_eligible' => 0,
+            'turnout_rate'   => 0,
+            'election_count' => 0,
+            'growth_rate'    => 0,
+        ];
+    }
+}
+
+// Recompute growth_rate within the SELECTED range only
+$prevY = null;
+foreach ($turnoutRangeData as $y => &$data) {
+    if ($prevY === null) {
+        $data['growth_rate'] = 0;
+    } else {
+        $prevRate = $turnoutRangeData[$prevY]['turnout_rate'] ?? 0;
+        $data['growth_rate'] = $prevRate > 0
+            ? round(($data['turnout_rate'] - $prevRate) / $prevRate * 100, 1)
+            : 0;
+    }
+    $prevY = $y;
+}
+unset($data);
+
 // --- College Turnout Data (for CSG Admin) ---
- $collegeTurnoutData = [];
+$collegeTurnoutData = [];
 if ($isCSGAdmin) {
-    $stmt = $pdo->prepare("
-        SELECT
-        u.department as college_name,
-        COUNT(DISTINCT u.user_id) as eligible_count,
-        COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) as voted_count
-        FROM users u
-        LEFT JOIN (
-            SELECT DISTINCT voter_id
-            FROM votes
-            WHERE election_id IN (
-                SELECT election_id FROM elections
-                WHERE assigned_admin_id = ? AND YEAR(start_datetime) = ?
-            )
-        ) v ON u.user_id = v.voter_id
-        WHERE u.role = 'voter' AND u.position = 'student'
-        GROUP BY college_name
-        ORDER BY college_name
-    ");
-    $stmt->execute([$userId, $selectedYear]);
+    if ($scopeId !== null) {
+        $stmt = $pdo->prepare("
+            SELECT
+                u.department AS college_name,
+                COUNT(DISTINCT u.user_id) AS eligible_count,
+                COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) AS voted_count
+            FROM users u
+            LEFT JOIN (
+                SELECT DISTINCT voter_id
+                FROM votes
+                WHERE election_id IN (
+                    SELECT election_id
+                    FROM elections
+                    WHERE election_scope_type = 'Special-Scope'
+                      AND owner_scope_id      = ?
+                      AND YEAR(start_datetime) = ?
+                )
+            ) v ON u.user_id = v.voter_id
+            WHERE u.role    = 'voter'
+              AND u.position = 'student'
+            GROUP BY college_name
+            ORDER BY college_name
+        ");
+        $stmt->execute([$scopeId, $selectedYear]);
+    } else {
+        $stmt = $pdo->prepare("
+            SELECT
+                u.department AS college_name,
+                COUNT(DISTINCT u.user_id) AS eligible_count,
+                COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) AS voted_count
+            FROM users u
+            LEFT JOIN (
+                SELECT DISTINCT voter_id
+                FROM votes
+                WHERE election_id IN (
+                    SELECT election_id
+                    FROM elections
+                    WHERE assigned_admin_id = ?
+                      AND YEAR(start_datetime) = ?
+                )
+            ) v ON u.user_id = v.voter_id
+            WHERE u.role    = 'voter'
+              AND u.position = 'student'
+            GROUP BY college_name
+            ORDER BY college_name
+        ");
+        $stmt->execute([$userId, $selectedYear]);
+    }
+
     $collegeResults = $stmt->fetchAll();
     
     foreach ($collegeResults as $row) {
-        $turnoutRate = ($row['eligible_count'] > 0) ? round(($row['voted_count'] / $row['eligible_count']) * 100, 1) : 0;
+        $turnoutRate = ($row['eligible_count'] > 0)
+            ? round(($row['voted_count'] / $row['eligible_count']) * 100, 1)
+            : 0;
         $collegeTurnoutData[] = [
-            'college' => $row['college_name'],
-            'eligible_count' => (int)$row['eligible_count'],
-            'voted_count' => (int)$row['voted_count'],
-            'turnout_rate' => (float)$turnoutRate
+            'college'        => $row['college_name'],
+            'eligible_count' => (int) $row['eligible_count'],
+            'voted_count'    => (int) $row['voted_count'],
+            'turnout_rate'   => (float) $turnoutRate,
         ];
     }
 }
 
 // --- Department Turnout Data (for CSG Admin) ---
- $departmentTurnoutData = [];
+$departmentTurnoutData = [];
 if ($isCSGAdmin) {
-    $stmt = $pdo->prepare("
-        SELECT
-        u.department as college_name,
-        COALESCE(NULLIF(u.department1, ''), 'General') as department_name,
-        COUNT(DISTINCT u.user_id) as eligible_count,
-        COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) as voted_count
-        FROM users u
-        LEFT JOIN (
-            SELECT DISTINCT voter_id
-            FROM votes
-            WHERE election_id IN (
-                SELECT election_id FROM elections
-                WHERE assigned_admin_id = ? AND YEAR(start_datetime) = ?
-            )
-        ) v ON u.user_id = v.voter_id
-        WHERE u.role = 'voter' AND u.position = 'student'
-        GROUP BY college_name, department_name
-        ORDER BY college_name, department_name
-    ");
-    $stmt->execute([$userId, $selectedYear]);
+    if ($scopeId !== null) {
+        $stmt = $pdo->prepare("
+            SELECT
+                u.department AS college_name,
+                COALESCE(NULLIF(u.department1, ''), 'General') AS department_name,
+                COUNT(DISTINCT u.user_id) AS eligible_count,
+                COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) AS voted_count
+            FROM users u
+            LEFT JOIN (
+                SELECT DISTINCT voter_id
+                FROM votes
+                WHERE election_id IN (
+                    SELECT election_id
+                    FROM elections
+                    WHERE election_scope_type = 'Special-Scope'
+                      AND owner_scope_id      = ?
+                      AND YEAR(start_datetime) = ?
+                )
+            ) v ON u.user_id = v.voter_id
+            WHERE u.role    = 'voter'
+              AND u.position = 'student'
+            GROUP BY college_name, department_name
+            ORDER BY college_name, department_name
+        ");
+        $stmt->execute([$scopeId, $selectedYear]);
+    } else {
+        $stmt = $pdo->prepare("
+            SELECT
+                u.department AS college_name,
+                COALESCE(NULLIF(u.department1, ''), 'General') AS department_name,
+                COUNT(DISTINCT u.user_id) AS eligible_count,
+                COUNT(DISTINCT CASE WHEN v.voter_id IS NOT NULL THEN u.user_id END) AS voted_count
+            FROM users u
+            LEFT JOIN (
+                SELECT DISTINCT voter_id
+                FROM votes
+                WHERE election_id IN (
+                    SELECT election_id
+                    FROM elections
+                    WHERE assigned_admin_id = ?
+                      AND YEAR(start_datetime) = ?
+                )
+            ) v ON u.user_id = v.voter_id
+            WHERE u.role    = 'voter'
+              AND u.position = 'student'
+            GROUP BY college_name, department_name
+            ORDER BY college_name, department_name
+        ");
+        $stmt->execute([$userId, $selectedYear]);
+    }
+
     $deptResults = $stmt->fetchAll();
     
     foreach ($deptResults as $row) {
-        $turnoutRate = ($row['eligible_count'] > 0) ? round(($row['voted_count'] / $row['eligible_count']) * 100, 1) : 0;
+        $turnoutRate = ($row['eligible_count'] > 0)
+            ? round(($row['voted_count'] / $row['eligible_count']) * 100, 1)
+            : 0;
         $departmentTurnoutData[] = [
-            'college' => $row['college_name'],
-            'department' => $row['department_name'],
-            'eligible_count' => (int)$row['eligible_count'],
-            'voted_count' => (int)$row['voted_count'],
-            'turnout_rate' => (float)$turnoutRate
+            'college'        => $row['college_name'],
+            'department'     => $row['department_name'],
+            'eligible_count' => (int) $row['eligible_count'],
+            'voted_count'    => (int) $row['voted_count'],
+            'turnout_rate'   => (float) $turnoutRate,
         ];
     }
 }
@@ -402,34 +649,50 @@ if ($isCSGAdmin) {
 /* ==========================================================
 COURSE TURNOUT DATA (UPDATED)
 ========================================================== */
- $courseTurnoutData = [];
+$courseTurnoutData = [];
 
-// First, get all distinct voters who voted in any elections assigned to this admin in this year
- $stmt = $pdo->prepare("
-   SELECT DISTINCT v.voter_id
-   FROM votes v
-   JOIN elections e ON v.election_id = e.election_id
-   WHERE e.assigned_admin_id = ? AND YEAR(e.start_datetime) = ?
-");
- $stmt->execute([$userId, $selectedYear]);
- $votedIds = array_column($stmt->fetchAll(), 'voter_id');
- $votedSet = array_flip($votedIds);
+// First, get all distinct voters who voted in any CSG elections in this year
+if ($scopeId !== null) {
+    $stmt = $pdo->prepare("
+       SELECT DISTINCT v.voter_id
+       FROM votes v
+       JOIN elections e ON v.election_id = e.election_id
+       WHERE e.election_scope_type = 'Special-Scope'
+         AND e.owner_scope_id      = ?
+         AND YEAR(e.start_datetime) = ?
+    ");
+    $stmt->execute([$scopeId, $selectedYear]);
+} else {
+    $stmt = $pdo->prepare("
+       SELECT DISTINCT v.voter_id
+       FROM votes v
+       JOIN elections e ON v.election_id = e.election_id
+       WHERE e.assigned_admin_id = ?
+         AND YEAR(e.start_datetime) = ?
+    ");
+    $stmt->execute([$userId, $selectedYear]);
+}
+$votedIds = array_column($stmt->fetchAll(), 'voter_id');
+$votedSet = array_flip($votedIds);
 
 // Get all course data first without grouping
- $stmt = $pdo->prepare("
+$stmt = $pdo->prepare("
    SELECT
-   u.user_id,
-   u.department as college_name,
-   COALESCE(NULLIF(u.department1, ''), 'General') as department_name,
-   u.course
+       u.user_id,
+       u.department AS college_name,
+       COALESCE(NULLIF(u.department1, ''), 'General') AS department_name,
+       u.course
    FROM users u
-   WHERE u.role = 'voter' AND u.position = 'student'
-   AND u.course IS NOT NULL AND u.course <> ''");
- $stmt->execute();
- $rows = $stmt->fetchAll();
+   WHERE u.role    = 'voter'
+     AND u.position = 'student'
+     AND u.course IS NOT NULL
+     AND u.course <> ''
+");
+$stmt->execute();
+$rows = $stmt->fetchAll();
 
 // Group by course names
- $courseGroups = [];
+$courseGroups = [];
 foreach ($rows as $row) {
     $college = $row['college_name'] ?? 'UNKNOWN';
     $department = $row['department_name'];
@@ -548,7 +811,7 @@ if ($isCSGAdmin) {
     }
     .cvsu-card:hover{box-shadow:0 10px 15px rgba(0,0,0,.1);transform:translateY(-2px);}
     
-    /* Color Classes for Different Elements */
+    /* Color Classes */
     .bg-cvsu-green { background-color: var(--cvsu-green); }
     .bg-cvsu-green-dark { background-color: var(--cvsu-green-dark); }
     .bg-cvsu-green-light { background-color: var(--cvsu-green-light); }
@@ -591,14 +854,12 @@ if ($isCSGAdmin) {
     .border-cvsu-indigo { border-color: var(--cvsu-indigo); }
     .border-cvsu-pink { border-color: var(--cvsu-pink); }
     
-    /* Disabled select styling */
     select:disabled {
       background-color: #f3f4f6;
       color: #9ca3af;
       cursor: not-allowed;
     }
     
-    /* Label for disabled select */
     .label-disabled {
       color: #9ca3af;
     }
@@ -620,9 +881,8 @@ if ($isCSGAdmin) {
 </header>
 <main class="flex-1 pt-20 px-8 ml-64">
 
-  <!-- Statistics Cards (MOVED TO TOP) -->
+  <!-- Statistics Cards -->
   <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-    <!-- Total Students -->
     <div class="cvsu-card p-6 rounded-xl">
       <div class="flex items-center justify-between">
         <div>
@@ -635,7 +895,6 @@ if ($isCSGAdmin) {
       </div>
     </div>
     
-    <!-- Total Elections -->
     <div class="cvsu-card p-6 rounded-xl" style="border-left-color: var(--cvsu-yellow);">
       <div class="flex items-center justify-between">
         <div>
@@ -648,7 +907,6 @@ if ($isCSGAdmin) {
       </div>
     </div>
     
-    <!-- Ongoing Elections -->
     <div class="cvsu-card p-6 rounded-xl" style="border-left-color: var(--cvsu-blue);">
       <div class="flex items-center justify-between">
         <div>
@@ -680,7 +938,7 @@ if ($isCSGAdmin) {
             <label id="detailedCollegeLabel" for="detailedCollegeSelect" class="mr-3 text-sm font-medium text-white">Select College:</label>
             <select id="detailedCollegeSelect" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
               <?php foreach ($allColleges as $college): ?>
-                <option value="<?= $college ?>" <?= $college == $scope ? 'selected' : '' ?>><?= $college ?></option>
+                <option value="<?= $college ?>"><?= $college ?></option>
               <?php endforeach; ?>
             </select>
           </div>
@@ -700,21 +958,14 @@ if ($isCSGAdmin) {
               <p class="text-sm" style="color: var(--cvsu-green);">New This Month</p>
               <p class="text-2xl font-bold" style="color: var(--cvsu-green-dark);">
                 <?php
-                // Calculate new students this month
                 $currentMonthStart = date('Y-m-01');
                 $currentMonthEnd = date('Y-m-t');
                 
                 if ($isCSGAdmin) {
-                    $stmt = $pdo->prepare("SELECT COUNT(*) as new_voters 
-                                          FROM users 
-                                          WHERE role = 'voter' AND position = 'student'
-                                            AND created_at BETWEEN ? AND ?");
+                    $stmt = $pdo->prepare("SELECT COUNT(*) as new_voters FROM users WHERE role = 'voter' AND position = 'student' AND created_at BETWEEN ? AND ?");
                     $stmt->execute([$currentMonthStart, $currentMonthEnd]);
                 } else {
-                    $stmt = $pdo->prepare("SELECT COUNT(*) as new_voters 
-                                          FROM users 
-                                          WHERE role = 'voter' AND position = 'student' AND UPPER(TRIM(department)) = ?
-                                            AND created_at BETWEEN ? AND ?");
+                    $stmt = $pdo->prepare("SELECT COUNT(*) as new_voters FROM users WHERE role = 'voter' AND position = 'student' AND UPPER(TRIM(department)) = ? AND created_at BETWEEN ? AND ?");
                     $stmt->execute([$scope, $currentMonthStart, $currentMonthEnd]);
                 }
                 $newVoters = $stmt->fetch()['new_voters'];
@@ -758,23 +1009,16 @@ if ($isCSGAdmin) {
               <p class="text-sm" style="color: var(--cvsu-yellow);">Growth Rate</p>
               <p class="text-2xl font-bold" style="color: #D97706;">
                 <?php
-                // Calculate growth rate
                 $lastMonthStart = date('Y-m-01', strtotime('-1 month'));
                 $lastMonthEnd = date('Y-m-t', strtotime('-1 month'));
                 
                 if ($isCSGAdmin) {
-                    $stmt = $pdo->prepare("SELECT COUNT(*) as last_month_voters 
-                                          FROM users 
-                                          WHERE role = 'voter' AND position = 'student'
-                                            AND created_at BETWEEN ? AND ?");
+                    $stmt = $pdo->prepare("SELECT COUNT(*) as last_month_voters FROM users WHERE role = 'voter' AND position = 'student' AND created_at BETWEEN ? AND ?");
                     $stmt->execute([$lastMonthStart, $lastMonthEnd]);
                     $lastMonthVoters = $stmt->fetch()['last_month_voters'];
                 } else {
-                    $stmt = $pdo->prepare("SELECT COUNT(*) as last_month_voters 
-                                          FROM users 
-                                          WHERE role = 'voter' AND position = 'student' AND UPPER(TRIM(department)) = ?
-                                            AND created_at BETWEEN ? AND ?");
-                    $stmt->execute([$scope, $lastMonthStart, $lastMonthEnd]);
+                    $stmt = $pdo->prepare("SELECT COUNT(*) as last_month_voters FROM users WHERE created_at BETWEEN ? AND ? AND UPPER(TRIM(department)) = ?");
+                    $stmt->execute([$lastMonthStart, $lastMonthEnd, $scope]);
                     $lastMonthVoters = $stmt->fetch()['last_month_voters'];
                 }
                 
@@ -823,7 +1067,7 @@ if ($isCSGAdmin) {
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200" id="detailedTableBody">
-              <!-- Table content will be populated by JavaScript -->
+              <!-- Populated by JS -->
             </tbody>
           </table>
         </div>
@@ -926,7 +1170,7 @@ if ($isCSGAdmin) {
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <?php foreach ($turnoutDataByYear as $year => $data):
+              <?php foreach ($turnoutRangeData as $year => $data):
                 $isPositive = ($data['growth_rate'] ?? 0) > 0;
                 $trendIcon = $isPositive ? 'fa-arrow-up' : (($data['growth_rate'] ?? 0) < 0 ? 'fa-arrow-down' : 'fa-minus');
                 $trendColor = $isPositive ? 'text-green-600' : (($data['growth_rate'] ?? 0) < 0 ? 'text-red-600' : 'text-gray-600');
@@ -952,8 +1196,34 @@ if ($isCSGAdmin) {
         </div>
       </div>
       
+      <!-- Year Range Selector (like faculty dashboard) -->
+      <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h3 class="font-medium text-blue-800 mb-2">Turnout Analysis – Year Range</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="fromYear" class="block text-sm font-medium text-blue-800">From year</label>
+            <select id="fromYear" name="from_year" class="mt-1 p-2 border rounded w-full">
+              <?php foreach ($allTurnoutYears as $y): ?>
+                <option value="<?= $y ?>" <?= ($y == $fromYear) ? 'selected' : '' ?>><?= $y ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div>
+            <label for="toYear" class="block text-sm font-medium text-blue-800">To year</label>
+            <select id="toYear" name="to_year" class="mt-1 p-2 border rounded w-full">
+              <?php foreach ($allTurnoutYears as $y): ?>
+                <option value="<?= $y ?>" <?= ($y == $toYear) ? 'selected' : '' ?>><?= $y ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        </div>
+        <p class="text-xs text-blue-700 mt-2">
+          Select a start and end year to compare turnout. Years with no elections in this range will appear with zero values.
+        </p>
+      </div>
+      
       <!-- Elections vs Turnout Rate -->
-      <div class="p-4 rounded-lg" style="background-color: rgba(30,111,70,0.05);">
+      <div class="p-4 rounded-lg mt-6" style="background-color: rgba(30,111,70,0.05);">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-800">Elections vs Turnout Rate</h3>
           <div class="flex flex-col md:flex-row md:items-center space-y-2 md:space-y-0 md:space-x-6">
@@ -978,7 +1248,6 @@ if ($isCSGAdmin) {
             <div id="turnoutCollegeSelector" class="flex items-center" style="display: none;">
               <label for="turnoutCollegeSelect" class="mr-3 text-sm font-medium text-gray-700">Select College:</label>
               <select id="turnoutCollegeSelect" class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm">
-                <!-- Options will be populated by JavaScript -->
               </select>
             </div>
           </div>
@@ -991,6 +1260,7 @@ if ($isCSGAdmin) {
     </div>
   </div>
 
+</main>
 </div>
 
 <!-- Include Chart.js -->
@@ -1007,8 +1277,8 @@ document.addEventListener('DOMContentLoaded', function() {
   let electionsVsTurnoutChartInstance = null;
   
   // Data from PHP
-  const turnoutYears = <?= json_encode(array_keys($turnoutDataByYear)) ?>;
-  const turnoutRates = <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?>;
+  const turnoutYears = <?= json_encode(array_keys($turnoutRangeData)) ?>;
+  const turnoutRates = <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?>;
   const courseTurnoutData = <?= json_encode($courseTurnoutData) ?>;
   
   // College and department data for filtering
@@ -1158,12 +1428,12 @@ document.addEventListener('DOMContentLoaded', function() {
   /* Elections vs Turnout */
   const chartData = {
     elections:{ year:{
-      labels: <?= json_encode(array_keys($turnoutDataByYear)) ?>,
-      electionCounts: <?= json_encode(array_column($turnoutDataByYear, 'election_count')) ?>,
-      turnoutRates: <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?>
+      labels: <?= json_encode(array_keys($turnoutRangeData)) ?>,
+      electionCounts: <?= json_encode(array_column($turnoutRangeData, 'election_count')) ?>,
+      turnoutRates: <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?>
     }},
     voters:{
-      year:{ labels: <?= json_encode(array_keys($turnoutDataByYear)) ?>, eligibleCounts: <?= json_encode(array_column($turnoutDataByYear, 'total_eligible')) ?>, turnoutRates: <?= json_encode(array_column($turnoutDataByYear, 'turnout_rate')) ?> },
+      year:{ labels: <?= json_encode(array_keys($turnoutRangeData)) ?>, eligibleCounts: <?= json_encode(array_column($turnoutRangeData, 'total_eligible')) ?>, turnoutRates: <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?> },
       <?php if ($isCSGAdmin): ?>
       college: <?= json_encode($collegeTurnoutData) ?>,
       department: <?= json_encode($departmentTurnoutData) ?>,
@@ -1786,8 +2056,32 @@ document.addEventListener('DOMContentLoaded', function() {
       detailedCollegeLabel.classList.add('label-disabled');
     <?php endif; ?>
   }
+  
+  // Year range selectors for turnout analytics
+  const fromYearSelect = document.getElementById('fromYear');
+  const toYearSelect   = document.getElementById('toYear');
+
+  function submitYearRange() {
+    if (!fromYearSelect || !toYearSelect) return;
+    const from = fromYearSelect.value;
+    const to   = toYearSelect.value;
+
+    const url = new URL(window.location.href);
+    if (from) url.searchParams.set('from_year', from); else url.searchParams.delete('from_year');
+    if (to)   url.searchParams.set('to_year', to);     else url.searchParams.delete('to_year');
+
+    // keep currently selected single year in sync
+    const yearSelect = document.getElementById('turnoutYearSelector');
+    if (yearSelect && yearSelect.value) {
+      url.searchParams.set('year', yearSelect.value);
+    }
+
+    window.location.href = url.toString();
+  }
+
+  fromYearSelect?.addEventListener('change', submitYearRange);
+  toYearSelect?.addEventListener('change', submitYearRange);
 });
 </script>
-
 </body>
 </html>
