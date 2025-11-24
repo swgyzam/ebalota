@@ -760,26 +760,87 @@ if (empty($elections)) {
   <!-- Add Position Modal -->
   <div id="addPositionModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden backdrop-blur-sm">
     <div class="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl transform transition-all duration-300">
+      
+      <!-- Header (centered) -->
       <div class="text-center">
         <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <i class="fas fa-plus text-blue-600 text-2xl"></i>
         </div>
         <h3 class="text-2xl font-bold text-gray-800 mb-2">Add New Position</h3>
-        <p class="text-gray-600 mb-6">Enter the name of the new position you want to add.</p>
-        
-        <div class="mb-6">
-          <input type="text" id="newPositionName" placeholder="e.g., Chairperson" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+        <p class="text-gray-600 mb-6">
+          Enter the details of the new position, including how many candidates a voter can select.
+        </p>
+      </div>
+
+      <!-- FORM CONTENT (LEFT ALIGNED) -->
+      <div class="text-left">
+
+        <!-- Position Name -->
+        <div class="mb-4">
+          <label for="newPositionName" class="block text-sm font-medium text-gray-700 mb-1">
+            Position Name <span class="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            id="newPositionName"
+            placeholder="e.g., Senator, Board Member"
+            class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+          >
         </div>
         
+        <!-- Allow Multiple -->
+        <div class="mb-3 flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="newAllowMultiple"
+            class="h-4 w-4 text-green-600 border-gray-300 rounded"
+            onchange="toggleMaxVotes()"
+          >
+          <label 
+            for="newAllowMultiple" 
+            class="text-xs text-gray-700 whitespace-nowrap"
+          >
+            Allow voters to select <span class="font-semibold">multiple candidates</span> for this position
+          </label>
+        </div>
+        <!-- Max Votes -->
+        <div class="mb-6">
+          <label for="newMaxVotes" class="block text-sm font-medium text-gray-700 mb-1">
+            Max votes per voter <span class="text-red-500">*</span>
+          </label>
+          <input
+            type="number"
+            id="newMaxVotes"
+            min="1"
+            value="1"
+            class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+          >
+          <p class="text-xs text-gray-500 mt-1">
+            Examples: Chairperson = 1, Board Members = 4, Senators = 12.
+            If "Allow multiple" is unchecked, this will be forced to 1.
+          </p>
+        </div>
+        
+        <!-- Footer buttons -->
         <div class="flex space-x-3">
-          <button type="button" onclick="hideAddPositionModal()" class="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200">
+          <button
+            type="button"
+            onclick="hideAddPositionModal()"
+            class="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200"
+          >
             Cancel
           </button>
-          <button type="button" onclick="addNewPosition()" class="flex-1 px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 shadow-lg">
+          <button
+            type="button"
+            onclick="addNewPosition()"
+            class="flex-1 px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 shadow-lg"
+          >
             Add Position
           </button>
         </div>
-      </div>
+
+      </div> <!-- END text-left -->
+      
     </div>
   </div>
   
@@ -994,19 +1055,35 @@ if (empty($elections)) {
     }
     
     function addNewPosition() {
-      const positionName = document.getElementById('newPositionName').value.trim();
-      
+      const positionName   = document.getElementById('newPositionName').value.trim();
+      const allowMultiple  = document.getElementById('newAllowMultiple').checked ? 1 : 0;
+      let   maxVotes       = parseInt(document.getElementById('newMaxVotes').value, 10);
+
+      // Basic validation
       if (!positionName) {
         showAlert('Please enter a position name', 'error');
         return;
       }
-      
+
+      if (isNaN(maxVotes) || maxVotes < 1) {
+        showAlert('Please enter a valid number for max votes (minimum 1).', 'error');
+        return;
+      }
+
+      // If single-select, force maxVotes = 1
+      if (allowMultiple === 0) {
+        maxVotes = 1;
+      }
+
       fetch('save_position.php', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: 'position_name=' + encodeURIComponent(positionName)
+        body:
+          'position_name='   + encodeURIComponent(positionName) +
+          '&allow_multiple=' + encodeURIComponent(allowMultiple) +
+          '&max_votes='      + encodeURIComponent(maxVotes)
       })
       .then(response => response.json())
       .then(data => {
@@ -1059,6 +1136,7 @@ if (empty($elections)) {
         showAlert('An error occurred while adding the position', 'error');
       });
     }
+
     
     function deletePosition() {
       if (!positionIdToDelete && !positionNameToDelete) return;
@@ -1156,6 +1234,21 @@ if (empty($elections)) {
           console.error('Error:', error);
           showAlert('An error occurred while deleting the position', 'error');
         });
+      }
+    }
+
+    // Toggle max votes field based on "Allow multiple" checkbox
+    function toggleMaxVotes() {
+      const allowMultiple = document.getElementById('newAllowMultiple').checked;
+      const maxVotesInput = document.getElementById('newMaxVotes');
+      
+      if (!allowMultiple) {
+        maxVotesInput.value = 1;
+        maxVotesInput.readOnly = true;
+        maxVotesInput.classList.add('bg-gray-100', 'cursor-not-allowed');
+      } else {
+        maxVotesInput.readOnly = false;
+        maxVotesInput.classList.remove('bg-gray-100', 'cursor-not-allowed');
       }
     }
     

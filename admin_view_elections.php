@@ -15,6 +15,7 @@ $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES   => false,
 ];
 
 try {
@@ -31,352 +32,26 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-$userId = $_SESSION['user_id'];
+$userId = (int)$_SESSION['user_id'];
 
 /* ==========================================================
-   LEGACY HELPERS (for fallback mode)
+   LOAD ROLE (for "no elections" message)
    ========================================================== */
-
-function normalize_course_code(string $raw): string {
-    $s = strtoupper(trim($raw));
-    if ($s === '') return 'UNSPECIFIED';
-
-    $s = preg_replace('/[.\-_,]/', ' ', $s);
-    $s = preg_replace('/\s+/', ' ', $s);
-
-    $replacements = [
-        'BACHELOR OF SCIENCE IN ' => 'BS ',
-        'BACHELOR OF SCIENCE '    => 'BS ',
-        'BACHELOR OF '            => 'B ',
-        'INFORMATION TECHNOLOGY'  => 'IT',
-        'COMPUTER SCIENCE'        => 'CS',
-        'COMPUTER ENGINEERING'    => 'CPE',
-        'ELECTRONICS ENGINEERING' => 'ECE',
-        'CIVIL ENGINEERING'       => 'CE',
-        'MECHANICAL ENGINEERING'  => 'ME',
-        'ELECTRICAL ENGINEERING'  => 'EE',
-        'INDUSTRIAL ENGINEERING'  => 'IE',
-        'AGRICULTURE'             => 'AGRI',
-        'AGRIBUSINESS'            => 'AB',
-        'ENVIRONMENTAL SCIENCE'   => 'ES',
-        'FOOD TECHNOLOGY'         => 'FT',
-        'FORESTRY'                => 'FOR',
-        'AGRICULTURAL AND BIOSYSTEMS ENGINEERING' => 'ABE',
-        'AGRICULTURAL ENTREPRENEURSHIP'           => 'AE',
-        'LAND USE DESIGN AND MANAGEMENT'          => 'LDM',
-        'BIOLOGY'                 => 'BIO',
-        'CHEMISTRY'               => 'CHEM',
-        'MATHEMATICS'             => 'MATH',
-        'PHYSICS'                 => 'PHYSICS',
-        'PSYCHOLOGY'              => 'PSYCH',
-        'ENGLISH LANGUAGE STUDIES'=> 'ELS',
-        'COMMUNICATION'           => 'COMM',
-        'STATISTICS'              => 'STAT',
-        'CRIMINOLOGY'             => 'CRIM',
-        'NURSING'                 => 'N',
-        'HOSPITALITY MANAGEMENT'  => 'HM',
-        'TOURISM MANAGEMENT'      => 'TM',
-        'LIBRARY AND INFORMATION SCIENCE' => 'LIS',
-        'LIBRARY & INFORMATION SCIENCE'   => 'LIS',
-        'EXERCISE AND SPORTS SCIENCES'    => 'ESS',
-        'OFFICE ADMINISTRATION'   => 'OA',
-        'ENTREPRENEURSHIP'        => 'ENT',
-        'ECONOMICS'               => 'ECO',
-        'ACCOUNTANCY'             => 'ACC',
-        'SECONDARY EDUCATION'     => 'SED',
-        'ELEMENTARY EDUCATION'    => 'EED',
-        'PHYSICAL EDUCATION'      => 'PE',
-        'TECHNOLOGY AND LIVELIHOOD EDUCATION' => 'TLE',
-        'PRE VETERINARY'          => 'PV',
-        'VETERINARY MEDICINE'     => 'DVM',
-    ];
-    foreach ($replacements as $from => $to) {
-        $s = str_replace($from, $to, $s);
-    }
-
-    $s       = preg_replace('/\s+/', ' ', trim($s));
-    $noSpace = str_replace(' ', '', $s);
-
-    $patterns = [
-        '/^BSIT$/'      => 'BSIT',
-        '/^BSCS$/'      => 'BSCS',
-        '/^BSCPE$/'     => 'BSCpE',
-        '/^BSECE$/'     => 'BSECE',
-        '/^BSCE$/'      => 'BSCE',
-        '/^BSME$/'      => 'BSME',
-        '/^BSEE$/'      => 'BSEE',
-        '/^BSIE$/'      => 'BSIE',
-        '/^BSAGRI$/'    => 'BSAgri',
-        '/^BSAB$/'      => 'BSAB',
-        '/^BSES$/'      => 'BSES',
-        '/^BSFT$/'      => 'BSFT',
-        '/^BSFOR$/'     => 'BSFor',
-        '/^BSABE$/'     => 'BSABE',
-        '/^BAE$/'       => 'BAE',
-        '/^BSLDM$/'     => 'BSLDM',
-        '/^BSBIO$/'     => 'BSBio',
-        '/^BSCHEM$/'    => 'BSChem',
-        '/^BSMATH$/'    => 'BSMath',
-        '/^BSPHYSICS$/' => 'BSPhysics',
-        '/^BSPSYCH$/'   => 'BSPsych',
-        '/^BAELS$/'     => 'BAELS',
-        '/^BACOMM$/'    => 'BAComm',
-        '/^BSSTAT$/'    => 'BSStat',
-        '/^DVM$/'       => 'DVM',
-        '/^BSPV$/'      => 'BSPV',
-        '/^BEED$/'      => 'BEEd',
-        '/^BSED$/'      => 'BSEd',
-        '/^BPE$/'       => 'BPE',
-        '/^BTLE$/'      => 'BTLE',
-        '/^BSBA$/'      => 'BSBA',
-        '/^BSACC$/'     => 'BSAcc',
-        '/^BSECO$/'     => 'BSEco',
-        '/^BSENT$/'     => 'BSEnt',
-        '/^BSOA$/'      => 'BSOA',
-        '/^BSESS$/'     => 'BSESS',
-        '/^BSCRIM$/'    => 'BSCrim',
-        '/^BSN$/'       => 'BSN',
-        '/^BSHM$/'      => 'BSHM',
-        '/^BSTM$/'      => 'BSTM',
-        '/^BLIS$/'      => 'BLIS',
-        '/^PHD$/'       => 'PhD',
-        '/^MS$/'        => 'MS',
-        '/^MA$/'        => 'MA',
-    ];
-    foreach ($patterns as $regex => $code) {
-        if (preg_match($regex, $noSpace)) {
-            return $code;
-        }
-    }
-
-    return $noSpace !== '' ? $noSpace : 'UNSPECIFIED';
-}
-
-/**
- * Parse course scope string like:
- *  "BSIT,BSCS" or "Multiple: BSIT, BSCS"
- * into normalized codes array: ['BSIT','BSCS']
- */
-function parse_normalized_course_scope(?string $scopeString): array {
-    if ($scopeString === null) return [];
-
-    $clean = preg_replace('/^(Courses?:\s*)?Multiple:\s*/i', '', $scopeString);
-    $parts = array_filter(array_map('trim', explode(',', $clean)));
-    $codes = [];
-    foreach ($parts as $p) {
-        if ($p === '' || strcasecmp($p, 'All') === 0) continue;
-        $codes[] = strtoupper(normalize_course_code($p));
-    }
-    return array_unique($codes);
-}
-
-/**
- * Check if an election is in admin's college scope.
- */
-function election_matches_college_scope(array $election, string $adminCollege): bool {
-    $allowed = $election['allowed_colleges'] ?? 'All';
-    $allowed = trim($allowed);
-
-    if ($allowed === '' || strcasecmp($allowed, 'All') === 0) {
-        return true; // open to all colleges
-    }
-
-    $list = array_filter(array_map('trim', explode(',', $allowed)));
-    foreach ($list as $college) {
-        if (strcasecmp($college, $adminCollege) === 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/**
- * Check if election courses overlap admin courses.
- */
-function election_matches_course_scope(array $election, array $adminCourseCodes): bool {
-    $allowedCourses = $election['allowed_courses'] ?? '';
-    $clean = trim($allowedCourses);
-
-    if ($clean === '' || strcasecmp($clean, 'All') === 0) {
-        return true;
-    }
-
-    $parts = array_filter(array_map('trim', explode(',', $clean)));
-    $elecCodes = [];
-    foreach ($parts as $p) {
-        $elecCodes[] = strtoupper(normalize_course_code($p));
-    }
-    $elecCodes = array_unique($elecCodes);
-
-    if (empty($adminCourseCodes)) {
-        return true;
-    }
-
-    return count(array_intersect($elecCodes, $adminCourseCodes)) > 0;
-}
-
-/**
- * Check if election departments overlap admin departments (for faculty scope).
- */
-function election_matches_department_scope(array $election, array $adminDepartments): bool {
-    $allowedDepts = $election['allowed_departments'] ?? '';
-    $clean = trim($allowedDepts);
-
-    if ($clean === '' || strcasecmp($clean, 'All') === 0) {
-        return true;
-    }
-
-    $elecDepts = array_filter(array_map('trim', explode(',', $clean)));
-    if (empty($adminDepartments)) {
-        return true;
-    }
-    return count(array_intersect($elecDepts, $adminDepartments)) > 0;
-}
-
-/* ==========================================================
-   FETCH USER INFO
-   ========================================================== */
-$stmt = $pdo->prepare("
-    SELECT role, assigned_scope, scope_category, assigned_scope_1
-    FROM users
-    WHERE user_id = :userId
-");
+$stmt = $pdo->prepare("SELECT role FROM users WHERE user_id = :userId");
 $stmt->execute([':userId' => $userId]);
-$user = $stmt->fetch();
-
-if (!$user) {
-    session_destroy();
-    header('Location: login.php');
-    exit();
-}
-
-$role          = $user['role'];
-$assignedScope = $user['assigned_scope'];   // e.g. CEIT
-$scopeCategory = $user['scope_category'];   // Academic-Student / Academic-Faculty / ...
-$userScope1    = $user['assigned_scope_1']; // e.g. "Multiple: BSIT, BSCS"
+$userRow = $stmt->fetch();
+$role    = $userRow['role'] ?? '';
 
 /* ==========================================================
-   NEW: FETCH ADMIN SCOPE (admin_scopes) IF ADMIN
+   SHARED ELECTION SCOPE HELPER
    ========================================================== */
-$elections      = [];
-$now            = date('Y-m-d H:i:s');
-$usingNewScope  = false;
-$scopeRow       = null;
-$scopeId        = null;
-$scopeType      = null;
-
-if ($role === 'admin' && !empty($scopeCategory)) {
-    $scopeStmt = $pdo->prepare("
-        SELECT scope_id, scope_type, scope_details
-        FROM admin_scopes
-        WHERE user_id   = :uid
-          AND scope_type = :stype
-        LIMIT 1
-    ");
-    $scopeStmt->execute([
-        ':uid'   => $userId,
-        ':stype' => $scopeCategory,
-    ]);
-    $scopeRow = $scopeStmt->fetch();
-
-    if ($scopeRow) {
-        $usingNewScope = true;
-        $scopeId       = (int)$scopeRow['scope_id'];
-        $scopeType     = $scopeRow['scope_type'];
-    }
-}
+require_once __DIR__ . '/includes/election_scope_helpers.php';
 
 /* ==========================================================
-   FETCH ELECTIONS (NEW SCOPE MODEL + LEGACY FALLBACK)
+   FETCH SCOPED ELECTIONS (NEW MODEL + LEGACY FALLBACK)
    ========================================================== */
-
-if ($role === 'admin') {
-
-    if ($usingNewScope && $scopeId !== null && $scopeType !== null) {
-        // ✅ NEW MODEL: elections owned by this admin's scope seat
-        $electionStmt = $pdo->prepare("
-            SELECT *
-            FROM elections
-            WHERE election_scope_type = :scopeType
-              AND owner_scope_id      = :scopeId
-            ORDER BY start_datetime DESC
-        ");
-        $electionStmt->execute([
-            ':scopeType' => $scopeType,
-            ':scopeId'   => $scopeId,
-        ]);
-        $elections = $electionStmt->fetchAll();
-
-    } else {
-        // 🔁 LEGACY BEHAVIOUR (no admin_scopes row yet)
-
-        if ($scopeCategory === 'Academic-Student') {
-            $adminCourseCodes = parse_normalized_course_scope($userScope1);
-
-            $stmt = $pdo->prepare("
-                SELECT *
-                FROM elections
-                WHERE LOWER(target_position) IN ('student', 'all')
-                ORDER BY start_datetime DESC
-            ");
-            $stmt->execute();
-            $allElections = $stmt->fetchAll();
-
-            $elections = [];
-            foreach ($allElections as $e) {
-                if (!election_matches_college_scope($e, $assignedScope)) {
-                    continue;
-                }
-                if (!election_matches_course_scope($e, $adminCourseCodes)) {
-                    continue;
-                }
-                $elections[] = $e;
-            }
-
-        } elseif ($scopeCategory === 'Academic-Faculty') {
-            $adminDepartments = [];
-            if (!empty($userScope1) && strcasecmp($userScope1, 'All') !== 0) {
-                $adminDepartments = array_filter(array_map('trim', explode(',', $userScope1)));
-            }
-
-            $stmt = $pdo->prepare("
-                SELECT *
-                FROM elections
-                WHERE LOWER(target_position) IN ('faculty', 'all')
-                ORDER BY start_datetime DESC
-            ");
-            $stmt->execute();
-            $allElections = $stmt->fetchAll();
-
-            $elections = [];
-            foreach ($allElections as $e) {
-                if (!election_matches_college_scope($e, $assignedScope)) {
-                    continue;
-                }
-                if (!election_matches_department_scope($e, $adminDepartments)) {
-                    continue;
-                }
-                $elections[] = $e;
-            }
-
-        } else {
-            // Old: assigned_admin_id based
-            $electionStmt = $pdo->prepare("
-                SELECT *
-                FROM elections
-                WHERE assigned_admin_id = :adminId
-                ORDER BY start_datetime DESC
-            ");
-            $electionStmt->execute([':adminId' => $userId]);
-            $elections = $electionStmt->fetchAll();
-        }
-    }
-
-} else {
-    // Super admin or other roles: show all elections
-    $electionStmt = $pdo->query("SELECT * FROM elections ORDER BY start_datetime DESC");
-    $elections = $electionStmt->fetchAll();
-}
+$elections = fetchScopedElections($pdo, $userId);
+$now       = date('Y-m-d H:i:s');
 
 /* ==========================================================
    TOAST
@@ -531,7 +206,7 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
                 <div class="space-y-2 text-sm">
                   <div class="flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2z" />
                     </svg>
                     <span><strong class="text-gray-700">Start:</strong> <?= date("M d, Y h:i A", strtotime($start)) ?></span>
                   </div>
@@ -650,6 +325,7 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
     </div>
   </div>
 </div>
+
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     const searchInput   = document.getElementById('searchElections');

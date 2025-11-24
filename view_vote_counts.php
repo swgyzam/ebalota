@@ -3,14 +3,14 @@ session_start();
 date_default_timezone_set('Asia/Manila');
 
 // --- DB Connection ---
- $host = 'localhost';
- $db = 'evoting_system';
- $user = 'root';
- $pass = '';
- $charset = 'utf8mb4';
+$host = 'localhost';
+$db   = 'evoting_system';
+$user = 'root';
+$pass = '';
+$charset = 'utf8mb4';
 
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
@@ -23,6 +23,11 @@ try {
     die("A system error occurred. Please try again later.");
 }
 
+// Shared scope-based election helper (same as admin_view_elections / admin_analytics)
+require_once __DIR__ . '/includes/election_scope_helpers.php';
+// Shared analytics helpers (for scoped voters, course mapping, etc.)
+require_once __DIR__ . '/includes/analytics_scopes.php';
+
 // --- Auth check ---
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -30,465 +35,258 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // Get user role and assigned scope
- $stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = ?");
- $stmt->execute([$_SESSION['user_id']]);
- $userInfo = $stmt->fetch();
+$stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = ?");
+$stmt->execute([$_SESSION['user_id']]);
+$userInfo = $stmt->fetch();
 
- $role = $userInfo['role'] ?? '';
- $scope = strtoupper(trim($userInfo['assigned_scope'] ?? ''));
-
-// Valid college scopes
- $validCollegeScopes = ['CEIT', 'CAS', 'CEMDS', 'CCJ', 'CAFENR', 'CON', 'COED', 'CVM', 'GRADUATE SCHOOL', 'CSPEAR'];
+$role  = $userInfo['role'] ?? '';
+$scope = strtoupper(trim($userInfo['assigned_scope'] ?? ''));
 
 // Get election ID from URL
- $electionId = $_GET['id'] ?? 0;
+$electionId = $_GET['id'] ?? 0;
 if (!$electionId) {
     header('Location: admin_view_elections.php');
     exit();
 }
 
 // Fetch election details
- $stmt = $pdo->prepare("SELECT * FROM elections WHERE election_id = ?");
- $stmt->execute([$electionId]);
- $election = $stmt->fetch();
+$stmt = $pdo->prepare("SELECT * FROM elections WHERE election_id = ?");
+$stmt->execute([$electionId]);
+$election = $stmt->fetch();
 
 if (!$election) {
     header('Location: admin_view_elections.php');
     exit();
 }
 
-// Course mapping for student elections
- $course_map = [
-  // CEIT Courses
-  'bs computer science' => 'BSCS',
-  'bachelor of science in computer science' => 'BSCS',
-  'computer science' => 'BSCS',
-  'Bachelor of Science in Computer Science' => 'BSCS',
-  'BS Computer Science' => 'BSCS',
-  'BSCS' => 'BSCS',
+// Admins are restricted by scoped elections; others (e.g. super_admin) can see all
+if ($role === 'admin') {
+    $visibleElections = fetchScopedElections($pdo, (int)$_SESSION['user_id']);
+    $visibleIds       = array_map('intval', array_column($visibleElections, 'election_id'));
 
-  'bs information technology' => 'BSIT',
-  'bachelor of science in information technology' => 'BSIT',
-  'information technology' => 'BSIT',
-  'Bachelor of Science in Information Technology' => 'BSIT',
-  'BS Information Technology' => 'BSIT',
-  'BSIT' => 'BSIT',
+    if (!in_array((int)$electionId, $visibleIds, true)) {
+        $_SESSION['toast_message'] = 'You are not allowed to view results for this election.';
+        $_SESSION['toast_type']    = 'error';
+        header('Location: admin_view_elections.php');
+        exit();
+    }
+}
 
-  'bs computer engineering' => 'BSCpE',
-  'bachelor of science in computer engineering' => 'BSCpE',
-  'computer engineering' => 'BSCpE',
-  'Bachelor of Science in Computer Engineering' => 'BSCpE',
-  'BS Computer Engineering' => 'BSCpE',
-  'BSCpE' => 'BSCpE',
-
-  'bs electronics engineering' => 'BSECE',
-  'bachelor of science in electronics engineering' => 'BSECE',
-  'electronics engineering' => 'BSECE',
-  'Bachelor of Science in Electronics Engineering' => 'BSECE',
-  'BS Electronics Engineering' => 'BSECE',
-  'BSECE' => 'BSECE',
-
-  'bs civil engineering' => 'BSCE',
-  'bachelor of science in civil engineering' => 'BSCE',
-  'civil engineering' => 'BSCE',
-  'Bachelor of Science in Civil Engineering' => 'BSCE',
-  'BS Civil Engineering' => 'BSCE',
-  'BSCE' => 'BSCE',
-
-  'bs mechanical engineering' => 'BSME',
-  'bachelor of science in mechanical engineering' => 'BSME',
-  'mechanical engineering' => 'BSME',
-  'Bachelor of Science in Mechanical Engineering' => 'BSME',
-  'BS Mechanical Engineering' => 'BSME',
-  'BSME' => 'BSME',
-
-  'bs electrical engineering' => 'BSEE',
-  'bachelor of science in electrical engineering' => 'BSEE',
-  'electrical engineering' => 'BSEE',
-  'Bachelor of Science in Electrical Engineering' => 'BSEE',
-  'BS Electrical Engineering' => 'BSEE',
-  'BSEE' => 'BSEE',
-
-  'bs industrial engineering' => 'BSIE',
-  'bachelor of science in industrial engineering' => 'BSIE',
-  'industrial engineering' => 'BSIE',
-  'Bachelor of Science in Industrial Engineering' => 'BSIE',
-  'BS Industrial Engineering' => 'BSIE',
-  'BSIE' => 'BSIE',
-
-  'bs architecture' => 'BSArch',
-  'bachelor of science in architecture' => 'BSArch',
-  'architecture' => 'BSArch',
-  'Bachelor of Science in Architecture' => 'BSArch',
-  'BS Architecture' => 'BSArch',
-  'BSArch' => 'BSArch',
-
-  // CAFENR Courses
-  'bs agriculture' => 'BSAgri',
-  'bachelor of science in agriculture' => 'BSAgri',
-  'agriculture' => 'BSAgri',
-  'Bachelor of Science in Agriculture' => 'BSAgri',
-  'BS Agriculture' => 'BSAgri',
-  'BSAgri' => 'BSAgri',
-
-  'bs agribusiness' => 'BSAB',
-  'bachelor of science in agribusiness' => 'BSAB',
-  'agribusiness' => 'BSAB',
-  'Bachelor of Science in Agribusiness' => 'BSAB',
-  'BS Agribusiness' => 'BSAB',
-  'BSAB' => 'BSAB',
-
-  'bs environmental science' => 'BSES',
-  'bachelor of science in environmental science' => 'BSES',
-  'environmental science' => 'BSES',
-  'Bachelor of Science in Environmental Science' => 'BSES',
-  'BS Environmental Science' => 'BSES',
-  'BSES' => 'BSES',
-
-  'bs food technology' => 'BSFT',
-  'bachelor of science in food technology' => 'BSFT',
-  'food technology' => 'BSFT',
-  'Bachelor of Science in Food Technology' => 'BSFT',
-  'BS Food Technology' => 'BSFT',
-  'BSFT' => 'BSFT',
-
-  'bs forestry' => 'BSFor',
-  'bachelor of science in forestry' => 'BSFor',
-  'forestry' => 'BSFor',
-  'Bachelor of Science in Forestry' => 'BSFor',
-  'BS Forestry' => 'BSFor',
-  'BSFor' => 'BSFor',
-
-  'bs agricultural and biosystems engineering' => 'BSABE',
-  'bachelor of science in agricultural and biosystems engineering' => 'BSABE',
-  'agricultural and biosystems engineering' => 'BSABE',
-  'Bachelor of Science in Agricultural and Biosystems Engineering' => 'BSABE',
-  'BS Agricultural and Biosystems Engineering' => 'BSABE',
-  'BSABE' => 'BSABE',
-
-  'bachelor of agricultural entrepreneurship' => 'BAE',
-  'agricultural entrepreneurship' => 'BAE',
-  'Bachelor of Agricultural Entrepreneurship' => 'BAE',
-  'BA Agricultural Entrepreneurship' => 'BAE',
-  'BAE' => 'BAE',
-
-  'bs land use design and management' => 'BSLDM',
-  'bachelor of science in land use design and management' => 'BSLDM',
-  'land use design and management' => 'BSLDM',
-  'Bachelor of Science in Land Use Design and Management' => 'BSLDM',
-  'BS Land Use Design and Management' => 'BSLDM',
-  'BSLDM' => 'BSLDM',
-
-  // CAS Courses
-  'bs biology' => 'BSBio',
-  'bachelor of science in biology' => 'BSBio',
-  'biology' => 'BSBio',
-  'Bachelor of Science in Biology' => 'BSBio',
-  'BS Biology' => 'BSBio',
-  'BSBio' => 'BSBio',
-
-  'bs chemistry' => 'BSChem',
-  'bachelor of science in chemistry' => 'BSChem',
-  'chemistry' => 'BSChem',
-  'Bachelor of Science in Chemistry' => 'BSChem',
-  'BS Chemistry' => 'BSChem',
-  'BSChem' => 'BSChem',
-
-  'bs mathematics' => 'BSMath',
-  'bachelor of science in mathematics' => 'BSMath',
-  'mathematics' => 'BSMath',
-  'Bachelor of Science in Mathematics' => 'BSMath',
-  'BS Mathematics' => 'BSMath',
-  'BSMath' => 'BSMath',
-
-  'bs physics' => 'BSPhysics',
-  'bachelor of science in physics' => 'BSPhysics',
-  'physics' => 'BSPhysics',
-  'Bachelor of Science in Physics' => 'BSPhysics',
-  'BS Physics' => 'BSPhysics',
-  'BSPhysics' => 'BSPhysics',
-
-  'bs psychology' => 'BSPsych',
-  'bachelor of science in psychology' => 'BSPsych',
-  'psychology' => 'BSPsych',
-  'Bachelor of Science in Psychology' => 'BSPsych',
-  'BS Psychology' => 'BSPsych',
-  'BSPsych' => 'BSPsych',
-
-  'ba english language studies' => 'BAELS',
-  'bachelor of arts in english language studies' => 'BAELS',
-  'english language studies' => 'BAELS',
-  'Bachelor of Arts in English Language Studies' => 'BAELS',
-  'BA English Language Studies' => 'BAELS',
-  'BAELS' => 'BAELS',
-
-  'ba communication' => 'BAComm',
-  'bachelor of arts in communication' => 'BAComm',
-  'communication' => 'BAComm',
-  'Bachelor of Arts in Communication' => 'BAComm',
-  'BA Communication' => 'BAComm',
-  'BAComm' => 'BAComm',
-
-  'bs statistics' => 'BSStat',
-  'bachelor of science in statistics' => 'BSStat',
-  'statistics' => 'BSStat',
-  'Bachelor of Science in Statistics' => 'BSStat',
-  'BS Statistics' => 'BSStat',
-  'BSStat' => 'BSStat',
-
-  // CVMBS Courses
-  'doctor of veterinary medicine' => 'DVM',
-  'veterinary medicine' => 'DVM',
-  'Doctor of Veterinary Medicine' => 'DVM',
-  'DVM' => 'DVM',
-
-  'bs biology (pre-veterinary)' => 'BSPV',
-  'bachelor of science in biology (pre-veterinary)' => 'BSPV',
-  'biology (pre-veterinary)' => 'BSPV',
-  'Bachelor of Science in Biology (Pre-Veterinary)' => 'BSPV',
-  'BS Biology (Pre-Veterinary)' => 'BSPV',
-  'BSPV' => 'BSPV',
-
-  // CED Courses
-  'bachelor of elementary education' => 'BEEd',
-  'elementary education' => 'BEEd',
-  'Bachelor of Elementary Education' => 'BEEd',
-  'BE Elementary Education' => 'BEEd',
-  'BEEd' => 'BEEd',
-
-  'bachelor of secondary education' => 'BSEd',
-  'secondary education' => 'BSEd',
-  'Bachelor of Secondary Education' => 'BSEd',
-  'BS Secondary Education' => 'BSEd',
-  'BSEd' => 'BSEd',
-
-  'bachelor of physical education' => 'BPE',
-  'physical education' => 'BPE',
-  'Bachelor of Physical Education' => 'BPE',
-  'BS Physical Education' => 'BPE',
-  'BPE' => 'BPE',
-
-  'bachelor of technology and livelihood education' => 'BTLE',
-  'technology and livelihood education' => 'BTLE',
-  'Bachelor of Technology and Livelihood Education' => 'BTLE',
-  'BS Technology and Livelihood Education' => 'BTLE',
-  'BTLE' => 'BTLE',
-
-  // CEMDS Courses
-  'bs business administration' => 'BSBA',
-  'bachelor of science in business administration' => 'BSBA',
-  'business administration' => 'BSBA',
-  'Bachelor of Science in Business Administration' => 'BSBA',
-  'BS Business Administration' => 'BSBA',
-  'BSBA' => 'BSBA',
-
-  'bs accountancy' => 'BSAcc',
-  'bachelor of science in accountancy' => 'BSAcc',
-  'accountancy' => 'BSAcc',
-  'Bachelor of Science in Accountancy' => 'BSAcc',
-  'BS Accountancy' => 'BSAcc',
-  'BSAcc' => 'BSAcc',
-
-  'bs economics' => 'BSEco',
-  'bachelor of science in economics' => 'BSEco',
-  'economics' => 'BSEco',
-  'Bachelor of Science in Economics' => 'BSEco',
-  'BS Economics' => 'BSEco',
-  'BSEco' => 'BSEco',
-
-  'bs entrepreneurship' => 'BSEnt',
-  'bachelor of science in entrepreneurship' => 'BSEnt',
-  'entrepreneurship' => 'BSEnt',
-  'Bachelor of Science in Entrepreneurship' => 'BSEnt',
-  'BS Entrepreneurship' => 'BSEnt',
-  'BSEnt' => 'BSEnt',
-
-  'bs office administration' => 'BSOA',
-  'bachelor of science in office administration' => 'BSOA',
-  'office administration' => 'BSOA',
-  'Bachelor of Science in Office Administration' => 'BSOA',
-  'BS Office Administration' => 'BSOA',
-  'BSOA' => 'BSOA',
-
-  // CSPEAR Courses
-  'bs exercise and sports sciences' => 'BSESS',
-  'bachelor of science in exercise and sports sciences' => 'BSESS',
-  'exercise and sports sciences' => 'BSESS',
-  'Bachelor of Science in Exercise and Sports Sciences' => 'BSESS',
-  'BS Exercise and Sports Sciences' => 'BSESS',
-  'BSESS' => 'BSESS',
-
-  // CCJ Courses
-  'bs criminology' => 'BSCrim',
-  'bachelor of science in criminology' => 'BSCrim',
-  'criminology' => 'BSCrim',
-  'Bachelor of Science in Criminology' => 'BSCrim',
-  'BS Criminology' => 'BSCrim',
-  'BSCrim' => 'BSCrim',
-
-  // CON Courses
-  'bs nursing' => 'BSN',
-  'bachelor of science in nursing' => 'BSN',
-  'nursing' => 'BSN',
-  'Bachelor of Science in Nursing' => 'BSN',
-  'BS Nursing' => 'BSN',
-  'BSN' => 'BSN',
-
-  // CTHM Courses
-  'bs hospitality management' => 'BSHM',
-  'bachelor of science in hospitality management' => 'BSHM',
-  'hospitality management' => 'BSHM',
-  'Bachelor of Science in Hospitality Management' => 'BSHM',
-  'BS Hospitality Management' => 'BSHM',
-  'BSHM' => 'BSHM',
-
-  'bs tourism management' => 'BSTM',
-  'bachelor of science in tourism management' => 'BSTM',
-  'tourism management' => 'BSTM',
-  'Bachelor of Science in Tourism Management' => 'BSTM',
-  'BS Tourism Management' => 'BSTM',
-  'BSTM' => 'BSTM',
-
-  // COM Courses
-  'bachelor of library and information science' => 'BLIS',
-  'library and information science' => 'BLIS',
-  'Bachelor of Library and Information Science' => 'BLIS',
-  'BS Library and Information Science' => 'BLIS',
-  'BLIS' => 'BLIS',
-
-  // GS-OLC Courses
-  'doctor of philosophy' => 'PhD',
-  'Doctor of Philosophy' => 'PhD',
-  'PhD' => 'PhD',
-
-  'master of science' => 'MS',
-  'Master of Science' => 'MS',
-  'MS' => 'MS',
-
-  'master of arts' => 'MA',
-  'Master of Arts' => 'MA',
-  'MA' => 'MA',
-];
-
-// Determine if election is completed
- $now = new DateTime();
- $start = new DateTime($election['start_datetime']);
- $end = new DateTime($election['end_datetime']);
- $status = ($now < $start) ? 'upcoming' : (($now >= $start && $now <= $end) ? 'ongoing' : 'completed');
+// Determine election status
+$now   = new DateTime();
+$start = new DateTime($election['start_datetime']);
+$end   = new DateTime($election['end_datetime']);
+$status = ($now < $start) ? 'upcoming' : (($now >= $start && $now <= $end) ? 'ongoing' : 'completed');
 
 // ===== GET UNIQUE VOTERS WHO HAVE VOTED (not total votes) =====
- $sql = "SELECT COUNT(DISTINCT voter_id) as total FROM votes WHERE election_id = ?";
- $stmt = $pdo->prepare($sql);
- $stmt->execute([$electionId]);
- $totalVotesCast = $stmt->fetch()['total'];
+$sql = "SELECT COUNT(DISTINCT voter_id) as total FROM votes WHERE election_id = ?";
+$stmt = $pdo->prepare($sql);
+$stmt->execute([$electionId]);
+$totalVotesCast = (int)($stmt->fetch()['total'] ?? 0);
 
-// ===== GET ELIGIBLE VOTERS COUNT (Same logic as voters dashboard) =====
- $conditions = ["role = 'voter'"];
- $params = [];
+// ===== GET ELIGIBLE VOTERS COUNT =====
+$totalEligibleVoters = 0;
 
-// Check if user is a college admin and add department filter
-if (in_array($scope, $validCollegeScopes)) {
-   // For college admins, filter by their assigned college
-   $conditions[] = "UPPER(TRIM(department)) = ?";
-   $params[] = $scope;
+// Special handling for scoped elections so it matches analytics logic
+$targetPosLower = strtolower($election['target_position'] ?? '');
+$scopeType      = $election['election_scope_type'] ?? null;
+$scopeId        = isset($election['owner_scope_id']) ? (int)$election['owner_scope_id'] : null;
+
+// 1) Academic-Faculty elections – use faculty scope logic (same as admin_analytics_faculty.php)
+if ($targetPosLower === 'faculty' && $scopeType === SCOPE_ACAD_FACULTY) {
+    // Find this admin's Academic-Faculty scope seat
+    $mySeat   = null;
+    $facSeats = getScopeSeats($pdo, SCOPE_ACAD_FACULTY);
+
+    foreach ($facSeats as $seat) {
+        if ((int)$seat['admin_user_id'] === (int)$_SESSION['user_id']) {
+            $mySeat = $seat;
+            break;
+        }
+    }
+
+    if ($mySeat) {
+        $scopeIdFaculty = (int)$mySeat['scope_id']; // owner_scope_id in elections/users
+        $collegeCode    = strtoupper(trim($mySeat['assigned_scope'] ?? '')); // CEIT, CAS, etc.
+
+        // Same cutoff as analytics: end of this election
+        $yearEnd = $election['end_datetime'] ?? null;
+
+        // All faculty in this seat
+        $scopedFaculty = getScopedVoters(
+            $pdo,
+            SCOPE_ACAD_FACULTY,
+            $scopeIdFaculty,
+            [
+                'year_end'      => $yearEnd,
+                'include_flags' => true,
+            ]
+        );
+
+        // Election's allowed_status (Regular, Probationary, etc.)
+        $allowed_status = array_filter(
+            array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status'] ?? '')))
+        );
+        $restrictByStatus = !empty($allowed_status) && !in_array('ALL', $allowed_status, true);
+
+        $eligibleFacultyForElection = [];
+
+        foreach ($scopedFaculty as $f) {
+            // College guard (should already hold, but explicit)
+            if (strtoupper($f['department'] ?? '') !== $collegeCode) {
+                continue;
+            }
+
+            // Status guard
+            if ($restrictByStatus) {
+                $facStatus = strtoupper(trim($f['status'] ?? ''));
+                if (!in_array($facStatus, $allowed_status, true)) {
+                    continue;
+                }
+            }
+
+            $eligibleFacultyForElection[] = $f;
+        }
+
+        $totalEligibleVoters = count($eligibleFacultyForElection);
+    } else {
+        // No Academic-Faculty seat for this admin – fallback to generic logic below
+        $totalEligibleVoters = null;
+    }
 }
-// Add handling for Non-Academic Admin
-else if ($scope === 'NON-ACADEMIC') {
-   // For Non-Academic Admin, only show non-academic voters
-   $conditions[] = "position = 'non-academic'";
+// 2) Non-Academic-Student elections – only students under this owner_scope_id
+elseif ($scopeType === SCOPE_NONACAD_STUDENT) {
+    $yearEnd = $election['end_datetime'] ?? null;
+
+    $scopedVoters = getScopedVoters(
+        $pdo,
+        SCOPE_NONACAD_STUDENT,
+        $scopeId, // important: per-seat scope via owner_scope_id
+        [
+            'year_end'      => $yearEnd,
+            'include_flags' => true,
+        ]
+    );
+
+    $totalEligibleVoters = count($scopedVoters);
+}
+// 3) Others-Default elections – only is_other_member = 1 with same owner_scope_id
+elseif ($scopeType === SCOPE_OTHERS_DEFAULT) {
+    $yearEnd = $election['end_datetime'] ?? null;
+
+    $scopedVoters = getScopedVoters(
+        $pdo,
+        SCOPE_OTHERS_DEFAULT,
+        $scopeId, // per-seat scope via owner_scope_id
+        [
+            'year_end'      => $yearEnd,
+            'include_flags' => true,
+        ]
+    );
+
+    $totalEligibleVoters = count($scopedVoters);
+}
+// 4) For other election types, use generic election-based filters
+else {
+    $totalEligibleVoters = null;
 }
 
-if ($election['target_position'] === 'coop') {
-   // For COOP elections - only users with both is_coop_member=1 AND migs_status=1
-   $conditions[] = "is_coop_member = 1";
-   $conditions[] = "migs_status = 1";
-} else {
-   // For other elections - apply position filter first
-   if ($election['target_position'] !== 'All') {
-       if ($election['target_position'] === 'faculty') {
-           $conditions[] = "position = ?";
-           $params[] = 'academic';
-       } else {
-           $conditions[] = "position = ?";
-           $params[] = $election['target_position'];
-       }
-   }
-   
-   // Get allowed filters from election
-   $allowed_colleges = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_colleges'] ?? ''))));
-   $allowed_courses = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_courses'] ?? ''))));
-   $allowed_status = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status'] ?? ''))));
-   $allowed_departments = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_departments'] ?? ''))));
-   
-   // Apply college filter if specified (but not for college admins, as they're already filtered by their scope)
-   if (!empty($allowed_colleges) && !in_array('ALL', $allowed_colleges) && !in_array($scope, $validCollegeScopes)) {
-       $placeholders = implode(',', array_fill(0, count($allowed_colleges), '?'));
-       $conditions[] = "UPPER(department) IN ($placeholders)";
-       $params = array_merge($params, $allowed_colleges);
-   }
-   
-   // Apply department filter if specified (for non-academic elections)
-   if ($election['target_position'] === 'non-academic' && !empty($allowed_departments) && !in_array('ALL', $allowed_departments)) {
-       $placeholders = implode(',', array_fill(0, count($allowed_departments), '?'));
-       $conditions[] = "UPPER(department) IN ($placeholders)";
-       $params = array_merge($params, $allowed_departments);
-   }
-   
-   // Apply course filter if specified (mainly for students)
-   if (!empty($allowed_courses) && !in_array('ALL', $allowed_courses)) {
-       // Create reverse course map: short_code => array of full names (in lowercase)
-       $reverse_course_map = [];
-       foreach ($course_map as $full_name => $short_code) {
-           $reverse_course_map[strtoupper($short_code)][] = strtolower($full_name);
-       }
+if ($totalEligibleVoters === null) {
+    // ===== Generic election-based eligible count (for non-faculty / non-scoped-special elections) =====
+    $conditions = ["role = 'voter'"];
+    $params     = [];
 
-       $course_list = [];
-       foreach ($allowed_courses as $course) {
-           if (isset($reverse_course_map[$course])) {
-               $course_list = array_merge($course_list, $reverse_course_map[$course]);
-           }
-           // If the course is not in the map, add it as is (in case it's already a full name)
-           else {
-               $course_list[] = strtolower($course);
-           }
-       }
+    // 1) COOP elections (special case: COOP + MIGS only)
+    if ($election['target_position'] === 'coop') {
 
-       if (!empty($course_list)) {
-           $placeholders = implode(',', array_fill(0, count($course_list), '?'));
-           $conditions[] = "LOWER(course) IN ($placeholders)";
-           $params = array_merge($params, $course_list);
-       }
-   }
-   
-   // Apply status filter if specified (mainly for faculty and non-academic)
-   if (!empty($allowed_status) && !in_array('ALL', $allowed_status)) {
-       $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
-       $conditions[] = "UPPER(status) IN ($placeholders)";
-       $params = array_merge($params, $allowed_status);
-   }
+        $conditions[] = "is_coop_member = 1";
+        $conditions[] = "migs_status = 1";
+
+    } else {
+        // 2) Position filter (student / academic / non-academic / All)
+        if (($election['target_position'] ?? '') !== 'All') {
+            if (strtolower($election['target_position']) === 'faculty') {
+                // faculty = academic in users.position
+                $conditions[] = "position = ?";
+                $params[]     = 'academic';
+            } else {
+                $conditions[] = "position = ?";
+                $params[]     = $election['target_position'];
+            }
+        }
+
+        // 3) Election-level filters
+        $allowed_colleges    = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_colleges']    ?? ''))));
+        $allowed_courses     = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_courses']     ?? ''))));
+        $allowed_status      = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status']      ?? ''))));
+        $allowed_departments = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_departments'] ?? ''))));
+
+        // 3a) College filter – applies to everyone
+        if (!empty($allowed_colleges) && !in_array('ALL', $allowed_colleges, true)) {
+            $placeholders = implode(',', array_fill(0, count($allowed_colleges), '?'));
+            $conditions[] = "UPPER(department) IN ($placeholders)";
+            $params       = array_merge($params, $allowed_colleges);
+        }
+
+        // 3b) Department filter – mainly for non-academic / employee-type elections
+        if (!empty($allowed_departments) && !in_array('ALL', $allowed_departments, true)) {
+            $placeholders = implode(',', array_fill(0, count($allowed_departments), '?'));
+            $conditions[] = "UPPER(department) IN ($placeholders)";
+            $params       = array_merge($params, $allowed_departments);
+        }
+
+        // 3c) Course filter – mainly for student elections
+        if (!empty($allowed_courses) && !in_array('ALL', $allowed_courses, true)) {
+            /**
+             * We use mapCourseCodesToFullNames() from analytics_scopes.php
+             * to convert codes like BSIT, BSCS into full course names
+             * as stored in users.course.
+             */
+            $fullNames = mapCourseCodesToFullNames($allowed_courses);
+            $course_list = [];
+            foreach ($fullNames as $name) {
+                $course_list[] = strtolower($name);
+            }
+
+            if (!empty($course_list)) {
+                $placeholders = implode(',', array_fill(0, count($course_list), '?'));
+                $conditions[] = "LOWER(course) IN ($placeholders)";
+                $params       = array_merge($params, $course_list);
+            }
+        }
+
+        // 3d) Status filter – faculty/non-academic status (e.g. Regular, Probationary)
+        if (!empty($allowed_status) && !in_array('ALL', $allowed_status, true)) {
+            $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
+            $conditions[] = "UPPER(status) IN ($placeholders)";
+            $params       = array_merge($params, $allowed_status);
+        }
+    }
+
+    // 4) Final query to count eligible voters for this election
+    $sql = "SELECT COUNT(*) as total FROM users WHERE " . implode(' AND ', $conditions);
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $totalEligibleVoters = (int)($stmt->fetch()['total'] ?? 0);
 }
-
-// Build and execute the query for eligible voters
- $sql = "SELECT COUNT(*) as total FROM users WHERE " . implode(' AND ', $conditions);
- $stmt = $pdo->prepare($sql);
- $stmt->execute($params);
- $totalEligibleVoters = $stmt->fetch()['total'];
 
 // Calculate turnout percentage
- $turnoutPercentage = ($totalEligibleVoters > 0) ? round(($totalVotesCast / $totalEligibleVoters) * 100, 1) : 0;
+$turnoutPercentage = ($totalEligibleVoters > 0)
+    ? round(($totalVotesCast / $totalEligibleVoters) * 100, 1)
+    : 0.0;
 
 // ===== GET DISTINCT POSITIONS FOR THIS ELECTION =====
- $positionSql = "SELECT DISTINCT position FROM election_candidates WHERE election_id = ? ORDER BY position";
- $stmt = $pdo->prepare($positionSql);
- $stmt->execute([$electionId]);
- $positions = $stmt->fetchAll();
- $positionOptions = array_column($positions, 'position');
+$positionSql = "SELECT DISTINCT position FROM election_candidates WHERE election_id = ? ORDER BY position";
+$stmt = $pdo->prepare($positionSql);
+$stmt->execute([$electionId]);
+$positions = $stmt->fetchAll();
+$positionOptions = array_column($positions, 'position');
 
 // Add "All" option at the beginning
 array_unshift($positionOptions, 'All');
 
 // ===== GET CANDIDATES WITH VOTE COUNTS =====
- $sql = "
+$sql = "
     SELECT 
         ec.id as election_candidate_id,
         c.id as candidate_id,
@@ -504,13 +302,12 @@ array_unshift($positionOptions, 'All');
     GROUP BY ec.id, c.id, c.first_name, c.last_name, c.photo, ec.position
     ORDER BY ec.position, vote_count DESC
 ";
-
- $stmt = $pdo->prepare($sql);
- $stmt->execute([$electionId]);
- $candidatesWithVotes = $stmt->fetchAll();
+$stmt = $pdo->prepare($sql);
+$stmt->execute([$electionId]);
+$candidatesWithVotes = $stmt->fetchAll();
 
 // Group candidates by position
- $candidatesByPosition = [];
+$candidatesByPosition = [];
 foreach ($candidatesWithVotes as $candidate) {
     $position = $candidate['election_position'];
     if (!isset($candidatesByPosition[$position])) {
@@ -519,11 +316,10 @@ foreach ($candidatesWithVotes as $candidate) {
     $candidatesByPosition[$position][] = $candidate;
 }
 
- $pageTitle = $status === 'completed' ? 'Election Results' : 'Vote Counts';
+$pageTitle = $status === 'completed' ? 'Election Results' : 'Vote Counts';
 
 include 'sidebar.php';
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -599,95 +395,95 @@ include 'sidebar.php';
       <div class="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl overflow-hidden mb-8 border border-gray-100">
         <!-- Card Header -->
         <div class="bg-gradient-to-r from-[var(--cvsu-green-dark)] to-[var(--cvsu-green)] p-6 relative">
-            <div class="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -mr-16 -mt-16"></div>
-            <div class="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-5 rounded-full -ml-12 -mb-12"></div>
-            
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between relative z-10">
+          <div class="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -mr-16 -mt-16"></div>
+          <div class="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-5 rounded-full -ml-12 -mb-12"></div>
+          
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between relative z-10">
             <div class="flex-1">
-                <div class="flex items-center mb-3">
+              <div class="flex items-center mb-3">
                 <div class="bg-white bg-opacity-20 p-3 rounded-xl mr-4 shadow-md">
-                    <i class="fas fa-vote-yea text-white text-3xl"></i>
+                  <i class="fas fa-vote-yea text-white text-3xl"></i>
                 </div>
                 <div>
-                    <h1 class="text-3xl font-bold text-white leading-tight">
+                  <h1 class="text-3xl font-bold text-white leading-tight">
                     <?= htmlspecialchars($pageTitle) ?>
-                    </h1>
-                    <p class="text-green-100 text-lg font-medium">
+                  </h1>
+                  <p class="text-green-100 text-lg font-medium">
                     <?= htmlspecialchars($election['title']) ?>
-                    </p>
+                  </p>
                 </div>
-                </div>
+              </div>
             </div>
             
             <div class="mt-4 md:mt-0 flex items-center space-x-3">
-                <?php if ($status === 'ongoing' && $election['realtime_results']): ?>
+              <?php if ($status === 'ongoing' && !empty($election['realtime_results'])): ?>
                 <span class="live-indicator inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-red-500 text-white shadow-lg animate-pulse">
-                    <i class="fas fa-circle mr-2 text-xs"></i> LIVE
+                  <i class="fas fa-circle mr-2 text-xs"></i> LIVE
                 </span>
-                <?php endif; ?>
-                
-                <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold shadow-md
+              <?php endif; ?>
+              
+              <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold shadow-md
                     <?= $status === 'completed' ? 'bg-green-500 text-white' : 
-                        ($status === 'ongoing' ? 'bg-blue-500 text-white' : 'bg-yellow-600 text-white') ?>">
+                       ($status === 'ongoing' ? 'bg-blue-500 text-white' : 'bg-yellow-600 text-white') ?>">
                 <?php if ($status === 'completed'): ?>
-                    <i class="fas fa-check-circle mr-2"></i> Completed
+                  <i class="fas fa-check-circle mr-2"></i> Completed
                 <?php elseif ($status === 'ongoing'): ?>
-                    <i class="fas fa-clock mr-2"></i> Ongoing
+                  <i class="fas fa-clock mr-2"></i> Ongoing
                 <?php else: ?>
-                    <i class="fas fa-hourglass-start mr-2"></i> Upcoming
+                  <i class="fas fa-hourglass-start mr-2"></i> Upcoming
                 <?php endif; ?>
-                </span>
+              </span>
             </div>
-            </div>
+          </div>
         </div>
         
         <!-- Card Body -->
         <div class="p-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                <div class="flex items-center">
+              <div class="flex items-center">
                 <div class="bg-green-50 p-4 rounded-xl mr-4 shadow-sm border border-green-100">
-                    <i class="far fa-calendar-alt text-green-600 text-2xl"></i>
+                  <i class="far fa-calendar-alt text-green-600 text-2xl"></i>
                 </div>
                 <div class="flex-1">
-                    <p class="text-sm font-medium text-gray-500 mb-1">Election Period</p>
-                    <p class="text-lg font-semibold text-gray-800">
+                  <p class="text-sm font-medium text-gray-500 mb-1">Election Period</p>
+                  <p class="text-lg font-semibold text-gray-800">
                     <?= date("F j, Y, g:i A", strtotime($election['start_datetime'])) ?>
-                    </p>
-                    <div class="flex items-center my-2">
+                  </p>
+                  <div class="flex items-center my-2">
                     <div class="h-px bg-green-200 flex-grow"></div>
                     <span class="px-3 text-xs font-medium text-green-600 bg-green-50 rounded-full">to</span>
                     <div class="h-px bg-green-200 flex-grow"></div>
-                    </div>
-                    <p class="text-lg font-semibold text-gray-800">
+                  </div>
+                  <p class="text-lg font-semibold text-gray-800">
                     <?= date("F j, Y, g:i A", strtotime($election['end_datetime'])) ?>
-                    </p>
+                  </p>
                 </div>
-                </div>
+              </div>
             </div>
             
             <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                <div class="flex items-center">
+              <div class="flex items-center">
                 <div class="bg-green-50 p-4 rounded-xl mr-4 shadow-sm border border-green-100">
-                    <i class="fas fa-filter text-green-600 text-2xl"></i>
+                  <i class="fas fa-filter text-green-600 text-2xl"></i>
                 </div>
                 <div class="w-full">
-                    <label for="positionFilter" class="block text-sm font-medium text-gray-700 mb-2">
+                  <label for="positionFilter" class="block text-sm font-medium text-gray-700 mb-2">
                     Filter by Position
-                    </label>
-                    <select id="positionFilter" class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)] transition-all">
+                  </label>
+                  <select id="positionFilter" class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)] transition-all">
                     <?php foreach ($positionOptions as $position): ?>
-                        <option value="<?= htmlspecialchars($position) ?>" <?= $position === 'All' ? 'selected' : '' ?>>
+                      <option value="<?= htmlspecialchars($position) ?>" <?= $position === 'All' ? 'selected' : '' ?>>
                         <?= htmlspecialchars($position) ?>
-                        </option>
+                      </option>
                     <?php endforeach; ?>
-                    </select>
+                  </select>
                 </div>
-                </div>
+              </div>
             </div>
-            </div>
+          </div>
         </div>
-        </div>
+      </div>
       
       <!-- Vote Turnout Statistics and Candidates Section -->
       <div id="electionResults">
@@ -800,12 +596,12 @@ include 'sidebar.php';
                   <div class="space-y-4">
                     <?php foreach ($candidates as $index => $data): ?>
                       <?php
-                      $candidateId = $data['candidate_id'];
-                      $candidateName = $data['candidate_name'];
-                      $candidatePhoto = $data['photo'];
+                      $candidateId      = $data['candidate_id'];
+                      $candidateName    = $data['candidate_name'];
+                      $candidatePhoto   = $data['photo'];
                       $electionPosition = $data['election_position'];
-                      $voteCount = $data['vote_count'];
-                      $percentage = $totalVotesForPosition > 0 ? round(($voteCount / $totalVotesForPosition) * 100, 1) : 0;
+                      $voteCount        = (int)$data['vote_count'];
+                      $percentage       = $totalVotesForPosition > 0 ? round(($voteCount / $totalVotesForPosition) * 100, 1) : 0;
                       
                       // Check for tie only if vote count > 0
                       if ($voteCount > 0 && $prevVoteCount === $voteCount) {
@@ -819,7 +615,7 @@ include 'sidebar.php';
                       
                       $prevVoteCount = $voteCount;
                       
-                      // Determine if candidate card should be highlighted (rank 1 AND has votes > 0)
+                      // Highlight card if rank 1 and has votes
                       $isHighlighted = ($rank === 1 && $voteCount > 0);
                       ?>
                       
@@ -932,7 +728,7 @@ include 'sidebar.php';
 </div>
 
 <!-- Real-time Update Script (for ongoing elections with realtime_results enabled) -->
-<?php if ($status === 'ongoing' && $election['realtime_results']): ?>
+<?php if ($status === 'ongoing' && !empty($election['realtime_results'])): ?>
 <script>
   function updateVoteCounts() {
     fetch('view_vote_counts.php?id=<?= $electionId ?>&ajax=1')
@@ -991,10 +787,12 @@ include 'sidebar.php';
   $sql = "SELECT COUNT(DISTINCT voter_id) as total FROM votes WHERE election_id = ?";
   $stmt = $pdo->prepare($sql);
   $stmt->execute([$electionId]);
-  $totalVotesCast = $stmt->fetch()['total'];
+  $totalVotesCast = (int)($stmt->fetch()['total'] ?? 0);
   
-  // Recalculate turnout percentage
-  $turnoutPercentage = ($totalEligibleVoters > 0) ? round(($totalVotesCast / $totalEligibleVoters) * 100, 1) : 0;
+  // Recalculate turnout percentage using same totalEligibleVoters
+  $turnoutPercentage = ($totalEligibleVoters > 0)
+      ? round(($totalVotesCast / $totalEligibleVoters) * 100, 1)
+      : 0.0;
   
   // Re-run the candidate vote count query
   $sql = "
@@ -1111,15 +909,14 @@ include 'sidebar.php';
                       $isFirstPlaceTie = true;
                       break;
                   } else {
-                      break; // Since candidates are sorted by vote count
+                      break;
                   }
               }
           }
           
-          // Initialize tie detection variables
           $prevVoteCount = null;
-          $prevRank = null;
-          $isTie = false;
+          $prevRank      = null;
+          $isTie         = false;
         ?>
           <div class="position-section mb-8 last:mb-0">
             <div class="flex items-center mb-4 pb-2 border-b border-gray-200">
@@ -1132,33 +929,28 @@ include 'sidebar.php';
               </span>
             </div>
             
-            <!-- Candidates List for this Position (Full Width Cards) -->
             <div class="space-y-4">
               <?php foreach ($candidates as $index => $data): 
-                $candidateName = $data['candidate_name'];
-                $candidatePhoto = $data['photo'];
+                $candidateName    = $data['candidate_name'];
+                $candidatePhoto   = $data['photo'];
                 $electionPosition = $data['election_position'];
-                $voteCount = $data['vote_count'];
-                $percentage = $totalVotesForPosition > 0 ? round(($voteCount / $totalVotesForPosition) * 100, 1) : 0;
+                $voteCount        = (int)$data['vote_count'];
+                $percentage       = $totalVotesForPosition > 0 ? round(($voteCount / $totalVotesForPosition) * 100, 1) : 0;
                 
-                // Check for tie only if vote count > 0
                 if ($voteCount > 0 && $prevVoteCount === $voteCount) {
                     $isTie = true;
-                    $rank = $prevRank;
+                    $rank  = $prevRank;
                 } else {
                     $isTie = false;
-                    $rank = $index + 1;
+                    $rank  = $index + 1;
                     $prevRank = $rank;
                 }
                 
                 $prevVoteCount = $voteCount;
-                
-                // Determine if candidate card should be highlighted (rank 1 AND has votes > 0)
                 $isHighlighted = ($rank === 1 && $voteCount > 0);
               ?>
                 <div class="candidate-card <?= $isHighlighted ? 'candidate-card-highlight' : 'border border-gray-200' ?> bg-white rounded-lg shadow-sm p-4 hover:shadow-md" data-position="<?= htmlspecialchars($position) ?>">
                   <div class="flex items-center">
-                    <!-- Rank Badge -->
                     <div class="flex-shrink-0 mr-4">
                       <div class="rank-badge rounded-full flex items-center justify-center font-bold text-lg 
                           <?= $rank === 1 ? ($isFirstPlaceTie ? 'tie-indicator' : 'rank-1') : 
@@ -1170,7 +962,6 @@ include 'sidebar.php';
                       <?php endif; ?>
                     </div>
                     
-                    <!-- Candidate Photo -->
                     <div class="flex-shrink-0 mr-4">
                       <?php if (!empty($candidatePhoto)): ?>
                         <img src="<?= htmlspecialchars($candidatePhoto) ?>" 
@@ -1185,7 +976,6 @@ include 'sidebar.php';
                       <?php endif; ?>
                     </div>
                     
-                    <!-- Candidate Details -->
                     <div class="flex-1">
                       <div class="flex flex-col md:flex-row md:items-center md:justify-between">
                         <div>
@@ -1203,7 +993,6 @@ include 'sidebar.php';
                         </div>
                       </div>
                       
-                      <!-- Progress Bar -->
                       <div class="mt-3">
                         <div class="flex justify-between text-sm text-gray-600 mb-1">
                           <span><?= $percentage ?>% of position votes</span>
@@ -1219,7 +1008,6 @@ include 'sidebar.php';
                         </div>
                       </div>
                       
-                      <!-- Additional Info -->
                       <div class="mt-2 flex items-center justify-between text-sm">
                         <span class="text-gray-500">
                           <i class="fas fa-chart-line mr-1"></i>

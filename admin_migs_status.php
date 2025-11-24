@@ -1,56 +1,70 @@
-<?php
+<?php 
 session_start();
 date_default_timezone_set('Asia/Manila');
+
 // --- DB Connection ---
- $host = 'localhost';
- $db   = 'evoting_system';
- $user = 'root';
- $pass = '';
- $charset = 'utf8mb4';
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+$host    = 'localhost';
+$db      = 'evoting_system';
+$user    = 'root';
+$pass    = '';
+$charset = 'utf8mb4';
+
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
+
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (\PDOException $e) {
     die("Database connection failed: " . $e->getMessage());
 }
-// --- Auth Check ---
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin' || $_SESSION['assigned_scope'] !== 'COOP') {
+
+// --- Auth Check (COOP admin only: new model + legacy fallback) ---
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
     header('Location: login.php');
     exit();
 }
 
-// Set instructions and CSV format for MIGS status update
- $instructions = '
+$scopeCategory = $_SESSION['scope_category'] ?? '';
+$assignedScope = strtoupper(trim($_SESSION['assigned_scope'] ?? ''));
+
+// Bagong modelo: Others-COOP
+// Legacy fallback: assigned_scope = 'COOP'
+if ($scopeCategory !== 'Others-COOP' && $assignedScope !== 'COOP') {
+    header('Location: admin_dashboard_redirect.php');
+    exit();
+}
+
+// Set instructions and CSV format for MIGS status update (EMAIL-based)
+$instructions = '
     <h3 class="font-semibold text-blue-800 mb-2">Instructions for MIGS Status Update:</h3>
     <ul class="list-disc pl-5 text-blue-700 space-y-1">
-        <li>Upload a CSV file containing COOP members to update their MIGS status</li>
-        <li>The CSV must have these columns in order: employee_number, action</li>
-        <li>Employee number must match exactly as recorded in the system</li>
-        <li>Action must be either "activate" or "deactivate"</li>
-        <li>Email notifications will be sent to users when their status is updated</li>
-        <li>Only COOP members will be processed</li>
+        <li>Upload a CSV file containing COOP members whose MIGS status you want to update.</li>
+        <li><strong>The CSV must have these columns in order: <code>email,action</code></strong>.</li>
+        <li><strong>Email</strong> must match exactly the email address used by the user in the system.</li>
+        <li><strong>Action</strong> must be either <code>activate</code> or <code>deactivate</code> (case-insensitive).</li>
+        <li>Only users who are marked as <code>is_coop_member = 1</code> will be processed.</li>
+        <li>Email notifications will be sent to users when their MIGS status is updated.</li>
     </ul>
 ';
 
- $csvExample = '
+$csvExample = '
     <h3 class="font-semibold text-yellow-800 mb-2">MIGS Status CSV Format Example:</h3>
-    <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">employee_number,action
-EMP1001,activate
-EMP1002,deactivate
-EMP1003,activate</pre>
+    <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">email,action
+juan.delacruz@example.com,activate
+maria.santos@example.com,deactivate
+pedro.cruz@example.com,activate</pre>
 ';
 
- $message = '';
+$message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_FILES['csv_file']) && $_FILES['csv_file']['error'] === UPLOAD_ERR_OK) {
-        $fileTmpPath = $_FILES['csv_file']['tmp_name'];
-        $fileName = $_FILES['csv_file']['name'];
-        $fileSize = $_FILES['csv_file']['size'];
-        $fileType = $_FILES['csv_file']['type'];
+        $fileTmpPath  = $_FILES['csv_file']['tmp_name'];
+        $fileName     = $_FILES['csv_file']['name'];
+        $fileSize     = $_FILES['csv_file']->size ?? 0;
+        $fileType     = $_FILES['csv_file']['type'] ?? '';
         $fileNameCmps = explode(".", $fileName);
         $fileExtension = strtolower(end($fileNameCmps));
         
@@ -75,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = "There was an error moving the uploaded file.";
             }
         } else {
-            $message = "Please upload a valid CSV file.";
+            $message = "Please upload a valid CSV file (.csv).";
         }
     } else {
         $message = "No file uploaded or upload error.";
@@ -102,9 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       background: linear-gradient(135deg, var(--cvsu-green-dark) 0%, var(--cvsu-green) 100%);
     }
     
-    /* Custom styles for wider card and better text wrapping */
     .wide-card {
-      max-width: 5xl; /* Increased from max-w-3xl to max-w-5xl */
+      max-width: 72rem; /* ~5xl */
     }
     
     .instruction-card, .example-card {
@@ -118,26 +131,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       word-break: break-all;
     }
     
-    /* Ensure the file upload area is also wider */
     .file-upload-area {
       min-width: 100%;
     }
     
-    /* Error message styling */
     .error-message {
       background-color: #FEE2E2;
       border-left: 4px solid #EF4444;
       color: #B91C1C;
     }
     
-    /* File info styling */
     .file-info {
       background-color: #EFF6FF;
       border-left: 4px solid #3B82F6;
       color: #1E40AF;
     }
     
-    /* Success message styling */
     .success-message {
       background-color: #D1FAE5;
       border-left: 4px solid #10B981;
@@ -153,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body class="bg-gray-50 text-gray-900 font-sans">
   <!-- Background Pattern -->
   <div class="fixed inset-0 opacity-5 pointer-events-none">
-    <div class="absolute inset-0" style="background-image: url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><circle cx=\"50\" cy=\"50\" r=\"2\" fill=\"%23154734\"/></svg>'); background-size: 20px 20px;"></div>
+    <div class="absolute inset-0" style="background-image: url('data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><circle cx=\'50\' cy=\'50\' r=\'2\' fill=\'%23154734\'/></svg>'); background-size: 20px 20px;"></div>
   </div>
   
   <div class="flex min-h-screen">
@@ -167,11 +176,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </div>
           <div>
             <h1 class="text-3xl font-extrabold">Manage MIGS Status</h1>
-            <p class="text-green-100 mt-1">Upload a CSV file to update MIGS status for COOP members</p>
+            <p class="text-green-100 mt-1">Upload a CSV file to update MIGS status for COOP members (by email)</p>
           </div>
         </div>
         <div class="flex items-center gap-4">
-          <a href="admin_manage_users.php" class="bg-green-600 hover:bg-green-500 px-4 py-2 rounded font-semibold transition">Back to Users</a>
+          <a href="admin_manage_users.php" class="bg-green-600 hover:bg-green-500 px  -4 py-2 rounded font-semibold transition">Back to Users</a>
         </div>
       </header>
       
@@ -195,11 +204,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <div class="bg-yellow-50 p-4 rounded-lg text-center">
               <div class="text-2xl font-bold text-yellow-600"><?= $results['notFoundCount'] ?></div>
-              <div class="text-gray-600">Not Found</div>
+              <div class="text-gray-600">Email Not Found</div>
             </div>
             <div class="bg-red-50 p-4 rounded-lg text-center">
               <div class="text-2xl font-bold text-red-600"><?= $results['invalidActionCount'] ?></div>
-              <div class="text-gray-600">Invalid</div>
+              <div class="text-gray-600">Invalid Action</div>
             </div>
             <div class="bg-purple-50 p-4 rounded-lg text-center">
               <div class="text-2xl font-bold text-purple-600"><?= $results['notCoopCount'] ?></div>
@@ -219,136 +228,136 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </div>
           
           <?php if ($results['successCount'] > 0): ?>
-              <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                  <div class="flex">
-                      <div class="flex-shrink-0">
-                          <i class="fas fa-check-circle text-green-500 text-xl"></i>
-                      </div>
-                      <div class="ml-3">
-                          <h3 class="text-sm font-medium text-green-800">MIGS Status Updated Successfully</h3>
-                          <div class="mt-2 text-sm text-green-700">
-                              <p><?= $results['successCount'] ?> user(s) have had their MIGS status updated. Email notifications have been sent to all affected users.</p>
-                              <?php if ($results['notFoundCount'] > 0 || $results['invalidActionCount'] > 0 || $results['notCoopCount'] > 0): ?>
-                                  <p class="mt-2 font-medium">Note: Some rows were not processed due to errors. See details below.</p>
-                              <?php endif; ?>
-                          </div>
-                      </div>
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <i class="fas fa-check-circle text-green-500 text-xl"></i>
+                </div>
+                <div class="ml-3">
+                  <h3 class="text-sm font-medium text-green-800">MIGS Status Updated Successfully</h3>
+                  <div class="mt-2 text-sm text-green-700">
+                    <p><?= $results['successCount'] ?> user(s) have had their MIGS status updated. Email notifications have been sent to all affected users.</p>
+                    <?php if ($results['notFoundCount'] > 0 || $results['invalidActionCount'] > 0 || $results['notCoopCount'] > 0): ?>
+                      <p class="mt-2 font-medium">Note: Some rows were not processed due to errors. See details below.</p>
+                    <?php endif; ?>
                   </div>
+                </div>
               </div>
+            </div>
           <?php else: ?>
-              <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                  <div class="flex">
-                      <div class="flex-shrink-0">
-                          <i class="fas fa-exclamation-circle text-red-500 text-xl"></i>
-                      </div>
-                      <div class="ml-3">
-                          <h3 class="text-sm font-medium text-red-800">No MIGS Status Updates</h3>
-                          <div class="mt-2 text-sm text-red-700">
-                              <p>No users had their MIGS status updated. Please check the details below for more information.</p>
-                          </div>
-                      </div>
+            <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <i class="fas fa-exclamation-circle text-red-500 text-xl"></i>
+                </div>
+                <div class="ml-3">
+                  <h3 class="text-sm font-medium text-red-800">No MIGS Status Updates</h3>
+                  <div class="mt-2 text-sm text-red-700">
+                    <p>No users had their MIGS status updated. Please check the details below for more information.</p>
                   </div>
+                </div>
               </div>
+            </div>
           <?php endif; ?>
 
           <?php if ($results['notFoundCount'] > 0): ?>
-              <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                  <div class="flex">
-                      <div class="flex-shrink-0">
-                          <i class="fas fa-exclamation-triangle text-yellow-500 text-xl"></i>
-                      </div>
-                      <div class="ml-3">
-                          <h3 class="text-sm font-medium text-yellow-800">Employee Numbers Not Found</h3>
-                          <div class="mt-2 text-sm text-yellow-700">
-                              <p><?= $results['notFoundCount'] ?> row(s) were skipped because the employee numbers were not found in the system.</p>
-                              <p class="mt-2">Please verify that all employee numbers in your CSV file exist in the system.</p>
-                          </div>
-                      </div>
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <i class="fas fa-exclamation-triangle text-yellow-500 text-xl"></i>
+                </div>
+                <div class="ml-3">
+                  <h3 class="text-sm font-medium text-yellow-800">Emails Not Found</h3>
+                  <div class="mt-2 text-sm text-yellow-700">
+                    <p><?= $results['notFoundCount'] ?> row(s) were skipped because the email address was not found in the system.</p>
+                    <p class="mt-2">Please verify that all email addresses in your CSV file exist in the system.</p>
                   </div>
+                </div>
               </div>
+            </div>
           <?php endif; ?>
 
           <?php if ($results['notCoopCount'] > 0): ?>
-              <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
-                  <div class="flex">
-                      <div class="flex-shrink-0">
-                          <i class="fas fa-exclamation-triangle text-purple-500 text-xl"></i>
-                      </div>
-                      <div class="ml-3">
-                          <h3 class="text-sm font-medium text-purple-800">Non-COOP Members</h3>
-                          <div class="mt-2 text-sm text-purple-700">
-                              <p><?= $results['notCoopCount'] ?> row(s) were skipped because the users are not COOP members.</p>
-                              <p class="mt-2">Only COOP members are eligible for MIGS status updates.</p>
-                          </div>
-                      </div>
+            <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <i class="fas fa-exclamation-triangle text-purple-500 text-xl"></i>
+                </div>
+                <div class="ml-3">
+                  <h3 class="text-sm font-medium text-purple-800">Non-COOP Members</h3>
+                  <div class="mt-2 text-sm text-purple-700">
+                    <p><?= $results['notCoopCount'] ?> row(s) were skipped because the users are not COOP members.</p>
+                    <p class="mt-2">Only users with <code>is_coop_member = 1</code> are eligible for MIGS status updates.</p>
                   </div>
+                </div>
               </div>
+            </div>
           <?php endif; ?>
 
           <?php if ($results['invalidActionCount'] > 0): ?>
-              <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                  <div class="flex">
-                      <div class="flex-shrink-0">
-                          <i class="fas fa-exclamation-circle text-red-500 text-xl"></i>
-                      </div>
-                      <div class="ml-3">
-                          <h3 class="text-sm font-medium text-red-800">Invalid Actions</h3>
-                          <div class="mt-2 text-sm text-red-700">
-                              <p><?= $results['invalidActionCount'] ?> row(s) were skipped because they contained invalid actions.</p>
-                              <p class="mt-2">Actions must be either 'activate' or 'deactivate'.</p>
-                          </div>
-                      </div>
+            <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <i class="fas fa-exclamation-circle text-red-500 text-xl"></i>
+                </div>
+                <div class="ml-3">
+                  <h3 class="text-sm font-medium text-red-800">Invalid Actions</h3>
+                  <div class="mt-2 text-sm text-red-700">
+                    <p><?= $results['invalidActionCount'] ?> row(s) were skipped because they contained invalid actions.</p>
+                    <p class="mt-2">Actions must be either <code>activate</code> or <code>deactivate</code>.</p>
                   </div>
+                </div>
               </div>
+            </div>
           <?php endif; ?>
 
           <?php if (!empty($results['errorMessages'])): ?>
-              <div class="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <div class="flex">
-                      <div class="flex-shrink-0">
-                          <i class="fas fa-exclamation-circle text-red-500 text-xl"></i>
-                      </div>
-                      <div class="ml-3 w-full">
-                          <h3 class="text-sm font-medium text-red-800">Error Details</h3>
-                          <div class="mt-2 text-sm text-red-700 error-container">
-                              <ul class="list-disc pl-5 space-y-1">
-                                  <?php foreach ($results['errorMessages'] as $message): ?>
-                                      <li><?= htmlspecialchars($message) ?></li>
-                                  <?php endforeach; ?>
-                              </ul>
-                          </div>
-                      </div>
+            <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <i class="fas fa-exclamation-circle text-red-500 text-xl"></i>
+                </div>
+                <div class="ml-3 w-full">
+                  <h3 class="text-sm font-medium text-red-800">Error Details</h3>
+                  <div class="mt-2 text-sm text-red-700 error-container">
+                    <ul class="list-disc pl-5 space-y-1">
+                      <?php foreach ($results['errorMessages'] as $m): ?>
+                        <li><?= htmlspecialchars($m) ?></li>
+                      <?php endforeach; ?>
+                    </ul>
                   </div>
+                </div>
               </div>
+            </div>
           <?php endif; ?>
         </div>
       <?php endif; ?>
       
       <div class="wide-card mx-auto bg-white p-8 rounded-lg shadow-md">
-        <h2 class="text-2xl font-bold mb-4 text-gray-800">Upload CSV to Update MIGS Status</h2>
+        <h2 class="text-2xl font-bold mb-4 text-gray-800">Upload CSV to Update MIGS Status (by Email)</h2>
         
         <?php if (isset($_SESSION['message'])): ?>
           <div class="mb-4 p-4 rounded <?= $_SESSION['message_type'] === 'success' ? 'success-message' : 'error-message' ?>">
-              <?= $_SESSION['message'] ?>
+            <?= $_SESSION['message'] ?>
           </div>
           <?php 
           unset($_SESSION['message']);
           unset($_SESSION['message_type']);
-          endif; 
-        ?>
+          ?>
+        <?php endif; ?>
         
         <?php if (!empty($message)): ?>
           <div class="mb-4 p-4 rounded error-message">
-            <?php echo $message; ?>
+            <?= htmlspecialchars($message) ?>
           </div>
         <?php endif; ?>
         
         <div class="mb-6 bg-blue-50 p-4 rounded-lg instruction-card">
-          <?php echo $instructions; ?>
+          <?= $instructions ?>
         </div>
         
         <div class="mb-6 bg-yellow-50 p-4 rounded-lg example-card">
-          <?php echo $csvExample; ?>
+          <?= $csvExample ?>
         </div>
         
         <form method="POST" enctype="multipart/form-data" id="uploadForm">
@@ -356,10 +365,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <label for="csv_file" class="block mb-2 font-semibold text-gray-700">Select CSV file:</label>
             <div class="flex items-center justify-center w-full file-upload-area">
               <label for="csv_file" class="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                <div class="flex flex-col items-center justify-content pt-5 pb-6">
                   <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
                   <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">Click to upload</span> or drag and drop</p>
-                  <p class="text-xs text-gray-500">CSV file only</p>
+                  <p class="text-xs text-gray-500">CSV file only (email,action)</p>
                 </div>
                 <input id="csv_file" name="csv_file" type="file" class="hidden" accept=".csv" required />
               </label>
@@ -395,65 +404,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      const fileInput = document.getElementById('csv_file');
-      const fileInfo = document.getElementById('fileInfo');
-      const fileName = document.getElementById('fileName');
-      const removeFile = document.getElementById('removeFile');
-      const fileError = document.getElementById('fileError');
-      const errorMessage = document.getElementById('errorMessage');
-      const uploadForm = document.getElementById('uploadForm');
+      const fileInput   = document.getElementById('csv_file');
+      const fileInfo    = document.getElementById('fileInfo');
+      const fileNameEl  = document.getElementById('fileName');
+      const removeFile  = document.getElementById('removeFile');
+      const fileError   = document.getElementById('fileError');
+      const errorMsgEl  = document.getElementById('errorMessage');
+      const uploadForm  = document.getElementById('uploadForm');
       
-      // Handle file selection
-      fileInput.addEventListener('change', function(e) {
-        // Hide any previous error
+      fileInput.addEventListener('change', function() {
         fileError.classList.add('hidden');
         
         if (this.files && this.files[0]) {
           const file = this.files[0];
-          
-          // Check if file is CSV
           if (file.name.toLowerCase().endsWith('.csv')) {
-            // Show file info
-            fileName.textContent = file.name;
+            fileNameEl.textContent = file.name;
             fileInfo.classList.remove('hidden');
           } else {
-            // Show error for non-CSV files
-            errorMessage.textContent = 'Please upload a valid CSV file (.csv).';
+            errorMsgEl.textContent = 'Please upload a valid CSV file (.csv).';
             fileError.classList.remove('hidden');
             fileInfo.classList.add('hidden');
-            // Clear the file input
             this.value = '';
           }
         } else {
-          // No file selected
           fileInfo.classList.add('hidden');
         }
       });
       
-      // Handle file removal
       removeFile.addEventListener('click', function() {
         fileInput.value = '';
         fileInfo.classList.add('hidden');
       });
       
-      // Handle form submission
       uploadForm.addEventListener('submit', function(e) {
-        // Hide any previous error
         fileError.classList.add('hidden');
         
-        // Check if a file is selected
         if (!fileInput.files || fileInput.files.length === 0) {
           e.preventDefault();
-          errorMessage.textContent = 'Please select a CSV file to upload.';
+          errorMsgEl.textContent = 'Please select a CSV file to upload.';
           fileError.classList.remove('hidden');
           return;
         }
         
-        // Check if the selected file is CSV
         const file = fileInput.files[0];
         if (!file.name.toLowerCase().endsWith('.csv')) {
           e.preventDefault();
-          errorMessage.textContent = 'Please upload a valid CSV file (.csv).';
+          errorMsgEl.textContent = 'Please upload a valid CSV file (.csv).';
           fileError.classList.remove('hidden');
           return;
         }

@@ -3,10 +3,10 @@ session_start();
 date_default_timezone_set('Asia/Manila');
 
 // --- DB Connection ---
- $host = 'localhost';
- $db   = 'evoting_system';
- $user = 'root';
- $pass = '';
+ $host    = 'localhost';
+ $db      = 'evoting_system';
+ $user    = 'root';
+ $pass    = '';
  $charset = 'utf8mb4';
 
  $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
@@ -23,643 +23,200 @@ try {
     die("A system error occurred. Please try again later.");
 }
 
+// --- Shared scope / analytics helpers ---
+require_once __DIR__ . '/includes/analytics_scopes.php';
+
 // --- Auth check ---
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit();
 }
 
-// Verify this is a College Admin
- $stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = ?");
- $stmt->execute([$_SESSION['user_id']]);
+ $userId = (int)$_SESSION['user_id'];
+
+// Fetch basic user info
+ $stmt = $pdo->prepare("SELECT role FROM users WHERE user_id = ?");
+ $stmt->execute([$userId]);
  $userInfo = $stmt->fetch();
 
  $role = $userInfo['role'] ?? '';
- $scope = strtoupper(trim($userInfo['assigned_scope'] ?? ''));
 
-// Valid college scopes
- $validCollegeScopes = ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC'];
-
-if (!in_array($scope, $validCollegeScopes)) {
+if ($role !== 'admin') {
     header('Location: admin_analytics.php');
     exit();
 }
 
-// Get election ID from URL
- $electionId = $_GET['id'] ?? 0;
-if (!$electionId) {
-    header('Location: admin_analytics_college.php');
+// --- Find this admin's Academic-Student scope seat (college admin) ---
+ $mySeat    = null;
+ $acadSeats = getScopeSeats($pdo, SCOPE_ACAD_STUDENT);
+
+foreach ($acadSeats as $seat) {
+    if ((int)$seat['admin_user_id'] === $userId) {
+        $mySeat = $seat;
+        break;
+    }
+}
+
+if (!$mySeat) {
+    // Not an Academic-Student (college) admin in the new scope model
+    header('Location: admin_analytics.php');
     exit();
 }
 
-// Fetch election details (only student elections that include this college)
- $stmt = $pdo->prepare("SELECT * FROM elections WHERE election_id = ? AND (target_position = 'student' OR target_position = 'All')");
+ $scopeId      = (int)$mySeat['scope_id'];                 // owner_scope_id for elections/voters
+ $scopeType    = $mySeat['scope_type'];                    // 'Academic-Student'
+ $collegeCode  = strtoupper(trim($mySeat['assigned_scope'] ?? '')); // CEIT, CAS, etc.
+ $scopeDetails = $mySeat['scope_details'] ?? [];
+
+// Optional sanity check on college code
+ $validCollegeScopes = ['CAFENR','CEIT','CAS','CVMBS','CED','CEMDS','CSPEAR','CCJ','CON','CTHM','COM','GS-OLC'];
+if (!in_array($collegeCode, $validCollegeScopes, true)) {
+    header('Location: admin_analytics.php');
+    exit();
+}
+
+// --- Get election ID from URL ---
+ $electionId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+if ($electionId <= 0) {
+    header('Location: admin_analytics.php');
+    exit();
+}
+
+// --- Ensure election is within this scope seat (new scope model) ---
+ $scopedElections = getScopedElections($pdo, SCOPE_ACAD_STUDENT, $scopeId);
+ $allowedElectionIds = array_map('intval', array_column($scopedElections, 'election_id'));
+
+if (!in_array($electionId, $allowedElectionIds, true)) {
+    $_SESSION['toast_message'] = 'You are not allowed to view analytics for this election.';
+    $_SESSION['toast_type']    = 'error';
+    header('Location: admin_analytics.php');
+    exit();
+}
+
+// --- Fetch full election row (we need allowed_* fields, descriptions, etc.) ---
+ $stmt = $pdo->prepare("SELECT * FROM elections WHERE election_id = ?");
  $stmt->execute([$electionId]);
  $election = $stmt->fetch();
 
 if (!$election) {
-    header('Location: admin_analytics_college.php');
+    header('Location: admin_analytics.php');
     exit();
 }
 
-// Check if this college is included in the election
- $allowed_colleges = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_colleges'] ?? ''))));
-if (!empty($allowed_colleges) && !in_array('ALL', $allowed_colleges) && !in_array($scope, $allowed_colleges)) {
-    header('Location: admin_analytics_college.php');
+// Ensure this is student / all-student election (safety)
+ $targetPos = strtolower($election['target_position'] ?? '');
+if (!in_array($targetPos, ['student', 'all'], true)) {
+    header('Location: admin_analytics.php');
     exit();
 }
 
-// UPDATED COURSE MAPPINGS - Match election creation format exactly
- $course_map = [
-  // CEIT Courses
-  'BS Computer Science' => 'BSCS',
-  'Bachelor of Science in Computer Science' => 'BSCS',
-  'Computer Science' => 'BSCS',
-  'bscs' => 'BSCS',
-  
-  'BS Information Technology' => 'BSIT',
-  'Bachelor of Science in Information Technology' => 'BSIT',
-  'Information Technology' => 'BSIT',
-  'bsit' => 'BSIT',
-  
-  'BS Computer Engineering' => 'BSCpE',
-  'Bachelor of Science in Computer Engineering' => 'BSCpE',
-  'Computer Engineering' => 'BSCpE',
-  'bscpe' => 'BSCpE',
-  
-  'BS Electronics Engineering' => 'BSECE',
-  'Bachelor of Science in Electronics Engineering' => 'BSECE',
-  'Electronics Engineering' => 'BSECE',
-  'bsece' => 'BSECE',
-  
-  'BS Civil Engineering' => 'BSCE',
-  'Bachelor of Science in Civil Engineering' => 'BSCE',
-  'Civil Engineering' => 'BSCE',
-  'bsce' => 'BSCE',
-  
-  'BS Mechanical Engineering' => 'BSME',
-  'Bachelor of Science in Mechanical Engineering' => 'BSME',
-  'Mechanical Engineering' => 'BSME',
-  'bsme' => 'BSME',
-  
-  'BS Electrical Engineering' => 'BSEE',
-  'Bachelor of Science in Electrical Engineering' => 'BSEE',
-  'Electrical Engineering' => 'BSEE',
-  'bsee' => 'BSEE',
-  
-  'BS Industrial Engineering' => 'BSIE',
-  'Bachelor of Science in Industrial Engineering' => 'BSIE',
-  'Industrial Engineering' => 'BSIE',
-  'bsie' => 'BSIE',
-  
-  'BS Architecture' => 'BSArch',
-  'Bachelor of Science in Architecture' => 'BSArch',
-  'Architecture' => 'BSArch',
-  'bsarch' => 'BSArch',
-  
-  // CAFENR Courses
-  'BS Agriculture' => 'BSAgri',
-  'Bachelor of Science in Agriculture' => 'BSAgri',
-  'Agriculture' => 'BSAgri',
-  'bsagri' => 'BSAgri',
-  
-  'BS Agribusiness' => 'BSAB',
-  'Bachelor of Science in Agribusiness' => 'BSAB',
-  'Agribusiness' => 'BSAB',
-  'bsab' => 'BSAB',
-  
-  'BS Environmental Science' => 'BSES',
-  'Bachelor of Science in Environmental Science' => 'BSES',
-  'Environmental Science' => 'BSES',
-  'bses' => 'BSES',
-  
-  'BS Food Technology' => 'BSFT',
-  'Bachelor of Science in Food Technology' => 'BSFT',
-  'Food Technology' => 'BSFT',
-  'bsft' => 'BSFT',
-  
-  'BS Forestry' => 'BSFor',
-  'Bachelor of Science in Forestry' => 'BSFor',
-  'Forestry' => 'BSFor',
-  'bsfor' => 'BSFor',
-  
-  'BS Agricultural and Biosystems Engineering' => 'BSABE',
-  'Bachelor of Science in Agricultural and Biosystems Engineering' => 'BSABE',
-  'Agricultural and Biosystems Engineering' => 'BSABE',
-  'bsabe' => 'BSABE',
-  
-  'Bachelor of Agricultural Entrepreneurship' => 'BAE',
-  'Agricultural Entrepreneurship' => 'BAE',
-  'bae' => 'BAE',
-  
-  'BS Land Use Design and Management' => 'BSLDM',
-  'Bachelor of Science in Land Use Design and Management' => 'BSLDM',
-  'Land Use Design and Management' => 'BSLDM',
-  'bsldm' => 'BSLDM',
-  
-  // CAS Courses
-  'BS Biology' => 'BSBio',
-  'Bachelor of Science in Biology' => 'BSBio',
-  'Biology' => 'BSBio',
-  'bsbio' => 'BSBio',
-  
-  'BS Chemistry' => 'BSChem',
-  'Bachelor of Science in Chemistry' => 'BSChem',
-  'Chemistry' => 'BSChem',
-  'bschem' => 'BSChem',
-  
-  'BS Mathematics' => 'BSMath',
-  'Bachelor of Science in Mathematics' => 'BSMath',
-  'Mathematics' => 'BSMath',
-  'bsmath' => 'BSMath',
-  
-  'BS Physics' => 'BSPhysics',
-  'Bachelor of Science in Physics' => 'BSPhysics',
-  'Physics' => 'BSPhysics',
-  'bsphysics' => 'BSPhysics',
-  
-  'BS Psychology' => 'BSPsych',
-  'Bachelor of Science in Psychology' => 'BSPsych',
-  'Psychology' => 'BSPsych',
-  'bspsych' => 'BSPsych',
-  
-  'BA English Language Studies' => 'BAELS',
-  'Bachelor of Arts in English Language Studies' => 'BAELS',
-  'English Language Studies' => 'BAELS',
-  'baels' => 'BAELS',
-  
-  'BA Communication' => 'BAComm',
-  'Bachelor of Arts in Communication' => 'BAComm',
-  'Communication' => 'BAComm',
-  'bacomm' => 'BAComm',
-  
-  'BS Statistics' => 'BSStat',
-  'Bachelor of Science in Statistics' => 'BSStat',
-  'Statistics' => 'BSStat',
-  'bsstat' => 'BSStat',
-  
-  // CVMBS Courses
-  'Doctor of Veterinary Medicine' => 'DVM',
-  'Veterinary Medicine' => 'DVM',
-  'dvm' => 'DVM',
-  
-  'BS Biology (Pre-Veterinary)' => 'BSPV',
-  'Biology (Pre-Veterinary)' => 'BSPV',
-  'Pre-Veterinary' => 'BSPV',
-  'bspv' => 'BSPV',
-  
-  // CED Courses
-  'Bachelor of Elementary Education' => 'BEEd',
-  'Elementary Education' => 'BEEd',
-  'beed' => 'BEEd',
-  
-  'Bachelor of Secondary Education' => 'BSEd',
-  'Secondary Education' => 'BSEd',
-  'bsed' => 'BSEd',
-  
-  'Bachelor of Physical Education' => 'BPE',
-  'Physical Education' => 'BPE',
-  'bpe' => 'BPE',
-  
-  'Bachelor of Technology and Livelihood Education' => 'BTLE',
-  'Technology and Livelihood Education' => 'BTLE',
-  'btle' => 'BTLE',
-  
-  // CEMDS Courses
-  'BS Business Administration' => 'BSBA',
-  'Bachelor of Science in Business Administration' => 'BSBA',
-  'Business Administration' => 'BSBA',
-  'bsba' => 'BSBA',
-  
-  'BS Accountancy' => 'BSAcc',
-  'Bachelor of Science in Accountancy' => 'BSAcc',
-  'Accountancy' => 'BSAcc',
-  'bsacc' => 'BSAcc',
-  
-  'BS Economics' => 'BSEco',
-  'Bachelor of Science in Economics' => 'BSEco',
-  'Economics' => 'BSEco',
-  'bseco' => 'BSEco',
-  
-  'BS Entrepreneurship' => 'BSEnt',
-  'Bachelor of Science in Entrepreneurship' => 'BSEnt',
-  'Entrepreneurship' => 'BSEnt',
-  'bsent' => 'BSEnt',
-  
-  'BS Office Administration' => 'BSOA',
-  'Bachelor of Science in Office Administration' => 'BSOA',
-  'Office Administration' => 'BSOA',
-  'bsoa' => 'BSOA',
-  
-  // CSPEAR Courses
-  'BS Exercise and Sports Sciences' => 'BSESS',
-  'Bachelor of Science in Exercise and Sports Sciences' => 'BSESS',
-  'Exercise and Sports Sciences' => 'BSESS',
-  'bsess' => 'BSESS',
-  
-  // CCJ Courses
-  'BS Criminology' => 'BSCrim',
-  'Bachelor of Science in Criminology' => 'BSCrim',
-  'Criminology' => 'BSCrim',
-  'bscrim' => 'BSCrim',
-  
-  // CON Courses
-  'BS Nursing' => 'BSN',
-  'Bachelor of Science in Nursing' => 'BSN',
-  'Nursing' => 'BSN',
-  'bsn' => 'BSN',
-  
-  // CTHM Courses
-  'BS Hospitality Management' => 'BSHM',
-  'Bachelor of Science in Hospitality Management' => 'BSHM',
-  'Hospitality Management' => 'BSHM',
-  'bshm' => 'BSHM',
-  
-  'BS Tourism Management' => 'BSTM',
-  'Bachelor of Science in Tourism Management' => 'BSTM',
-  'Tourism Management' => 'BSTM',
-  'bstm' => 'BSTM',
-  
-  // COM Courses
-  'Bachelor of Library and Information Science' => 'BLIS',
-  'Library and Information Science' => 'BLIS',
-  'blis' => 'BLIS',
-  
-  // GS-OLC Courses
-  'Doctor of Philosophy' => 'PhD',
-  'Master of Science' => 'MS',
-  'Master of Arts' => 'MA',
-];
-
-// COURSE NORMALIZATION FUNCTION
-function normalizeCourseName($course) {
-    if (empty($course)) return 'UNSPECIFIED';
-    
-    global $course_map;
-    
-    $course = strtoupper(trim($course));
-    
-    // Check if it's already a standard code
-    if (isset($course_map[$course])) {
-        return $course;
-    }
-    
-    // Check if it's a full name that maps to a code
-    foreach ($course_map as $fullName => $code) {
-        if (strtoupper($fullName) === $course) {
-            return $code;
-        }
-    }
-    
-    // Handle common variations
-    $patterns = [
-        '/^BACHELOR OF SCIENCE IN /i' => 'BS ',
-        '/^BACHELOR OF ARTS IN /i' => 'BA ',
-        '/^DOCTOR OF /i' => '',
-        '/^MASTER OF /i' => '',
-        '/^BS /i' => '',
-        '/^BA /i' => '',
-        '/^BSCS$/i' => 'BS COMPUTER SCIENCE',
-        '/^BSIT$/i' => 'BS INFORMATION TECHNOLOGY',
-        '/^BSCPE$/i' => 'BS COMPUTER ENGINEERING',
-        '/^BSECE$/i' => 'BS ELECTRONICS ENGINEERING',
-        '/^BSCE$/i' => 'BS CIVIL ENGINEERING',
-        '/^BSME$/i' => 'BS MECHANICAL ENGINEERING',
-        '/^BSEE$/i' => 'BS ELECTRICAL ENGINEERING',
-        '/^BSIE$/i' => 'BS INDUSTRIAL ENGINEERING',
-        '/^BSAGRI$/i' => 'BS AGRICULTURE',
-        '/^BSAB$/i' => 'BS AGRIBUSINESS',
-        '/^BSES$/i' => 'BS ENVIRONMENTAL SCIENCE',
-        '/^BSFT$/i' => 'BS FOOD TECHNOLOGY',
-        '/^BSFOR$/i' => 'BS FORESTRY',
-        '/^BSABE$/i' => 'BS AGRICULTURAL AND BIOSYSTEMS ENGINEERING',
-        '/^BSBIO$/i' => 'BS BIOLOGY',
-        '/^BSCHEM$/i' => 'BS CHEMISTRY',
-        '/^BSMATH$/i' => 'BS MATHEMATICS',
-        '/^BSPHYSICS$/i' => 'BS PHYSICS',
-        '/^BSPSYCH$/i' => 'BS PSYCHOLOGY',
-        '/^BSSTAT$/i' => 'BS STATISTICS',
-        '/^DVM$/i' => 'DOCTOR OF VETERINARY MEDICINE',
-        '/^BSPV$/i' => 'BS BIOLOGY (PRE-VETERINARY)',
-        '/^BEED$/i' => 'BACHELOR OF ELEMENTARY EDUCATION',
-        '/^BSED$/i' => 'BACHELOR OF SECONDARY EDUCATION',
-        '/^BPE$/i' => 'BACHELOR OF PHYSICAL EDUCATION',
-        '/^BTLE$/i' => 'BACHELOR OF TECHNOLOGY AND LIVELIHOOD EDUCATION',
-        '/^BSBA$/i' => 'BS BUSINESS ADMINISTRATION',
-        '/^BSACC$/i' => 'BS ACCOUNTANCY',
-        '/^BSECO$/i' => 'BS ECONOMICS',
-        '/^BSENT$/i' => 'BS ENTREPRENEURSHIP',
-        '/^BSOA$/i' => 'BS OFFICE ADMINISTRATION',
-        '/^BSESS$/i' => 'BS EXERCISE AND SPORTS SCIENCES',
-        '/^BSCRIM$/i' => 'BS CRIMINOLOGY',
-        '/^BSN$/i' => 'BS NURSING',
-        '/^BSHM$/i' => 'BS HOSPITALITY MANAGEMENT',
-        '/^BSTM$/i' => 'BS TOURISM MANAGEMENT',
-        '/^BLIS$/i' => 'BACHELOR OF LIBRARY AND INFORMATION SCIENCE',
-        '/^PHD$/i' => 'DOCTOR OF PHILOSOPHY',
-        '/^MS$/i' => 'MASTER OF SCIENCE',
-        '/^MA$/i' => 'MASTER OF ARTS'
-    ];
-    
-    foreach ($patterns as $pattern => $replacement) {
-        if (preg_match($pattern, $course)) {
-            $normalized = preg_replace($pattern, $replacement, $course);
-            return strtoupper(trim($normalized));
-        }
-    }
-    
-    // Handle specific keyword matches
-    $keywords = [
-        'COMPUTER SCIENCE' => 'BS COMPUTER SCIENCE',
-        'INFORMATION TECHNOLOGY' => 'BS INFORMATION TECHNOLOGY',
-        'COMPUTER ENGINEERING' => 'BS COMPUTER ENGINEERING',
-        'ELECTRONICS ENGINEERING' => 'BS ELECTRONICS ENGINEERING',
-        'CIVIL ENGINEERING' => 'BS CIVIL ENGINEERING',
-        'MECHANICAL ENGINEERING' => 'BS MECHANICAL ENGINEERING',
-        'ELECTRICAL ENGINEERING' => 'BS ELECTRICAL ENGINEERING',
-        'INDUSTRIAL ENGINEERING' => 'BS INDUSTRIAL ENGINEERING',
-        'AGRICULTURE' => 'BS AGRICULTURE',
-        'AGRIBUSINESS' => 'BS AGRIBUSINESS',
-        'ENVIRONMENTAL SCIENCE' => 'BS ENVIRONMENTAL SCIENCE',
-        'FOOD TECHNOLOGY' => 'BS FOOD TECHNOLOGY',
-        'FORESTRY' => 'BS FORESTRY',
-        'AGRICULTURAL AND BIOSYSTEMS ENGINEERING' => 'BS AGRICULTURAL AND BIOSYSTEMS ENGINEERING',
-        'AGRICULTURAL ENTREPRENEURSHIP' => 'BACHELOR OF AGRICULTURAL ENTREPRENEURSHIP',
-        'LAND USE DESIGN AND MANAGEMENT' => 'BS LAND USE DESIGN AND MANAGEMENT',
-        'BIOLOGY' => 'BS BIOLOGY',
-        'CHEMISTRY' => 'BS CHEMISTRY',
-        'MATHEMATICS' => 'BS MATHEMATICS',
-        'PHYSICS' => 'BS PHYSICS',
-        'PSYCHOLOGY' => 'BS PSYCHOLOGY',
-        'ENGLISH LANGUAGE STUDIES' => 'BA ENGLISH LANGUAGE STUDIES',
-        'COMMUNICATION' => 'BA COMMUNICATION',
-        'STATISTICS' => 'BS STATISTICS',
-        'VETERINARY MEDICINE' => 'DOCTOR OF VETERINARY MEDICINE',
-        'PRE-VETERINARY' => 'BS BIOLOGY (PRE-VETERINARY)',
-        'ELEMENTARY EDUCATION' => 'BACHELOR OF ELEMENTARY EDUCATION',
-        'SECONDARY EDUCATION' => 'BACHELOR OF SECONDARY EDUCATION',
-        'PHYSICAL EDUCATION' => 'BACHELOR OF PHYSICAL EDUCATION',
-        'TECHNOLOGY AND LIVELIHOOD EDUCATION' => 'BACHELOR OF TECHNOLOGY AND LIVELIHOOD EDUCATION',
-        'BUSINESS ADMINISTRATION' => 'BS BUSINESS ADMINISTRATION',
-        'ACCOUNTANCY' => 'BS ACCOUNTANCY',
-        'ECONOMICS' => 'BS ECONOMICS',
-        'ENTREPRENEURSHIP' => 'BS ENTREPRENEURSHIP',
-        'OFFICE ADMINISTRATION' => 'BS OFFICE ADMINISTRATION',
-        'EXERCISE AND SPORTS SCIENCES' => 'BS EXERCISE AND SPORTS SCIENCES',
-        'CRIMINOLOGY' => 'BS CRIMINOLOGY',
-        'NURSING' => 'BS NURSING',
-        'HOSPITALITY MANAGEMENT' => 'BS HOSPITALITY MANAGEMENT',
-        'TOURISM MANAGEMENT' => 'BS TOURISM MANAGEMENT',
-        'LIBRARY AND INFORMATION SCIENCE' => 'BACHELOR OF LIBRARY AND INFORMATION SCIENCE'
-    ];
-    
-    foreach ($keywords as $keyword => $standard) {
-        if (strpos($course, $keyword) !== false) {
-            return $standard;
-        }
-    }
-    
-    // Return original if no match found
-    return $course;
-}
-
-// Department abbreviation mapping
- $department_abbr_map = [
-    // CEIT
-    'Department of Civil Engineering' => 'DCE',
-    'Department of Computer and Electronics Engineering' => 'DCEE',
-    'Department of Industrial Engineering and Technology' => 'DIET',
-    'Department of Mechanical and Electronics Engineering' => 'DMEE',
-    'Department of Information Technology' => 'DIT',
-    
-    // CAFENR
-    'Department of Animal Science' => 'DAS',
-    'Department of Crop Science' => 'DCS',
-    'Department of Food Science and Technology' => 'DFST',
-    'Department of Forestry and Environmental Science' => 'DFES',
-    'Department of Agricultural Economics and Development' => 'DAED',
-    
-    // CAS
-    'Department of Biological Sciences' => 'DBS',
-    'Department of Physical Sciences' => 'DPS',
-    'Department of Languages and Mass Communication' => 'DLMC',
-    'Department of Social Sciences' => 'DSS',
-    'Department of Mathematics and Statistics' => 'DMS',
-    
-    // CCJ
-    'Department of Criminal Justice' => 'DCJ',
-    
-    // CEMDS
-    'Department of Economics' => 'DE',
-    'Department of Business and Management' => 'DBM',
-    'Department of Development Studies' => 'DDS',
-    
-    // CED
-    'Department of Science Education' => 'DSE',
-    'Department of Technology and Livelihood Education' => 'DTLE',
-    'Department of Curriculum and Instruction' => 'DCI',
-    'Department of Human Kinetics' => 'DHK',
-    
-    // CON
-    'Department of Nursing' => 'DN',
-    
-    // COM
-    'Department of Basic Medical Sciences' => 'DBMS',
-    'Department of Clinical Sciences' => 'DCS',
-    
-    // CSPEAR
-    'Department of Physical Education and Recreation' => 'DPER',
-    
-    // CVMBS
-    'Department of Veterinary Medicine' => 'DVM',
-    'Department of Biomedical Sciences' => 'DBS',
-    
-    // GS-OLC
-    'Department of Various Graduate Programs' => 'DVGP',
-];
-
-// Define college departments structure
- $collegeDepartments = [
-    "CAFENR" => [
-        "Department of Animal Science",
-        "Department of Crop Science",
-        "Department of Food Science and Technology",
-        "Department of Forestry and Environmental Science",
-        "Department of Agricultural Economics and Development"
-    ],
-    "CAS" => [
-        "Department of Biological Sciences",
-        "Department of Physical Sciences",
-        "Department of Languages and Mass Communication",
-        "Department of Social Sciences",
-        "Department of Mathematics and Statistics"
-    ],
-    "CCJ" => ["Department of Criminal Justice"],
-    "CEMDS" => [
-        "Department of Economics",
-        "Department of Business and Management",
-        "Department of Development Studies"
-    ],
-    "CED" => [
-        "Department of Science Education",
-        "Department of Technology and Livelihood Education",
-        "Department of Curriculum and Instruction",
-        "Department of Human Kinetics"
-    ],
-    "CEIT" => [
-        "Department of Civil Engineering",
-        "Department of Computer and Electronics Engineering",
-        "Department of Industrial Engineering and Technology",
-        "Department of Mechanical and Electronics Engineering",
-        "Department of Information Technology"
-    ],
-    "CON" => ["Department of Nursing"],
-    "COM" => [
-        "Department of Basic Medical Sciences",
-        "Department of Clinical Sciences"
-    ],
-    "CSPEAR" => ["Department of Physical Education and Recreation"],
-    "CVMBS" => [
-        "Department of Veterinary Medicine",
-        "Department of Biomedical Sciences"
-    ],
-    "GS-OLC" => ["Department of Various Graduate Programs"]
-];
-
-// Define college courses structure
- $collegeCourses = [
-    "CEIT" => [
-        "BS Computer Science",
-        "BS Information Technology", 
-        "BS Computer Engineering",
-        "BS Electronics Engineering",
-        "BS Civil Engineering",
-        "BS Mechanical Engineering",
-        "BS Electrical Engineering",
-        "BS Industrial Engineering"
-    ],
-    "CAFENR" => [
-        "BS Agriculture",
-        "BS Agribusiness",
-        "BS Environmental Science",
-        "BS Food Technology",
-        "BS Forestry",
-        "BS Agricultural and Biosystems Engineering",
-        "Bachelor of Agricultural Entrepreneurship",
-        "BS Land Use Design and Management"
-    ],
-    "CAS" => [
-        "BS Biology",
-        "BS Chemistry",
-        "BS Mathematics",
-        "BS Physics",
-        "BS Psychology",
-        "BA English Language Studies",
-        "BA Communication",
-        "BS Statistics"
-    ],
-    "CVMBS" => [
-        "Doctor of Veterinary Medicine",
-    ],
-    "CED" => [
-        "Bachelor of Elementary Education",
-        "Bachelor of Secondary Education",
-        "Bachelor of Physical Education",
-        "Bachelor of Technology and Livelihood Education"
-    ],
-    "CEMDS" => [
-        "BS Business Administration",
-        "BS Accountancy",
-        "BS Economics",
-        "BS Entrepreneurship",
-        "BS Office Administration"
-    ],
-    "CSPEAR" => [
-        "Bachelor of Physical Education",
-        "BS Exercise and Sports Sciences"
-    ],
-    "CCJ" => [
-        "BS Criminology"
-    ],
-    "CON" => [
-        "BS Nursing"
-    ]
-];
-
-// Determine if election is completed
- $now = new DateTime();
+// --- Election status ---
+ $now   = new DateTime();
  $start = new DateTime($election['start_datetime']);
- $end = new DateTime($election['end_datetime']);
- $status = ($now < $start) ? 'upcoming' : (($now >= $start && $now <= $end) ? 'ongoing' : 'completed');
+ $end   = new DateTime($election['end_datetime']);
 
-// ===== GET UNIQUE VOTERS WHO HAVE VOTED (not total votes) =====
- $sql = "SELECT COUNT(DISTINCT voter_id) as total FROM votes WHERE election_id = ?";
- $stmt = $pdo->prepare($sql);
- $stmt->execute([$electionId]);
- $totalVotesCast = $stmt->fetch()['total'];
-
-// ===== GET ELIGIBLE VOTERS COUNT =====
- $conditions = ["role = 'voter'", "position = 'student'", "UPPER(TRIM(department)) = ?"];
- $params = [$scope];
-
-// Get allowed filters from election
- $allowed_courses = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_courses'] ?? ''))));
-
-// Apply course filter if specified
-if (!empty($allowed_courses) && !in_array('ALL', $allowed_courses)) {
-    // Create reverse course map: short_code => array of full names (in lowercase)
-    $reverse_course_map = [];
-    foreach ($course_map as $full_name => $short_code) {
-        $reverse_course_map[strtoupper($short_code)][] = strtolower($full_name);
-    }
-
-    $course_list = [];
-    foreach ($allowed_courses as $course) {
-        if (isset($reverse_course_map[$course])) {
-            $course_list = array_merge($course_list, $reverse_course_map[$course]);
-        } else {
-            $course_list[] = strtolower($course);
-        }
-    }
-    
-    if (!empty($course_list)) {
-        $placeholders = implode(',', array_fill(0, count($course_list), '?'));
-        $conditions[] = "LOWER(course) IN ($placeholders)";
-        $params = array_merge($params, $course_list);
-    }
+if ($now < $start) {
+    $status = 'upcoming';
+} elseif ($now >= $start && $now <= $end) {
+    $status = 'ongoing';
+} else {
+    $status = 'completed';
 }
 
-// Build and execute the query for eligible voters
- $sql = "SELECT COUNT(*) as total FROM users WHERE " . implode(' AND ', $conditions);
- $stmt = $pdo->prepare($sql);
- $stmt->execute($params);
- $totalEligibleVoters = $stmt->fetch()['total'];
+// --- Unique voters who have voted (not total votes) ---
+ $stmt = $pdo->prepare("SELECT COUNT(DISTINCT voter_id) AS total FROM votes WHERE election_id = ?");
+ $stmt->execute([$electionId]);
+ $totalVotesCast = (int)($stmt->fetch()['total'] ?? 0);
 
-// Calculate turnout percentage
- $turnoutPercentage = ($totalEligibleVoters > 0) ? round(($totalVotesCast / $totalEligibleVoters) * 100, 1) : 0;
+// --- Base dataset: all scoped students for this Academic-Student seat ---
+// We can use election end_datetime as eligibility cutoff
+ $yearEnd = $election['end_datetime'] ?? null;
 
-// ===== GET WINNERS BY POSITION =====
+ $scopedStudents = getScopedVoters(
+    $pdo,
+    SCOPE_ACAD_STUDENT,
+    $scopeId,
+    [
+        'year_end'      => $yearEnd,
+        'include_flags' => true,
+    ]
+);
+// $scopedStudents are already:
+//   role='voter', position='student', department = collegeCode
+//   and course filtered by the admin seat's course scope.
+
+// --- Filter further by election's allowed_courses (if any) ---
+ $allowedCourseCodes = array_filter(
+    array_map('trim', explode(',', $election['allowed_courses'] ?? ''))
+);
+ $allowedCourseCodes = array_map('strtoupper', $allowedCourseCodes);
+
+ $restrictByCourse = !empty($allowedCourseCodes) && !in_array('ALL', $allowedCourseCodes, true);
+
+ $allowedCourseNames = $restrictByCourse
+    ? mapCourseCodesToFullNames($allowedCourseCodes) // from analytics_scopes.php
+    : [];
+
+// Build eligible students for THIS election (within this college seat)
+ $eligibleStudentsForElection = [];
+
+foreach ($scopedStudents as $voter) {
+    // College guard (should be already true, but keep explicit)
+    if (strtoupper($voter['department'] ?? '') !== $collegeCode) {
+        continue;
+    }
+
+    // Course filter (if election restricts courses)
+    if ($restrictByCourse) {
+        $studentCourse = $voter['course'] ?? '';
+        if (!in_array($studentCourse, $allowedCourseNames, true)) {
+            continue;
+        }
+    }
+
+    $eligibleStudentsForElection[] = $voter;
+}
+
+ $totalEligibleVoters = count($eligibleStudentsForElection);
+
+// Turnout
+ $turnoutPercentage = $totalEligibleVoters > 0
+    ? round(($totalVotesCast / $totalEligibleVoters) * 100, 1)
+    : 0.0;
+
+// --- Winners by position (same as before) ---
  $sql = "
    SELECT 
        ec.position,
-       c.id as candidate_id,
-       CONCAT(c.first_name, ' ', c.last_name) as candidate_name,
-       COUNT(v.vote_id) as vote_count
+       c.id AS candidate_id,
+       CONCAT(c.first_name, ' ', c.last_name) AS candidate_name,
+       COUNT(v.vote_id) AS vote_count
    FROM election_candidates ec
    JOIN candidates c ON ec.candidate_id = c.id
-   LEFT JOIN votes v ON ec.election_id = v.election_id 
-                  AND ec.candidate_id = v.candidate_id
+   LEFT JOIN votes v 
+        ON ec.election_id = v.election_id 
+       AND ec.candidate_id = v.candidate_id
    WHERE ec.election_id = ?
    GROUP BY ec.position, c.id, c.first_name, c.last_name
    ORDER BY ec.position, vote_count DESC
 ";
 
- $stmt = $pdo->prepare($sql);
- $stmt->execute([$electionId]);
- $allCandidates = $stmt->fetchAll();
+$stmt = $pdo->prepare($sql);
+$stmt->execute([$electionId]);
+$allCandidates = $stmt->fetchAll();
 
-// Group by position and find winners
- $winnersByPosition = [];
+// 1) Collect all unique positions for filters
+$allPositions = [];
+foreach ($allCandidates as $c) {
+    $pos = $c['position'];
+    if ($pos !== null && $pos !== '' && !in_array($pos, $allPositions, true)) {
+        $allPositions[] = $pos;
+    }
+}
+sort($allPositions);
+
+// 2) Group by position (full list) and determine winners (ties)
+$winnersByPosition = [];
 foreach ($allCandidates as $candidate) {
     $position = $candidate['position'];
     if (!isset($winnersByPosition[$position])) {
@@ -668,13 +225,13 @@ foreach ($allCandidates as $candidate) {
     $winnersByPosition[$position][] = $candidate;
 }
 
-// For each position, determine winners (handle ties)
+// For each position, winners = highest vote_count (may ties)
 foreach ($winnersByPosition as $position => &$candidates) {
     if (empty($candidates)) continue;
-    
+
     $maxVotes = $candidates[0]['vote_count'];
-    $winners = [];
-    
+    $winners  = [];
+
     foreach ($candidates as $candidate) {
         if ($candidate['vote_count'] == $maxVotes && $maxVotes > 0) {
             $winners[] = $candidate;
@@ -682,121 +239,316 @@ foreach ($winnersByPosition as $position => &$candidates) {
             break;
         }
     }
-    
     $candidates = $winners;
 }
+unset($candidates);
 
-// ===== GET VOTER TURNOUT BREAKDOWN =====
- $sql = "
-   SELECT 
-       u.department,
-       u.department1,
-       u.course,
-       COUNT(DISTINCT u.user_id) as eligible_count,
-       COUNT(DISTINCT v.voter_id) as voted_count
-   FROM users u
-   LEFT JOIN votes v ON u.user_id = v.voter_id AND v.election_id = ?
-   WHERE u.role = 'voter' AND u.position = 'student' AND UPPER(TRIM(u.department)) = ?
-";
+// 3) Build lookup map: which candidate is a winner?
+$winnerKeyMap   = [];   // "POSITION|CANDIDATE_ID" => true
+$positionTieMap = [];   // "POSITION" => bool (true kung tie)
 
- $params = [$electionId, $scope];
+foreach ($winnersByPosition as $position => $winners) {
+    $isTie = count($winners) > 1;
+    $positionTieMap[$position] = $isTie;
 
-// Apply course filter if specified
-if (!empty($allowed_courses) && !in_array('ALL', $allowed_courses)) {
-    // Create reverse course map: short_code => array of full names (in lowercase)
-    $reverse_course_map = [];
-    foreach ($course_map as $full_name => $short_code) {
-        $reverse_course_map[strtoupper($short_code)][] = strtolower($full_name);
+    foreach ($winners as $w) {
+        $key = $position . '|' . $w['candidate_id'];
+        $winnerKeyMap[$key] = true;
+    }
+}
+// --- Turnout breakdown (department & course) based on eligible set ---
+
+// Build voted set
+ $stmt = $pdo->prepare("SELECT DISTINCT voter_id FROM votes WHERE election_id = ?");
+ $stmt->execute([$electionId]);
+ $votedIds  = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+ $votedSet  = array_flip($votedIds);
+
+// Raw buckets (dept + course)
+ $rawBuckets = [];
+foreach ($eligibleStudentsForElection as $v) {
+    $dept   = $v['department1'] ?: 'General';
+    $course = $v['course']      ?: 'UNSPECIFIED';
+
+    $key = $dept . '||' . $course;
+    if (!isset($rawBuckets[$key])) {
+        $rawBuckets[$key] = [
+            'department1'    => $dept,
+            'course'         => $course,
+            'eligible_count' => 0,
+            'voted_count'    => 0,
+        ];
+    }
+    $rawBuckets[$key]['eligible_count']++;
+
+    if (isset($votedSet[$v['user_id']])) {
+        $rawBuckets[$key]['voted_count']++;
+    }
+}
+
+// Convert to a list for "no data" check
+ $voterTurnoutData = [];
+foreach ($rawBuckets as $entry) {
+    $pct = $entry['eligible_count'] > 0
+        ? round(($entry['voted_count'] / $entry['eligible_count']) * 100, 1)
+        : 0.0;
+    $entry['turnout_percentage'] = $pct;
+    $voterTurnoutData[] = $entry;
+}
+
+// Aggregated per department
+ $departmentMap = [];
+foreach ($voterTurnoutData as $row) {
+    $dept = $row['department1'];
+    if (!isset($departmentMap[$dept])) {
+        $departmentMap[$dept] = [
+            'department1'    => $dept,
+            'eligible_count' => 0,
+            'voted_count'    => 0,
+        ];
+    }
+    $departmentMap[$dept]['eligible_count'] += $row['eligible_count'];
+    $departmentMap[$dept]['voted_count']    += $row['voted_count'];
+}
+
+ $departmentData = [];
+foreach ($departmentMap as $dept => $agg) {
+    $pct = $agg['eligible_count'] > 0
+        ? round(($agg['voted_count'] / $agg['eligible_count']) * 100, 1)
+        : 0.0;
+    $agg['turnout_percentage'] = $pct;
+    $departmentData[] = $agg;
+}
+
+// Aggregated per course
+ $courseMapAgg = [];
+foreach ($voterTurnoutData as $row) {
+    $course = $row['course'];
+    if (!isset($courseMapAgg[$course])) {
+        $courseMapAgg[$course] = [
+            'course'         => $course,
+            'eligible_count' => 0,
+            'voted_count'    => 0,
+        ];
+    }
+    $courseMapAgg[$course]['eligible_count'] += $row['eligible_count'];
+    $courseMapAgg[$course]['voted_count']    += $row['voted_count'];
+}
+
+ $courseData = [];
+foreach ($courseMapAgg as $course => $agg) {
+    $pct = $agg['eligible_count'] > 0
+        ? round(($agg['voted_count'] / $agg['eligible_count']) * 100, 1)
+        : 0.0;
+    $agg['turnout_percentage'] = $pct;
+    $courseData[] = $agg;
+}
+
+// Lists for dropdowns (derived dynamically)
+ $departmentsList = array_values(
+    array_unique(array_map(fn($d) => $d['department1'], $departmentData))
+);
+ $coursesList = array_values(
+    array_unique(array_map(fn($c) => $c['course'], $courseData))
+);
+
+// === Turnout by year for this college scope (all elections for this seat) ===
+
+// Uses helper from includes/analytics_scopes.php
+ $turnoutDataByYear = computeTurnoutByYear(
+    $pdo,
+    SCOPE_ACAD_STUDENT,   // same scope type as this page
+    $scopeId,             // this admin's seat
+    [
+        // allow full range first, we'll slice with from_year/to_year below
+        'year_from' => null,
+        'year_to'   => null,
+    ]
+);
+
+// Years we have data for
+ $allTurnoutYears = array_keys($turnoutDataByYear);
+sort($allTurnoutYears);
+
+ $defaultYear = (int)date('Y');
+ $minYear     = $allTurnoutYears ? min($allTurnoutYears) : $defaultYear;
+ $maxYear     = $allTurnoutYears ? max($allTurnoutYears) : $defaultYear;
+
+// Year range from query (?from_year=2023&to_year=2025)
+ $fromYear = isset($_GET['from_year']) && ctype_digit($_GET['from_year'])
+    ? (int)$_GET['from_year']
+    : $minYear;
+
+ $toYear = isset($_GET['to_year']) && ctype_digit($_GET['to_year'])
+    ? (int)$_GET['to_year']
+    : $maxYear;
+
+// Clamp
+if ($fromYear < $minYear) $fromYear = $minYear;
+if ($toYear   > $maxYear) $toYear   = $maxYear;
+if ($toYear   < $fromYear) $toYear  = $fromYear;
+
+// Build subset for [fromYear..toYear]
+ $turnoutRangeData = [];
+for ($y = $fromYear; $y <= $toYear; $y++) {
+    if (isset($turnoutDataByYear[$y])) {
+        $turnoutRangeData[$y] = $turnoutDataByYear[$y];
+    } else {
+        $turnoutRangeData[$y] = [
+            'year'           => $y,
+            'total_voted'    => 0,
+            'total_eligible' => 0,
+            'turnout_rate'   => 0.0,
+            'election_count' => 0,
+            'growth_rate'    => 0.0,
+        ];
+    }
+}
+
+// Recompute growth_rate only inside selected range
+ $prevY = null;
+foreach ($turnoutRangeData as $y => &$row) {
+    if ($prevY === null) {
+        $row['growth_rate'] = 0.0;
+    } else {
+        $prevRate = $turnoutRangeData[$prevY]['turnout_rate'] ?? 0.0;
+        $row['growth_rate'] = $prevRate > 0
+            ? round(($row['turnout_rate'] - $prevRate) / $prevRate * 100, 1)
+            : 0.0;
+    }
+    $prevY = $y;
+}
+unset($row);
+
+// For the top 4 cards of this comparison section: pick a focus year
+ $ctxYear = isset($_GET['ctx_year']) && ctype_digit($_GET['ctx_year'])
+    ? (int)$_GET['ctx_year']
+    : (int)date('Y', strtotime($election['start_datetime']));
+
+ $currentYearTurnout  = $turnoutDataByYear[$ctxYear]       ?? null;
+ $previousYearTurnout = $turnoutDataByYear[$ctxYear - 1]   ?? null;
+
+// === Per-election turnout stats for focus year (ctxYear) ===
+
+// Get all elections for this college seat & year (scope-aware)
+ $ctxYearElections = [];
+if ($scopeId !== null) {
+    // Uses helper from analytics_scopes.php
+    $ctxYearElections = getScopedElections(
+        $pdo,
+        SCOPE_ACAD_STUDENT,   // same scope type
+        $scopeId,
+        [
+            'from_year' => $ctxYear,
+            'to_year'   => $ctxYear,
+        ]
+    );
+} else {
+    $ctxYearElections = [];
+}
+
+// Compute seat-wide turnout per election (respecting course scope)
+$ctxElectionStats = []; // for JS
+foreach ($ctxYearElections as $erow) {
+    $eid    = (int)$erow['election_id'];
+    $etitle = $erow['title'];
+    $eend   = $erow['end_datetime'] ?: ($ctxYear . '-12-31 23:59:59');
+
+    // --- 1) Get seat-wide scoped students as of this election's end ---
+    $seatStudents = getScopedVoters(
+        $pdo,
+        SCOPE_ACAD_STUDENT,
+        $scopeId,
+        [
+            'year_end'      => $eend,
+            'include_flags' => true,
+        ]
+    );
+
+    // --- 2) Apply this election's allowed_courses (same as top summary logic) ---
+    $allowedCodes = array_filter(
+        array_map('trim', explode(',', $erow['allowed_courses'] ?? ''))
+    );
+    $allowedCodes = array_map('strtoupper', $allowedCodes);
+
+    $restrictByCourse = !empty($allowedCodes) && !in_array('ALL', $allowedCodes, true);
+    $allowedNames     = $restrictByCourse
+        ? mapCourseCodesToFullNames($allowedCodes)
+        : [];
+
+    $eligibleForThisElection = [];
+
+    foreach ($seatStudents as $stu) {
+        // College guard (should already be enforced by getScopedVoters, but keep explicit)
+        if (strtoupper($stu['department'] ?? '') !== $collegeCode) {
+            continue;
+        }
+
+        // Course guard
+        if ($restrictByCourse) {
+            if (!in_array($stu['course'] ?? '', $allowedNames, true)) {
+                continue;
+            }
+        }
+
+        // Use user_id as unique key
+        $eligibleForThisElection[$stu['user_id']] = true;
     }
 
-    $course_list = [];
-    foreach ($allowed_courses as $course) {
-        if (isset($reverse_course_map[$course])) {
-            $course_list = array_merge($course_list, $reverse_course_map[$course]);
-        } else {
-            $course_list[] = strtolower($course);
+    $totalEligible = count($eligibleForThisElection);
+
+    // --- 3) Total voted (distinct voters for this election, in this college) ---
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT v.voter_id
+        FROM votes v
+        JOIN users u ON u.user_id = v.voter_id
+        WHERE v.election_id = :eid
+          AND u.role = 'voter'
+          AND u.position = 'student'
+          AND UPPER(TRIM(u.department)) = :college
+    ");
+    $stmt->execute([
+        ':eid'     => $eid,
+        ':college' => strtoupper($collegeCode),
+    ]);
+    $votedIds   = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    $votedSet   = array_flip($votedIds);
+
+    // Optional: ensure we only count voted who are also eligible under allowed_courses
+    $totalVoted = 0;
+    foreach ($eligibleForThisElection as $uid => $_) {
+        if (isset($votedSet[$uid])) {
+            $totalVoted++;
         }
     }
-    
-    if (!empty($course_list)) {
-        $placeholders = implode(',', array_fill(0, count($course_list), '?'));
-        $sql .= " AND LOWER(u.course) IN ($placeholders)";
-        $params = array_merge($params, $course_list);
-    }
+
+    $turnoutRate = $totalEligible > 0
+        ? round(($totalVoted / $totalEligible) * 100, 1)
+        : 0.0;
+
+    $ctxElectionStats[] = [
+        'election_id'    => $eid,
+        'title'          => $etitle,
+        'year'           => (int)date('Y', strtotime($erow['start_datetime'])),
+        'total_eligible' => $totalEligible,
+        'total_voted'    => $totalVoted,
+        'turnout_rate'   => $turnoutRate,
+        'status'         => $erow['status'],
+    ];
 }
 
- $sql .= " GROUP BY u.department, u.department1, u.course ORDER BY u.department, u.department1, u.course";
+// Page title
+ $pageTitle = htmlspecialchars($collegeCode) . ' Election Analytics';
 
- $stmt = $pdo->prepare($sql);
- $stmt->execute($params);
- $voterTurnoutData = $stmt->fetchAll();
-
-// Calculate turnout percentage for each group
-foreach ($voterTurnoutData as &$data) {
-    $data['turnout_percentage'] = ($data['eligible_count'] > 0) ? 
-        round(($data['voted_count'] / $data['eligible_count']) * 100, 1) : 0;
-}
-
-// Prepare additional breakdown data for JavaScript
- $departmentData = [];
- $courseData = [];
-
-// Group by department only
- $departmentMap = [];
-foreach ($voterTurnoutData as $item) {
-    $department = $item['department1'];
-    if (!isset($departmentMap[$department])) {
-        $departmentMap[$department] = [
-            'department1' => $department,
-            'eligible_count' => 0,
-            'voted_count' => 0
-        ];
-    }
-    $departmentMap[$department]['eligible_count'] += $item['eligible_count'];
-    $departmentMap[$department]['voted_count'] += $item['voted_count'];
-}
-
-foreach ($departmentMap as &$data) {
-    $data['turnout_percentage'] = ($data['eligible_count'] > 0) ? 
-        round(($data['voted_count'] / $data['eligible_count']) * 100, 1) : 0;
-}
- $departmentData = array_values($departmentMap);
-
-// Group by course only - WITH NORMALIZATION
- $courseMap = [];
-foreach ($voterTurnoutData as $item) {
-    $normalizedCourse = normalizeCourseName($item['course']);
-    if (!isset($courseMap[$normalizedCourse])) {
-        $courseMap[$normalizedCourse] = [
-            'course' => $normalizedCourse,
-            'eligible_count' => 0,
-            'voted_count' => 0
-        ];
-    }
-    $courseMap[$normalizedCourse]['eligible_count'] += $item['eligible_count'];
-    $courseMap[$normalizedCourse]['voted_count'] += $item['voted_count'];
-}
-
-foreach ($courseMap as &$data) {
-    $data['turnout_percentage'] = ($data['eligible_count'] > 0) ? 
-        round(($data['voted_count'] / $data['eligible_count']) * 100, 1) : 0;
-}
- $courseData = array_values($courseMap);
-
-// Get list of departments and courses for this college
- $departmentsList = isset($collegeDepartments[$scope]) ? $collegeDepartments[$scope] : [];
- $coursesList = isset($collegeCourses[$scope]) ? $collegeCourses[$scope] : [];
-
- $pageTitle = htmlspecialchars($scope) . ' Election Analytics';
-
+// Sidebar include
 include 'sidebar.php';
 ?>
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="assets/img/weblogo.png" type="image/png">
   <title><?= htmlspecialchars($pageTitle) ?> - <?= htmlspecialchars($election['title']) ?></title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -818,18 +570,15 @@ include 'sidebar.php';
       background: linear-gradient(135deg, #FFD700, #FFA500);
       color: white;
     }
-    
-    /* Custom table styles */
+
     .data-table {
       width: 100%;
       border-collapse: collapse;
     }
-    
     .data-table th, .data-table td {
       padding: 0.75rem;
       text-align: left;
     }
-    
     .data-table th {
       background-color: #f3f4f6;
       font-weight: 600;
@@ -838,23 +587,16 @@ include 'sidebar.php';
       font-size: 0.75rem;
       letter-spacing: 0.05em;
     }
-    
     .data-table td {
       border-bottom: 1px solid #e5e7eb;
     }
-    
     .data-table tr:hover {
       background-color: #f9fafb;
     }
-    
     .data-table .text-center {
       text-align: center;
     }
-    
-    .data-table .text-right {
-      text-align: right;
-    }
-    
+
     .turnout-bar-container {
       width: 100%;
       height: 8px;
@@ -862,50 +604,30 @@ include 'sidebar.php';
       border-radius: 4px;
       overflow: hidden;
     }
-    
     .turnout-bar {
       height: 100%;
       border-radius: 4px;
     }
-    
-    .turnout-high {
-      background-color: #10b981;
-    }
-    
-    .turnout-medium {
-      background-color: #f59e0b;
-    }
-    
-    .turnout-low {
-      background-color: #ef4444;
-    }
-    
-    /* Custom scrollbar for table */
-    .table-container::-webkit-scrollbar {
-      height: 8px;
-    }
-    
+    .turnout-high   { background-color: #10b981; }
+    .turnout-medium { background-color: #f59e0b; }
+    .turnout-low    { background-color: #ef4444; }
+
+    .table-container::-webkit-scrollbar { height: 8px; }
     .table-container::-webkit-scrollbar-track {
       background: #f1f1f1;
       border-radius: 4px;
     }
-    
     .table-container::-webkit-scrollbar-thumb {
       background: #888;
       border-radius: 4px;
     }
-    
     .table-container::-webkit-scrollbar-thumb:hover {
       background: #555;
     }
-    
-    /* Loading indicator */
+
     .loading-overlay {
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      top: 0; left: 0; right: 0; bottom: 0;
       background-color: rgba(0, 0, 0, 0.5);
       display: flex;
       justify-content: center;
@@ -915,12 +637,10 @@ include 'sidebar.php';
       visibility: hidden;
       transition: opacity 0.3s, visibility 0.3s;
     }
-    
     .loading-overlay.active {
       opacity: 1;
       visibility: visible;
     }
-    
     .loading-spinner {
       width: 50px;
       height: 50px;
@@ -929,13 +649,11 @@ include 'sidebar.php';
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
-    
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
-    
-    /* No data message styles */
+
     .no-data-message {
       display: flex;
       flex-direction: column;
@@ -945,31 +663,24 @@ include 'sidebar.php';
       text-align: center;
       color: #6b7280;
     }
-    
     .no-data-message i {
       font-size: 3rem;
       margin-bottom: 1rem;
       color: #d1d5db;
     }
-    
     .no-data-message p {
       font-size: 1.125rem;
       font-weight: 500;
     }
-    
-    /* Chart container with no data message */
+
     .chart-wrapper {
       position: relative;
       height: 100%;
       width: 100%;
     }
-    
     .chart-no-data {
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      inset: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -977,53 +688,26 @@ include 'sidebar.php';
       background-color: rgba(249, 250, 251, 0.9);
       z-index: 10;
     }
-    
     .table-no-data {
       padding: 3rem;
       text-align: center;
     }
-
-    .tooltip {
-      position: relative;
-      display: inline-block;
-    }
-
-    .tooltip .tooltiptext {
-      visibility: hidden;
-      width: 200px;
-      background-color: rgba(0, 0, 0, 0.8);
-      color: #fff;
-      text-align: center;
-      border-radius: 6px;
-      padding: 8px;
-      position: absolute;
-      z-index: 1;
-      bottom: 125%;
-      left: 50%;
-      margin-left: -100px;
-      opacity: 0;
-      transition: opacity 0.3s;
-      font-size: 14px;
-    }
-
-    .tooltip:hover .tooltiptext {
-      visibility: visible;
-      opacity: 1;
-    }
   </style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-50 text-gray-900 font-sans">
 <div class="flex min-h-screen">
-  
+
+  <!-- sidebar.php already included in PHP part -->
+
   <main class="flex-1 p-6 md:p-8 md:ml-64">
     <div class="max-w-7xl mx-auto">
+
       <!-- Election Information Header -->
       <div class="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl overflow-hidden mb-8 border border-gray-100">
-        <!-- Card Header -->
         <div class="bg-gradient-to-r from-[var(--cvsu-green-dark)] to-[var(--cvsu-green)] p-6 relative">
           <div class="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -mr-16 -mt-16"></div>
           <div class="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-5 rounded-full -ml-12 -mb-12"></div>
-          
+
           <div class="flex flex-col md:flex-row md:items-center md:justify-between relative z-10">
             <div class="flex-1">
               <div class="flex items-center mb-3">
@@ -1040,7 +724,7 @@ include 'sidebar.php';
                 </div>
               </div>
             </div>
-            
+
             <div class="mt-4 md:mt-0 flex items-center space-x-3">
               <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold shadow-md
                     <?= $status === 'completed' ? 'bg-green-500 text-white' : 
@@ -1056,8 +740,8 @@ include 'sidebar.php';
             </div>
           </div>
         </div>
-        
-        <!-- Card Body -->
+
+        <!-- Top summary cards -->
         <div class="p-6">
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
@@ -1071,7 +755,7 @@ include 'sidebar.php';
                 </div>
               </div>
             </div>
-            
+
             <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
               <div class="flex items-center">
                 <div class="bg-blue-50 p-3 rounded-xl mr-4">
@@ -1083,7 +767,7 @@ include 'sidebar.php';
                 </div>
               </div>
             </div>
-            
+
             <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
               <div class="flex items-center">
                 <div class="bg-purple-50 p-3 rounded-xl mr-4">
@@ -1098,61 +782,117 @@ include 'sidebar.php';
           </div>
         </div>
       </div>
-      
-      <!-- Winners Section -->
+
+      <!-- Winners / Candidates Section -->
       <div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
         <div class="px-6 py-4 border-b border-gray-200">
-          <h2 class="text-xl font-semibold text-gray-800">
-            <i class="fas fa-trophy text-yellow-500 mr-2"></i>Election Winners
-          </h2>
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+            <h2 class="text-xl font-semibold text-gray-800">
+              <i class="fas fa-trophy text-yellow-500 mr-2"></i>Candidate Summary
+            </h2>
+
+            <?php if (!empty($allCandidates)): ?>
+              <div class="mt-3 md:mt-0 flex flex-col sm:flex-row sm:items-center gap-3">
+                <!-- Show winners / all -->
+                <div class="flex items-center">
+                  <label for="candidateDisplayMode" class="mr-2 text-sm font-medium text-gray-700">
+                    Show:
+                  </label>
+                  <select id="candidateDisplayMode"
+                          class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
+                    <option value="winners" selected>Winners only</option>
+                    <option value="all">All candidates</option>
+                  </select>
+                </div>
+
+                <!-- Filter by position -->
+                <div class="flex items-center">
+                  <label for="candidatePositionFilter" class="mr-2 text-sm font-medium text-gray-700">
+                    Position:
+                  </label>
+                  <select id="candidatePositionFilter"
+                          class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
+                    <option value="all">All positions</option>
+                    <?php foreach ($allPositions as $pos): ?>
+                      <option value="<?= htmlspecialchars($pos) ?>"><?= htmlspecialchars($pos) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              </div>
+            <?php endif; ?>
+          </div>
         </div>
-        
+
         <div class="p-6">
-          <?php if (empty($winnersByPosition)): ?>
+          <?php if (empty($allCandidates)): ?>
             <div class="no-data-message">
               <i class="fas fa-users"></i>
-              <p>No winners data available</p>
+              <p>No candidate data available</p>
             </div>
           <?php else: ?>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <?php foreach ($winnersByPosition as $position => $winners): ?>
-                <?php foreach ($winners as $winner): ?>
-                  <div class="analytics-card bg-gradient-to-br from-yellow-50 to-white rounded-xl border border-yellow-200 p-6 shadow-sm">
-                    <div class="flex items-center mb-4">
-                      <div class="winner-badge w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg mr-4">
-                        <i class="fas fa-trophy"></i>
-                      </div>
-                      <div>
-                        <h3 class="text-lg font-bold text-gray-800"><?= htmlspecialchars($winner['candidate_name']) ?></h3>
-                        <p class="text-sm text-gray-600"><?= htmlspecialchars($position) ?></p>
-                      </div>
+            <div id="candidateCardsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <?php foreach ($allCandidates as $cand): ?>
+                <?php
+                  $position       = $cand['position'];
+                  $candidateId    = (int)$cand['candidate_id'];
+                  $candidateName  = $cand['candidate_name'];
+                  $voteCount      = (int)$cand['vote_count'];
+                  $winnerKey      = $position . '|' . $candidateId;
+                  $isWinner       = !empty($winnerKeyMap[$winnerKey]);
+                  $isTiePosition  = !empty($positionTieMap[$position]);
+                ?>
+                <div class="candidate-summary-card analytics-card bg-gradient-to-br from-yellow-50 to-white rounded-xl border border-yellow-200 p-6 shadow-sm"
+                    data-winner="<?= $isWinner ? '1' : '0' ?>"
+                    data-position="<?= htmlspecialchars($position) ?>">
+                  <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg mr-4
+                        <?= $isWinner ? 'winner-badge' : 'bg-gray-200 text-gray-600' ?>">
+                      <i class="fas <?= $isWinner ? 'fa-trophy' : 'fa-user' ?>"></i>
                     </div>
-                    <div class="flex justify-between items-center">
-                      <div>
-                        <p class="text-2xl font-bold text-gray-800"><?= number_format($winner['vote_count']) ?></p>
-                        <p class="text-sm text-gray-500">votes</p>
-                      </div>
-                      <?php if (count($winners) > 1): ?>
-                        <span class="text-xs font-bold bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">TIE</span>
-                      <?php endif; ?>
+                    <div>
+                      <h3 class="text-lg font-bold text-gray-800">
+                        <?= htmlspecialchars($candidateName) ?>
+                      </h3>
+                      <p class="text-sm text-gray-600">
+                        <?= htmlspecialchars($position) ?>
+                      </p>
                     </div>
                   </div>
-                <?php endforeach; ?>
+
+                  <div class="flex justify-between items-center">
+                    <div>
+                      <p class="text-2xl font-bold text-gray-800"><?= number_format($voteCount) ?></p>
+                      <p class="text-sm text-gray-500">votes</p>
+                    </div>
+
+                    <?php if ($isWinner && $voteCount > 0): ?>
+                      <?php if ($isTiePosition): ?>
+                        <span class="text-xs font-bold bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+                          TIE
+                        </span>
+                      <?php else: ?>
+                        <span class="text-xs font-bold bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                          WINNER
+                        </span>
+                      <?php endif; ?>
+                    <?php endif; ?>
+                  </div>
+                </div>
               <?php endforeach; ?>
             </div>
           <?php endif; ?>
         </div>
       </div>
-      
+
       <!-- Voter Turnout Analytics Section -->
       <div class="bg-white rounded-xl shadow-md overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200">
           <h2 class="text-xl font-semibold text-gray-800">
             <i class="fas fa-chart-pie text-green-600 mr-2"></i>Voter Turnout Analytics
           </h2>
-          <p class="text-sm text-gray-500 mt-1"><?= htmlspecialchars($scope) ?> Student Election (by department and course)</p>
+          <p class="text-sm text-gray-500 mt-1"><?= htmlspecialchars($collegeCode) ?> Student Election (by department and course)</p>
         </div>
-        
+
         <div class="p-6">
           <?php if (empty($voterTurnoutData)): ?>
             <div class="no-data-message">
@@ -1162,9 +902,7 @@ include 'sidebar.php';
           <?php else: ?>
             <!-- Filter Section -->
             <div class="mb-6">
-              <!-- Single flex container for all dropdowns -->
               <div class="flex flex-wrap items-center justify-center gap-6 mb-4">
-                <!-- Breakdown Type Selector -->
                 <div class="flex items-center">
                   <label for="breakdownType" class="mr-3 text-sm font-medium text-gray-700">Breakdown by:</label>
                   <select id="breakdownType" class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
@@ -1172,8 +910,7 @@ include 'sidebar.php';
                     <option value="course">Course</option>
                   </select>
                 </div>
-                
-                <!-- Department/Course Selector -->
+
                 <div class="flex items-center">
                   <label id="filterLabel" for="filterSelect" class="mr-3 text-sm font-medium text-gray-700">Select Department:</label>
                   <select id="filterSelect" class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
@@ -1185,7 +922,7 @@ include 'sidebar.php';
                 </div>
               </div>
             </div>
-            
+
             <!-- Chart Section -->
             <div class="mb-12">
               <h3 class="text-xl font-semibold text-gray-800 mb-6 text-center">Turnout Visualization</h3>
@@ -1201,7 +938,7 @@ include 'sidebar.php';
                 </div>
               </div>
             </div>
-            
+
             <!-- Detailed Breakdown Section -->
             <div class="mt-12">
               <h3 class="text-xl font-semibold text-gray-800 mb-6 text-center">Detailed Breakdown</h3>
@@ -1216,10 +953,160 @@ include 'sidebar.php';
           <?php endif; ?>
         </div>
       </div>
-      
+
+      <!-- College-level Turnout Comparison (Year Range) -->
+      <div class="bg-white rounded-xl shadow-md overflow-hidden mt-8">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 class="text-xl font-semibold text-gray-800">
+                <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
+                College Turnout Comparison (All Elections in <?= htmlspecialchars($collegeCode) ?>)
+              </h2>
+              <p class="text-sm text-gray-500 mt-1">
+                Compare your <strong>college-wide turnout</strong> over time, based on all elections under this seat.
+              </p>
+            </div>
+            <div class="mt-3 md:mt-0 flex items-center space-x-3">
+              <label for="ctxYearSelector" class="text-sm font-medium text-gray-700">Focus year:</label>
+              <select id="ctxYearSelector"
+                      class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
+                <?php foreach (array_keys($turnoutDataByYear) as $y): ?>
+                  <option value="<?= $y ?>" <?= $y == $ctxYear ? 'selected' : '' ?>><?= $y ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-6">
+          <!-- Summary cards (focus year vs previous year) -->
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="p-4 rounded-lg border" style="background-color: rgba(99,102,241,0.05); border-color:#6366F1;">
+              <div class="flex items-center">
+                <div class="p-3 rounded-lg mr-4 bg-indigo-500">
+                  <i class="fas fa-percentage text-white text-xl"></i>
+                </div>
+                <div>
+                  <p class="text-sm text-indigo-600"><?= $ctxYear ?> Turnout</p>
+                  <p class="text-2xl font-bold text-indigo-800">
+                    <?= $currentYearTurnout['turnout_rate'] ?? 0 ?>%
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-lg border" style="background-color: rgba(139,92,246,0.05); border-color:#8B5CF6;">
+              <div class="flex items-center">
+                <div class="p-3 rounded-lg mr-4 bg-purple-500">
+                  <i class="fas fa-percentage text-white text-xl"></i>
+                </div>
+                <div>
+                  <p class="text-sm text-purple-600"><?= $ctxYear - 1 ?> Turnout</p>
+                  <p class="text-2xl font-bold text-purple-800">
+                    <?= $previousYearTurnout['turnout_rate'] ?? 0 ?>%
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-lg border" style="background-color: rgba(16,185,129,0.05); border-color:#10B981;">
+              <div class="flex items-center">
+                <div class="p-3 rounded-lg mr-4 bg-green-500">
+                  <i class="fas fa-chart-line text-white text-xl"></i>
+                </div>
+                <div>
+                  <p class="text-sm text-green-600">Growth Rate</p>
+                  <p class="text-2xl font-bold text-green-800">
+                    <?php
+                      $ct = $currentYearTurnout['turnout_rate']  ?? 0;
+                      $pt = $previousYearTurnout['turnout_rate'] ?? 0;
+                      echo $pt > 0
+                        ? ((($ct - $pt) / $pt > 0 ? '+' : '') . round((($ct - $pt) / $pt) * 100, 1) . '%')
+                        : '0%';
+                    ?>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-lg border" style="background-color: rgba(59,130,246,0.05); border-color:#3B82F6;">
+              <div class="flex items-center">
+                <div class="p-3 rounded-lg mr-4 bg-blue-500">
+                  <i class="fas fa-vote-yea text-white text-xl"></i>
+                </div>
+                <div>
+                  <p class="text-sm text-blue-600">Elections (<?= $ctxYear ?>)</p>
+                  <p class="text-2xl font-bold text-blue-800">
+                    <?= $currentYearTurnout['election_count'] ?? 0 ?>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Series + breakdown dropdowns -->
+          <div class="mb-4">
+            <div class="flex flex-col md:flex-row md:items-center space-y-2 md:space-y-0 md:space-x-6">
+              <div class="flex items-center">
+                <label for="ctxDataSeriesSelect" class="mr-3 text-sm font-medium text-gray-700">Data Series:</label>
+                <select id="ctxDataSeriesSelect"
+                        class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm">
+                  <option value="elections">Elections vs Turnout</option>
+                  <option value="voters">Voters vs Turnout</option>
+                </select>
+              </div>
+
+              <div class="flex items-center">
+                <label for="ctxBreakdownSelect" class="mr-3 text-sm font-medium text-gray-700">Breakdown by:</label>
+                <select id="ctxBreakdownSelect"
+                        class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm">
+                  <option value="year">Year</option>
+                  <option value="election">Election (current year)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chart -->
+          <div class="chart-container" style="height: 400px;">
+            <canvas id="ctxElectionsVsTurnoutChart"></canvas>
+          </div>
+
+          <!-- Year range selector -->
+          <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 class="font-medium text-blue-800 mb-2">Turnout Analysis – Year Range</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="ctxFromYear" class="block text-sm font-medium text-blue-800">From year</label>
+                <select id="ctxFromYear" class="mt-1 p-2 border rounded w-full">
+                  <?php foreach ($allTurnoutYears as $y): ?>
+                    <option value="<?= $y ?>" <?= $y == $fromYear ? 'selected' : '' ?>><?= $y ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div>
+                <label for="ctxToYear" class="block text-sm font-medium text-blue-800">To year</label>
+                <select id="ctxToYear" class="mt-1 p-2 border rounded w-full">
+                  <?php foreach ($allTurnoutYears as $y): ?>
+                    <option value="<?= $y ?>" <?= $y == $toYear ? 'selected' : '' ?>><?= $y ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+            </div>
+            <p class="text-xs text-blue-700 mt-2">
+              Select a start and end year to compare college-wide turnout. Years with no elections in this range will appear with zero values.
+            </p>
+          </div>
+
+          <!-- Table container -->
+          <div id="ctxTurnoutBreakdownTable" class="mt-6 overflow-x-auto"></div>
+        </div>
+      </div>
+
       <!-- Back Button -->
       <div class="mt-6">
-        <a href="admin_analytics_college.php" 
+        <a href="admin_analytics.php" 
            class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
           <i class="fas fa-arrow-left mr-2"></i>
           Back to Election Analytics
@@ -1235,114 +1122,93 @@ include 'sidebar.php';
 </div>
 
 <script>
-// Store all breakdown data
+// === Candidate Winners / All Toggle + Position Filter ===
+document.addEventListener('DOMContentLoaded', function () {
+  const modeSelect    = document.getElementById('candidateDisplayMode');
+  const positionSelect= document.getElementById('candidatePositionFilter');
+  const cards         = document.querySelectorAll('.candidate-summary-card');
+
+  if (!modeSelect || !positionSelect || cards.length === 0) return;
+
+  function applyCandidateFilters() {
+    const mode      = modeSelect.value;       // 'winners' or 'all'
+    const position  = positionSelect.value;   // 'all' or specific position
+
+    cards.forEach(card => {
+      const isWinner   = card.getAttribute('data-winner') === '1';
+      const cardPos    = card.getAttribute('data-position') || '';
+
+      // Filter by mode
+      if (mode === 'winners' && !isWinner) {
+        card.style.display = 'none';
+        return;
+      }
+
+      // Filter by position
+      if (position !== 'all' && cardPos !== position) {
+        card.style.display = 'none';
+        return;
+      }
+
+      // If passed both filters
+      card.style.display = 'block';
+    });
+  }
+
+  modeSelect.addEventListener('change', applyCandidateFilters);
+  positionSelect.addEventListener('change', applyCandidateFilters);
+
+  // Initial apply (default: winners only, all positions)
+  applyCandidateFilters();
+});
+</script>
+
+<script>
+// Data from PHP
 const breakdownData = {
   'department': <?= json_encode($departmentData) ?>,
-  'course': <?= json_encode($courseData) ?>
+  'course':     <?= json_encode($courseData) ?>
 };
 
-// Store departments and courses for this college
 const collegeDepartments = <?= json_encode($departmentsList) ?>;
-const collegeCourses = <?= json_encode($coursesList) ?>;
+const collegeCourses     = <?= json_encode($coursesList) ?>;
 
-// Map from full name to abbreviation for courses
-const fullNameToAbbrMap = {
-  <?php 
-  foreach ($course_map as $full_name => $abbr) {
-    echo "'" . addslashes($full_name) . "': '$abbr',\n";
-  }
-  ?>
-};
-
-// Map from full name to abbreviation for departments
-const departmentFullNameToAbbrMap = {
-  <?php 
-  foreach ($department_abbr_map as $full_name => $abbr) {
-    echo "'" . addslashes($full_name) . "': '$abbr',\n";
-  }
-  ?>
-};
-
-// User scope (college)
-const userScope = '<?= $scope ?>';
-
-// Chart instance
 let turnoutChartInstance = null;
 
-// Current state
 let currentState = {
   breakdownType: 'department',
-  filterValue: 'all'
+  filterValue:   'all'
 };
 
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('DOM loaded');
-  
-  // Initialize URL parameters
   const urlParams = new URLSearchParams(window.location.search);
   currentState.breakdownType = urlParams.get('breakdown') || 'department';
-  currentState.filterValue = urlParams.get('filter') || 'all';
-  
-  // Set initial dropdown values
+  currentState.filterValue   = urlParams.get('filter')    || 'all';
+
   document.getElementById('breakdownType').value = currentState.breakdownType;
   updateFilterDropdown();
-  
+
   if (currentState.filterValue !== 'all') {
     document.getElementById('filterSelect').value = currentState.filterValue;
   }
-  
-  // Check if Chart.js is loaded
-  if (typeof Chart === 'undefined') {
-    console.error('Chart.js is not loaded!');
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
-    script.onload = function() {
-      console.log('Chart.js loaded dynamically');
-      updateView();
-    };
-    script.onerror = function() {
-      console.error('Failed to load Chart.js');
-      showChartNoDataMessage('Error loading chart library');
-    };
-    document.head.appendChild(script);
-  } else {
-    console.log('Chart.js is already loaded');
-    updateView();
-  }
-  
-  // Add event listener to breakdown type selector
+
+  updateView(false);
+
   document.getElementById('breakdownType')?.addEventListener('change', function() {
-    const selectedBreakdown = this.value;
-    
-    // Update state and URL
-    updateState({ 
-      breakdownType: selectedBreakdown,
-      filterValue: 'all'
-    });
-    
-    // Update filter dropdown options
+    updateState({ breakdownType: this.value, filterValue: 'all' });
     updateFilterDropdown();
   });
-  
-  // Add event listener to filter selector
+
   document.getElementById('filterSelect')?.addEventListener('change', function() {
-    const selectedFilter = this.value;
-    
-    // Update state and URL
-    updateState({ filterValue: selectedFilter });
+    updateState({ filterValue: this.value });
   });
-  
-  // Handle back/forward buttons
+
   window.addEventListener('popstate', function(event) {
     if (event.state) {
       currentState = event.state;
-      
-      // Update dropdowns
       document.getElementById('breakdownType').value = currentState.breakdownType;
       updateFilterDropdown();
       document.getElementById('filterSelect').value = currentState.filterValue;
-      
-      // Update view without showing loading
       updateView(false);
     }
   });
@@ -1350,331 +1216,215 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function updateFilterDropdown() {
   const filterSelect = document.getElementById('filterSelect');
-  const filterLabel = document.getElementById('filterLabel');
-  
-  // Clear existing options
+  const filterLabel  = document.getElementById('filterLabel');
+
   filterSelect.innerHTML = '';
-  
+
   if (currentState.breakdownType === 'department') {
     filterLabel.textContent = 'Select Department:';
-    filterSelect.innerHTML = '<option value="all">All Departments</option>';
-    
-    collegeDepartments.forEach(department => {
-      const option = document.createElement('option');
-      option.value = department;
-      option.textContent = department;
-      filterSelect.appendChild(option);
+    filterSelect.innerHTML  = '<option value="all">All Departments</option>';
+    collegeDepartments.forEach(dep => {
+      const opt = document.createElement('option');
+      opt.value = dep;
+      opt.textContent = dep;
+      filterSelect.appendChild(opt);
     });
   } else {
     filterLabel.textContent = 'Select Course:';
-    filterSelect.innerHTML = '<option value="all">All Courses</option>';
-    
+    filterSelect.innerHTML  = '<option value="all">All Courses</option>';
     collegeCourses.forEach(course => {
-      const option = document.createElement('option');
-      option.value = course;
-      option.textContent = course;
-      filterSelect.appendChild(option);
+      const opt = document.createElement('option');
+      opt.value = course;
+      opt.textContent = course;
+      filterSelect.appendChild(opt);
     });
   }
-  
-  // Reset filter value to 'all' when breakdown type changes
+
   currentState.filterValue = 'all';
 }
 
 function updateState(newState) {
-  // Show loading
   showLoading();
-  
-  // Update current state
   currentState = { ...currentState, ...newState };
-  
-  // Update URL without reloading the page
+
   const url = new URL(window.location);
   url.searchParams.set('breakdown', currentState.breakdownType);
   url.searchParams.set('filter', currentState.filterValue);
-  
-  // Push new state to history
   window.history.pushState(currentState, '', url);
-  
-  // Update view
+
   updateView();
 }
 
-function updateView(showLoading = true) {
-  if (showLoading) {
-    // Small delay to show loading indicator
-    setTimeout(() => {
-      const data = getFilteredData();
-      updateChart(data);
-      generateTable(data);
-      hideLoading();
-    }, 300);
-  } else {
+function updateView(showLoader = true) {
+  const doWork = () => {
     const data = getFilteredData();
     updateChart(data);
     generateTable(data);
+    hideLoading();
+  };
+
+  if (showLoader) {
+    setTimeout(doWork, 300);
+  } else {
+    doWork();
   }
 }
 
 function getFilteredData() {
   let data = breakdownData[currentState.breakdownType];
-  
-  // Filter data if a specific department or course is selected
+
   if (currentState.filterValue !== 'all') {
-    data = data.filter(item => {
-      if (currentState.breakdownType === 'department') {
-        return item.department1 === currentState.filterValue;
-      } else {
-        // For courses, we need to normalize the selected course name
-        const normalizedFilter = normalizeCourseNameInJS(currentState.filterValue);
-        return item.course === normalizedFilter;
-      }
-    });
+    if (currentState.breakdownType === 'department') {
+      data = data.filter(item => item.department1 === currentState.filterValue);
+    } else {
+      data = data.filter(item => item.course === currentState.filterValue);
+    }
   }
-  
   return data;
 }
 
 function updateChart(data) {
-  const canvas = document.getElementById('turnoutChart');
-  const noDataDiv = document.getElementById('chartNoData');
-  
-  // If data is empty, show no data message and return
-  if (data.length === 0) {
-    if (canvas) {
-      canvas.style.display = 'none';
-    }
-    if (noDataDiv) {
-      noDataDiv.style.display = 'flex';
-    }
+  const canvas   = document.getElementById('turnoutChart');
+  const noDataEl = document.getElementById('chartNoData');
+
+  if (!canvas) return;
+
+  if (!data || data.length === 0) {
+    canvas.style.display   = 'none';
+    if (noDataEl) noDataEl.style.display = 'flex';
     return;
   }
 
-  // If we have data, make sure the canvas is visible and the no data message is hidden
-  if (canvas) {
-    canvas.style.display = 'block';
-  }
-  if (noDataDiv) {
-    noDataDiv.style.display = 'none';
-  }
-  
+  canvas.style.display   = 'block';
+  if (noDataEl) noDataEl.style.display = 'none';
+
   const ctx = canvas.getContext('2d');
-  
-  // Prepare labels - use abbreviations for display
-  const labels = data.map(item => {
-    if (currentState.breakdownType === 'course') {
-      // Show the normalized course name
-      return item.course;
-    } else {
-      // For departments, convert full name to abbreviation
-      return departmentFullNameToAbbrMap[item.department1] || item.department1;
-    }
-  });
-  
-  // Prepare data
+
+  const labels = data.map(item =>
+    currentState.breakdownType === 'course' ? item.course : item.department1
+  );
   const eligibleData = data.map(item => parseInt(item.eligible_count) || 0);
-  const votedData = data.map(item => parseInt(item.voted_count) || 0);
-  
-  // Destroy existing chart if it exists
+  const votedData    = data.map(item => parseInt(item.voted_count)    || 0);
+
   if (turnoutChartInstance) {
     turnoutChartInstance.destroy();
   }
-  
-  // Calculate dynamic settings based on data count
-  const dataCount = labels.length;
-  
-  // Adjust bar thickness and spacing based on data count
+
+  const count = labels.length;
   let barThickness, categorySpacing, fontSize, maxBarThickness;
-  
-  if (dataCount <= 5) {
-    // Few data points - thicker bars, larger text
-    barThickness = 0.8;
-    categorySpacing = 0.2;
-    fontSize = 14;
-    maxBarThickness = 80;
-  } else if (dataCount <= 10) {
-    // Medium data points - medium bars and text
-    barThickness = 0.6;
-    categorySpacing = 0.3;
-    fontSize = 12;
-    maxBarThickness = 60;
-  } else if (dataCount <= 20) {
-    // Many data points - thinner bars, smaller text
-    barThickness = 0.4;
-    categorySpacing = 0.4;
-    fontSize = 10;
-    maxBarThickness = 40;
+
+  if (count <= 5) {
+    barThickness = 0.8; categorySpacing = 0.2; fontSize = 14; maxBarThickness = 80;
+  } else if (count <= 10) {
+    barThickness = 0.6; categorySpacing = 0.3; fontSize = 12; maxBarThickness = 60;
+  } else if (count <= 20) {
+    barThickness = 0.4; categorySpacing = 0.4; fontSize = 10; maxBarThickness = 40;
   } else {
-    // Very many data points - very thin bars, smallest text
-    barThickness = 0.3;
-    categorySpacing = 0.5;
-    fontSize = 9;
-    maxBarThickness = 30;
+    barThickness = 0.3; categorySpacing = 0.5; fontSize = 9;  maxBarThickness = 30;
   }
-  
-  try {
-    turnoutChartInstance = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: 'Eligible Voters',
-            data: eligibleData,
-            backgroundColor: 'rgba(54, 162, 235, 0.7)',
-            borderColor: 'rgba(54, 162, 235, 1)',
-            borderWidth: 1,
-            borderRadius: 4,
-            barPercentage: barThickness,
-            categoryPercentage: 1 - categorySpacing,
-            maxBarThickness: maxBarThickness
-          },
-          {
-            label: 'Voted',
-            data: votedData,
-            backgroundColor: 'rgba(75, 192, 192, 0.7)',
-            borderColor: 'rgba(75, 192, 192, 1)',
-            borderWidth: 1,
-            borderRadius: 4,
-            barPercentage: barThickness,
-            categoryPercentage: 1 - categorySpacing,
-            maxBarThickness: maxBarThickness
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'top',
-            labels: {
-              font: {
-                size: 14
-              },
-              padding: 20
-            }
-          },
-          title: {
-            display: true,
-            text: `Voter Turnout by ${currentState.breakdownType === 'course' ? 'Course' : 'Department'}`,
-            font: {
-              size: 18,
-              weight: 'bold'
-            },
-            padding: {
-              top: 10,
-              bottom: 30
-            }
-          },
-          tooltip: {
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            titleFont: {
-              size: 14
-            },
-            bodyFont: {
-              size: 13
-            },
-            padding: 12,
-            cornerRadius: 4,
-            callbacks: {
-              label: function(context) {
-                let label = context.dataset.label || '';
-                if (label) {
-                  label += ': ';
-                }
-                if (context.parsed.y !== null) {
-                  label += new Intl.NumberFormat('en-US', { 
-                    style: 'decimal', 
-                    maximumFractionDigits: 0 
-                  }).format(context.parsed.y);
-                }
-                return label;
-              },
-              // Use the title callback to show the full name
-              title: function(context) {
-                // Get the abbreviation from the chart label
-                const abbreviation = context[0].label;
-                // Convert the abbreviation to the full name
-                return convertToFullName(abbreviation);
-              }
-            }
-          }
+
+  turnoutChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Eligible Voters',
+          data: eligibleData,
+          backgroundColor: 'rgba(54, 162, 235, 0.7)',
+          borderColor:     'rgba(54, 162, 235, 1)',
+          borderWidth: 1,
+          borderRadius: 4,
+          barPercentage: barThickness,
+          categoryPercentage: 1 - categorySpacing,
+          maxBarThickness
         },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              precision: 0,
-              font: {
-                size: 12
-              }
-            },
-            grid: {
-              color: 'rgba(0, 0, 0, 0.1)'
-            },
-            title: {
-              display: true,
-              text: 'Number of Voters',
-              font: {
-                size: 14,
-                weight: 'bold'
-              }
-            }
-          },
-          x: {
-            ticks: {
-              font: {
-                size: fontSize
-              },
-              maxRotation: 0, // Keep labels horizontal
-              minRotation: 0,
-              autoSkip: true,
-              maxTicksLimit: 20 // Limit number of ticks shown
-            },
-            grid: {
-              display: false
-            },
-            title: {
-              display: true,
-              text: currentState.breakdownType === 'course' ? 'Course' : 'Department',
-              font: {
-                size: 14,
-                weight: 'bold'
-              }
-            }
-          }
+        {
+          label: 'Voted',
+          data: votedData,
+          backgroundColor: 'rgba(75, 192, 192, 0.7)',
+          borderColor:     'rgba(75, 192, 192, 1)',
+          borderWidth: 1,
+          borderRadius: 4,
+          barPercentage: barThickness,
+          categoryPercentage: 1 - categorySpacing,
+          maxBarThickness
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { font: { size: 14 }, padding: 20 }
         },
-        animation: {
-          duration: 1000,
-          easing: 'easeOutQuart'
+        title: {
+          display: true,
+          text: `Voter Turnout by ${currentState.breakdownType === 'course' ? 'Course' : 'Department'}`,
+          font: { size: 18, weight: 'bold' },
+          padding: { top: 10, bottom: 30 }
         },
-        layout: {
-          padding: {
-            left: 10,
-            right: 10,
-            top: 10,
-            bottom: 10
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          titleFont: { size: 14 },
+          bodyFont:  { size: 13 },
+          padding: 12,
+          cornerRadius: 4,
+          callbacks: {
+            title: (ctx) => ctx[0].label,
+            label: (ctx) => {
+              let label = ctx.dataset.label || '';
+              if (label) label += ': ';
+              if (ctx.parsed.y !== null) {
+                label += new Intl.NumberFormat('en-US', {
+                  style: 'decimal', maximumFractionDigits: 0
+                }).format(ctx.parsed.y);
+              }
+              return label;
+            }
           }
         }
-      }
-    });
-    
-    console.log('Chart updated successfully!');
-  } catch (error) {
-    console.error('Error updating chart:', error);
-    showChartNoDataMessage('Error loading chart data');
-  }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { precision: 0, font: { size: 12 } },
+          grid: { color: 'rgba(0, 0, 0, 0.1)' },
+          title: {
+            display: true,
+            text: 'Number of Voters',
+            font: { size: 14, weight: 'bold' }
+          }
+        },
+        x: {
+          ticks: {
+            font: { size: fontSize },
+            maxRotation: 0,
+            minRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 20
+          },
+          grid: { display: false },
+          title: {
+            display: true,
+            text: currentState.breakdownType === 'course' ? 'Course' : 'Department',
+            font: { size: 14, weight: 'bold' }
+          }
+        }
+      },
+      animation: { duration: 1000, easing: 'easeOutQuart' },
+      layout: { padding: { left: 10, right: 10, top: 10, bottom: 10 } }
+    }
+  });
 }
 
 function generateTable(data) {
   const tableContainer = document.getElementById('tableContainer');
-  
-  // Clear existing content
   tableContainer.innerHTML = '';
-  
-  // If data is empty, show no data message and return
-  if (data.length === 0) {
+
+  if (!data || data.length === 0) {
     const noDataDiv = document.createElement('div');
     noDataDiv.className = 'table-no-data';
     noDataDiv.innerHTML = `
@@ -1684,15 +1434,13 @@ function generateTable(data) {
     tableContainer.appendChild(noDataDiv);
     return;
   }
-  
-  // Create table element
+
   const table = document.createElement('table');
   table.className = 'data-table';
-  
-  // Create table header
+
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
-  
+
   if (currentState.breakdownType === 'course') {
     headerRow.innerHTML = `
       <th style="width: 40%">Course</th>
@@ -1708,27 +1456,23 @@ function generateTable(data) {
       <th style="width: 20%" class="text-center">Turnout %</th>
     `;
   }
-  
+
   thead.appendChild(headerRow);
   table.appendChild(thead);
-  
-  // Create table body
+
   const tbody = document.createElement('tbody');
-  
+
   data.forEach(item => {
     const row = document.createElement('tr');
-    
+
     if (currentState.breakdownType === 'course') {
-      // Show the full name for courses instead of abbreviation
-      const fullName = convertToFullName(item.course);
       row.innerHTML = `
-        <td style="width: 40%; white-space: normal; word-wrap: break-word;">${fullName}</td>
+        <td style="width: 40%; white-space: normal; word-wrap: break-word;">${item.course}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
         <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
       `;
     } else {
-      // Show the full name for departments
       row.innerHTML = `
         <td style="width: 40%; white-space: normal; word-wrap: break-word;">${item.department1}</td>
         <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
@@ -1736,23 +1480,19 @@ function generateTable(data) {
         <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
       `;
     }
-    
+
     tbody.appendChild(row);
   });
-  
+
   table.appendChild(tbody);
   tableContainer.appendChild(table);
 }
 
 function createTurnoutBar(percentage) {
-  // Determine color based on percentage
-  let barColor = 'turnout-low'; // Low turnout
-  if (percentage >= 70) {
-    barColor = 'turnout-high'; // High turnout
-  } else if (percentage >= 40) {
-    barColor = 'turnout-medium'; // Medium turnout
-  }
-  
+  let barColor = 'turnout-low';
+  if (percentage >= 70)      barColor = 'turnout-high';
+  else if (percentage >= 40) barColor = 'turnout-medium';
+
   return `
     <div class="flex flex-col items-center">
       <div class="turnout-bar-container w-32">
@@ -1763,314 +1503,348 @@ function createTurnoutBar(percentage) {
   `;
 }
 
-// JavaScript course normalization function
-function normalizeCourseNameInJS(course) {
-    if (!course) return 'UNSPECIFIED';
-    
-    course = course.toUpperCase().trim();
-    
-    // Check if it's already a standard code
-    if (fullNameToAbbrMap[course]) {
-        return course;
-    }
-    
-    // Handle common patterns
-    const patterns = [
-        /^BACHELOR OF SCIENCE IN /i,
-        /^BACHELOR OF ARTS IN /i,
-        /^DOCTOR OF /i,
-        /^MASTER OF /i,
-        /^BS /i,
-        /^BA /i
-    ];
-    
-    let normalized = course;
-    patterns.forEach(pattern => {
-        normalized = normalized.replace(pattern, '');
-    });
-    
-    // Handle specific abbreviations
-    const abbrMap = {
-        'BSCS': 'BS COMPUTER SCIENCE',
-        'BSIT': 'BS INFORMATION TECHNOLOGY',
-        'BSCPE': 'BS COMPUTER ENGINEERING',
-        'BSECE': 'BS ELECTRONICS ENGINEERING',
-        'BSCE': 'BS CIVIL ENGINEERING',
-        'BSME': 'BS MECHANICAL ENGINEERING',
-        'BSEE': 'BS ELECTRICAL ENGINEERING',
-        'BSIE': 'BS INDUSTRIAL ENGINEERING',
-        'BSAGRI': 'BS AGRICULTURE',
-        'BSAB': 'BS AGRIBUSINESS',
-        'BSES': 'BS ENVIRONMENTAL SCIENCE',
-        'BSFT': 'BS FOOD TECHNOLOGY',
-        'BSFOR': 'BS FORESTRY',
-        'BSABE': 'BS AGRICULTURAL AND BIOSYSTEMS ENGINEERING',
-        'BSBIO': 'BS BIOLOGY',
-        'BSCHEM': 'BS CHEMISTRY',
-        'BSMATH': 'BS MATHEMATICS',
-        'BSPHYSICS': 'BS PHYSICS',
-        'BSPSYCH': 'BS PSYCHOLOGY',
-        'BSSTAT': 'BS STATISTICS',
-        'DVM': 'DOCTOR OF VETERINARY MEDICINE',
-        'BSPV': 'BS BIOLOGY (PRE-VETERINARY)',
-        'BEED': 'BACHELOR OF ELEMENTARY EDUCATION',
-        'BSED': 'BACHELOR OF SECONDARY EDUCATION',
-        'BPE': 'BACHELOR OF PHYSICAL EDUCATION',
-        'BTLE': 'BACHELOR OF TECHNOLOGY AND LIVELIHOOD EDUCATION',
-        'BSBA': 'BS BUSINESS ADMINISTRATION',
-        'BSACC': 'BS ACCOUNTANCY',
-        'BSECO': 'BS ECONOMICS',
-        'BSENT': 'BS ENTREPRENEURSHIP',
-        'BSOA': 'BS OFFICE ADMINISTRATION',
-        'BSESS': 'BS EXERCISE AND SPORTS SCIENCES',
-        'BSCRIM': 'BS CRIMINOLOGY',
-        'BSN': 'BS NURSING',
-        'BSHM': 'BS HOSPITALITY MANAGEMENT',
-        'BSTM': 'BS TOURISM MANAGEMENT',
-        'BLIS': 'BACHELOR OF LIBRARY AND INFORMATION SCIENCE'
-    };
-    
-    // Check if normalized matches an abbreviation
-    if (abbrMap[normalized]) {
-        return abbrMap[normalized];
-    }
-    
-    // Handle keyword matches
-    const keywords = [
-        'COMPUTER SCIENCE',
-        'INFORMATION TECHNOLOGY',
-        'COMPUTER ENGINEERING',
-        'ELECTRONICS ENGINEERING',
-        'CIVIL ENGINEERING',
-        'MECHANICAL ENGINEERING',
-        'ELECTRICAL ENGINEERING',
-        'INDUSTRIAL ENGINEERING',
-        'AGRICULTURE',
-        'AGRIBUSINESS',
-        'ENVIRONMENTAL SCIENCE',
-        'FOOD TECHNOLOGY',
-        'FORESTRY',
-        'AGRICULTURAL AND BIOSYSTEMS ENGINEERING',
-        'AGRICULTURAL ENTREPRENEURSHIP',
-        'LAND USE DESIGN AND MANAGEMENT',
-        'BIOLOGY',
-        'CHEMISTRY',
-        'MATHEMATICS',
-        'PHYSICS',
-        'PSYCHOLOGY',
-        'ENGLISH LANGUAGE STUDIES',
-        'COMMUNICATION',
-        'STATISTICS',
-        'VETERINARY MEDICINE',
-        'PRE-VETERINARY',
-        'ELEMENTARY EDUCATION',
-        'SECONDARY EDUCATION',
-        'PHYSICAL EDUCATION',
-        'TECHNOLOGY AND LIVELIHOOD EDUCATION',
-        'BUSINESS ADMINISTRATION',
-        'ACCOUNTANCY',
-        'ECONOMICS',
-        'ENTREPRENEURSHIP',
-        'OFFICE ADMINISTRATION',
-        'EXERCISE AND SPORTS SCIENCES',
-        'CRIMINOLOGY',
-        'NURSING',
-        'HOSPITALITY MANAGEMENT',
-        'TOURISM MANAGEMENT',
-        'LIBRARY AND INFORMATION SCIENCE'
-    ];
-    
-    for (const keyword of keywords) {
-        if (course.includes(keyword)) {
-            // Convert keyword to standard format
-            if (keyword.includes('COMPUTER SCIENCE')) return 'BS COMPUTER SCIENCE';
-            if (keyword.includes('INFORMATION TECHNOLOGY')) return 'BS INFORMATION TECHNOLOGY';
-            if (keyword.includes('COMPUTER ENGINEERING')) return 'BS COMPUTER ENGINEERING';
-            if (keyword.includes('ELECTRONICS ENGINEERING')) return 'BS ELECTRONICS ENGINEERING';
-            if (keyword.includes('CIVIL ENGINEERING')) return 'BS CIVIL ENGINEERING';
-            if (keyword.includes('MECHANICAL ENGINEERING')) return 'BS MECHANICAL ENGINEERING';
-            if (keyword.includes('ELECTRICAL ENGINEERING')) return 'BS ELECTRICAL ENGINEERING';
-            if (keyword.includes('INDUSTRIAL ENGINEERING')) return 'BS INDUSTRIAL ENGINEERING';
-            if (keyword.includes('AGRICULTURE')) return 'BS AGRICULTURE';
-            if (keyword.includes('AGRIBUSINESS')) return 'BS AGRIBUSINESS';
-            if (keyword.includes('ENVIRONMENTAL SCIENCE')) return 'BS ENVIRONMENTAL SCIENCE';
-            if (keyword.includes('FOOD TECHNOLOGY')) return 'BS FOOD TECHNOLOGY';
-            if (keyword.includes('FORESTRY')) return 'BS FORESTRY';
-            if (keyword.includes('AGRICULTURAL AND BIOSYSTEMS ENGINEERING')) return 'BS AGRICULTURAL AND BIOSYSTEMS ENGINEERING';
-            if (keyword.includes('AGRICULTURAL ENTREPRENEURSHIP')) return 'BACHELOR OF AGRICULTURAL ENTREPRENEURSHIP';
-            if (keyword.includes('LAND USE DESIGN AND MANAGEMENT')) return 'BS LAND USE DESIGN AND MANAGEMENT';
-            if (keyword.includes('BIOLOGY')) return 'BS BIOLOGY';
-            if (keyword.includes('CHEMISTRY')) return 'BS CHEMISTRY';
-            if (keyword.includes('MATHEMATICS')) return 'BS MATHEMATICS';
-            if (keyword.includes('PHYSICS')) return 'BS PHYSICS';
-            if (keyword.includes('PSYCHOLOGY')) return 'BS PSYCHOLOGY';
-            if (keyword.includes('ENGLISH LANGUAGE STUDIES')) return 'BA ENGLISH LANGUAGE STUDIES';
-            if (keyword.includes('COMMUNICATION')) return 'BA COMMUNICATION';
-            if (keyword.includes('STATISTICS')) return 'BS STATISTICS';
-            if (keyword.includes('VETERINARY MEDICINE')) return 'DOCTOR OF VETERINARY MEDICINE';
-            if (keyword.includes('PRE-VETERINARY')) return 'BS BIOLOGY (PRE-VETERINARY)';
-            if (keyword.includes('ELEMENTARY EDUCATION')) return 'BACHELOR OF ELEMENTARY EDUCATION';
-            if (keyword.includes('SECONDARY EDUCATION')) return 'BACHELOR OF SECONDARY EDUCATION';
-            if (keyword.includes('PHYSICAL EDUCATION')) return 'BACHELOR OF PHYSICAL EDUCATION';
-            if (keyword.includes('TECHNOLOGY AND LIVELIHOOD EDUCATION')) return 'BACHELOR OF TECHNOLOGY AND LIVELIHOOD EDUCATION';
-            if (keyword.includes('BUSINESS ADMINISTRATION')) return 'BS BUSINESS ADMINISTRATION';
-            if (keyword.includes('ACCOUNTANCY')) return 'BS ACCOUNTANCY';
-            if (keyword.includes('ECONOMICS')) return 'BS ECONOMICS';
-            if (keyword.includes('ENTREPRENEURSHIP')) return 'BS ENTREPRENEURSHIP';
-            if (keyword.includes('OFFICE ADMINISTRATION')) return 'BS OFFICE ADMINISTRATION';
-            if (keyword.includes('EXERCISE AND SPORTS SCIENCES')) return 'BS EXERCISE AND SPORTS SCIENCES';
-            if (keyword.includes('CRIMINOLOGY')) return 'BS CRIMINOLOGY';
-            if (keyword.includes('NURSING')) return 'BS NURSING';
-            if (keyword.includes('HOSPITALITY MANAGEMENT')) return 'BS HOSPITALITY MANAGEMENT';
-            if (keyword.includes('TOURISM MANAGEMENT')) return 'BS TOURISM MANAGEMENT';
-            if (keyword.includes('LIBRARY AND INFORMATION SCIENCE')) return 'BACHELOR OF LIBRARY AND INFORMATION SCIENCE';
-        }
-    }
-    
-    // Return original if no match found
-    return course;
-}
-
-// Function to convert abbreviations to full names
-function convertToFullName(abbreviation) {
-    // Complete mapping of abbreviations to full names
-    const fullNameMap = {
-        // Colleges
-        'CEIT': 'College of Engineering and Information Technology',
-        'CAS': 'College of Arts and Sciences',
-        'CAFENR': 'College of Agriculture, Food, Environment and Natural Resources',
-        'CCJ': 'College of Criminal Justice',
-        'CEMDS': 'College of Economics, Management and Development Studies',
-        'CED': 'College of Education',
-        'CON': 'College of Nursing',
-        'COM': 'College of Medicine',
-        'CSPEAR': 'College of Sports, Physical Education and Recreation',
-        'CVMBS': 'College of Veterinary Medicine and Biomedical Sciences',
-        'GS-OLC': 'Graduate School and Open Learning College',
-        
-        // Departments under CEIT
-        'DCE': 'Department of Civil Engineering',
-        'DCEE': 'Department of Computer and Electronics Engineering',
-        'DIET': 'Department of Industrial Engineering and Technology',
-        'DMEE': 'Department of Mechanical and Electronics Engineering',
-        'DIT': 'Department of Information Technology',
-        
-        // Departments under CAS
-        'DBS': 'Department of Biological Sciences',
-        'DPS': 'Department of Physical Sciences',
-        'DLMC': 'Department of Languages and Mass Communication',
-        'DSS': 'Department of Social Sciences',
-        'DMS': 'Department of Mathematics and Statistics',
-        
-        // Departments under CAFENR
-        'DAS': 'Department of Animal Science',
-        'DCS': 'Department of Crop Science',
-        'DFST': 'Department of Food Science and Technology',
-        'DFES': 'Department of Forestry and Environmental Science',
-        'DAED': 'Department of Agricultural Economics and Development',
-        
-        // Departments under CCJ
-        'DCJ': 'Department of Criminal Justice',
-        
-        // Departments under CEMDS
-        'DE': 'Department of Economics',
-        'DBM': 'Department of Business and Management',
-        'DDS': 'Department of Development Studies',
-        
-        // Departments under CED
-        'DSE': 'Department of Science Education',
-        'DTLE': 'Department of Technology and Livelihood Education',
-        'DCI': 'Department of Curriculum and Instruction',
-        'DHK': 'Department of Human Kinetics',
-        
-        // Departments under CON
-        'DN': 'Department of Nursing',
-        
-        // Departments under COM
-        'DBMS': 'Department of Basic Medical Sciences',
-        'DCS': 'Department of Clinical Sciences',
-        
-        // Departments under CSPEAR
-        'DPER': 'Department of Physical Education and Recreation',
-        
-        // Departments under CVMBS
-        'DVM': 'Department of Veterinary Medicine',
-        'DBS': 'Department of Biomedical Sciences',
-        
-        // Departments under GS-OLC
-        'DVGP': 'Department of Various Graduate Programs',
-        
-        // Courses
-        'BS COMPUTER SCIENCE': 'Bachelor of Science in Computer Science',
-        'BS INFORMATION TECHNOLOGY': 'Bachelor of Science in Information Technology',
-        'BS COMPUTER ENGINEERING': 'Bachelor of Science in Computer Engineering',
-        'BS ELECTRONICS ENGINEERING': 'Bachelor of Science in Electronics Engineering',
-        'BS CIVIL ENGINEERING': 'Bachelor of Science in Civil Engineering',
-        'BS MECHANICAL ENGINEERING': 'Bachelor of Science in Mechanical Engineering',
-        'BS ELECTRICAL ENGINEERING': 'Bachelor of Science in Electrical Engineering',
-        'BS INDUSTRIAL ENGINEERING': 'Bachelor of Science in Industrial Engineering',
-        'BS AGRICULTURE': 'Bachelor of Science in Agriculture',
-        'BS AGRIBUSINESS': 'Bachelor of Science in Agribusiness',
-        'BS ENVIRONMENTAL SCIENCE': 'Bachelor of Science in Environmental Science',
-        'BS FOOD TECHNOLOGY': 'Bachelor of Science in Food Technology',
-        'BS FORESTRY': 'Bachelor of Science in Forestry',
-        'BS AGRICULTURAL AND BIOSYSTEMS ENGINEERING': 'Bachelor of Science in Agricultural and Biosystems Engineering',
-        'BACHELOR OF AGRICULTURAL ENTREPRENEURSHIP': 'Bachelor of Agricultural Entrepreneurship',
-        'BS LAND USE DESIGN AND MANAGEMENT': 'Bachelor of Science in Land Use Design and Management',
-        'BS BIOLOGY': 'Bachelor of Science in Biology',
-        'BS CHEMISTRY': 'Bachelor of Science in Chemistry',
-        'BS MATHEMATICS': 'Bachelor of Science in Mathematics',
-        'BS PHYSICS': 'Bachelor of Science in Physics',
-        'BS PSYCHOLOGY': 'Bachelor of Science in Psychology',
-        'BA ENGLISH LANGUAGE STUDIES': 'Bachelor of Arts in English Language Studies',
-        'BA COMMUNICATION': 'Bachelor of Arts in Communication',
-        'BS STATISTICS': 'Bachelor of Science in Statistics',
-        'DOCTOR OF VETERINARY MEDICINE': 'Doctor of Veterinary Medicine',
-        'BS BIOLOGY (PRE-VETERINARY)': 'Bachelor of Science in Biology (Pre-Veterinary)',
-        'BACHELOR OF ELEMENTARY EDUCATION': 'Bachelor of Elementary Education',
-        'BACHELOR OF SECONDARY EDUCATION': 'Bachelor of Secondary Education',
-        'BACHELOR OF PHYSICAL EDUCATION': 'Bachelor of Physical Education',
-        'BACHELOR OF TECHNOLOGY AND LIVELIHOOD EDUCATION': 'Bachelor of Technology and Livelihood Education',
-        'BS BUSINESS ADMINISTRATION': 'Bachelor of Science in Business Administration',
-        'BS ACCOUNTANCY': 'Bachelor of Science in Accountancy',
-        'BS ECONOMICS': 'Bachelor of Science in Economics',
-        'BS ENTREPRENEURSHIP': 'Bachelor of Science in Entrepreneurship',
-        'BS OFFICE ADMINISTRATION': 'Bachelor of Science in Office Administration',
-        'BS EXERCISE AND SPORTS SCIENCES': 'Bachelor of Science in Exercise and Sports Sciences',
-        'BS CRIMINOLOGY': 'Bachelor of Science in Criminology',
-        'BS NURSING': 'Bachelor of Science in Nursing',
-        'BS HOSPITALITY MANAGEMENT': 'Bachelor of Science in Hospitality Management',
-        'BS TOURISM MANAGEMENT': 'Bachelor of Science in Tourism Management',
-        'BACHELOR OF LIBRARY AND INFORMATION SCIENCE': 'Bachelor of Library and Information Science'
-    };
-    
-    // Return the full name if found, otherwise return the original abbreviation
-    return fullNameMap[abbreviation] || abbreviation;
-}
-
 function numberFormat(num) {
   return new Intl.NumberFormat('en-US').format(num);
 }
 
 function showLoading() {
-  document.getElementById('loadingOverlay').classList.add('active');
+  document.getElementById('loadingOverlay')?.classList.add('active');
 }
 
 function hideLoading() {
-  document.getElementById('loadingOverlay').classList.remove('active');
+  document.getElementById('loadingOverlay')?.classList.remove('active');
+}
+</script>
+
+<script>
+// === College-level Elections vs Turnout (Year Range) ===
+
+// PHP → JS data
+const ctxTurnoutYears   = <?= json_encode(array_keys($turnoutRangeData)) ?>;
+const ctxElectionCounts = <?= json_encode(array_column($turnoutRangeData, 'election_count')) ?>;
+const ctxTotalEligible  = <?= json_encode(array_column($turnoutRangeData, 'total_eligible')) ?>;
+const ctxTotalVoted     = <?= json_encode(array_column($turnoutRangeData, 'total_voted')) ?>;
+const ctxTurnoutRates   = <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?>;
+
+// Per-election stats (focus year)
+const ctxElectionStats = <?= json_encode($ctxElectionStats) ?>;
+
+// We'll hold data this way:
+const ctxChartData = {
+  elections: {
+    year: {
+      labels: ctxTurnoutYears,
+      electionCounts: ctxElectionCounts,
+      turnoutRates:   ctxTurnoutRates
+    },
+    election: {
+      labels:        ctxElectionStats.map(e => e.title),
+      electionCounts: ctxElectionStats.map(e => 1), // each row = 1 election (for visual)
+      turnoutRates:   ctxElectionStats.map(e => e.turnout_rate)
+    }
+  },
+  voters: {
+    year: {
+      labels:         ctxTurnoutYears,
+      eligibleCounts: ctxTotalEligible,
+      turnoutRates:   ctxTurnoutRates
+    },
+    election: {
+      labels:         ctxElectionStats.map(e => e.title),
+      eligibleCounts: ctxElectionStats.map(e => e.total_eligible),
+      turnoutRates:   ctxElectionStats.map(e => e.turnout_rate)
+    }
+  }
+};
+
+let ctxCurrentSeries   = 'elections';
+let ctxCurrentBreakdown = 'year';
+let ctxChartInstance    = null;
+
+document.addEventListener('DOMContentLoaded', function () {
+  const seriesSelect    = document.getElementById('ctxDataSeriesSelect');
+  const breakdownSelect = document.getElementById('ctxBreakdownSelect');
+  const fromYearSelect  = document.getElementById('ctxFromYear');
+  const toYearSelect    = document.getElementById('ctxToYear');
+  const ctxYearSelector = document.getElementById('ctxYearSelector');
+
+  function updateCtxYearParam() {
+    const url = new URL(window.location.href);
+    url.searchParams.set('ctx_year', ctxYearSelector.value);
+    window.location.href = url.toString();
+  }
+
+  ctxYearSelector?.addEventListener('change', updateCtxYearParam);
+
+  function updateYearRangeParams() {
+    const from = fromYearSelect.value;
+    const to   = toYearSelect.value;
+    const url  = new URL(window.location.href);
+
+    if (from) url.searchParams.set('from_year', from); else url.searchParams.delete('from_year');
+    if (to)   url.searchParams.set('to_year',   to);   else url.searchParams.delete('to_year');
+
+    window.location.href = url.toString();
+  }
+
+  fromYearSelect?.addEventListener('change', updateYearRangeParams);
+  toYearSelect?.addEventListener('change',   updateYearRangeParams);
+
+  seriesSelect?.addEventListener('change', function () {
+    ctxCurrentSeries = this.value;
+    renderCtxChartAndTable();
+  });
+
+  breakdownSelect?.addEventListener('change', function () {
+    ctxCurrentBreakdown = this.value;
+    renderCtxChartAndTable();
+  });
+
+  // initial
+  renderCtxChartAndTable();
+});
+
+function renderCtxChartAndTable() {
+  const ctx = document.getElementById('ctxElectionsVsTurnoutChart');
+  if (!ctx) return;
+
+  if (ctxChartInstance) {
+    ctxChartInstance.destroy();
+  }
+
+  let labels   = [];
+  let leftData = [];
+  let rightData= [];
+  let titleText;
+
+  if (ctxCurrentSeries === 'elections') {
+    if (ctxCurrentBreakdown === 'year') {
+      labels   = ctxChartData.elections.year.labels;
+      leftData = ctxChartData.elections.year.electionCounts;
+      rightData= ctxChartData.elections.year.turnoutRates;
+      titleText= 'Elections vs Turnout Rate (By Year)';
+    } else {
+      // election breakdown – one bar per election in focus year
+      labels   = ctxChartData.elections.election.labels;
+      leftData = ctxChartData.elections.election.electionCounts;
+      rightData= ctxChartData.elections.election.turnoutRates;
+      titleText= 'Elections vs Turnout Rate (By Election, ' + <?= json_encode($ctxYear) ?> + ')';
+    }
+  } else {
+    if (ctxCurrentBreakdown === 'year') {
+      labels   = ctxChartData.voters.year.labels;
+      leftData = ctxChartData.voters.year.eligibleCounts;
+      rightData= ctxChartData.voters.year.turnoutRates;
+      titleText= 'Voters vs Turnout Rate (By Year)';
+    } else {
+      labels   = ctxChartData.voters.election.labels;
+      leftData = ctxChartData.voters.election.eligibleCounts;
+      rightData= ctxChartData.voters.election.turnoutRates;
+      titleText= 'Voters vs Turnout Rate (By Election, ' + <?= json_encode($ctxYear) ?> + ')';
+    }
+  }
+
+  ctxChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: ctxCurrentSeries === 'elections'
+            ? (ctxCurrentBreakdown === 'year' ? 'Number of Elections' : 'Elections')
+            : (ctxCurrentBreakdown === 'year' ? 'Eligible Voters' : 'Eligible Voters (per election)'),
+          data: leftData,
+          backgroundColor: '#1E6F46',
+          borderColor: '#154734',
+          borderWidth: 1,
+          borderRadius: 4,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Turnout Rate (%)',
+          data: rightData,
+          backgroundColor: '#FFD166',
+          borderColor: '#F59E0B',
+          borderWidth: 1,
+          borderRadius: 4,
+          yAxisID: 'y1'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { font: { size: 12 }, padding: 15 }
+        },
+        title: {
+          display: true,
+          text: titleText,
+          font: { size: 16, weight: 'bold' },
+          padding: { top: 10, bottom: 20 }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          titleFont: { size: 14 },
+          bodyFont:  { size: 13 },
+          padding: 12,
+          callbacks: {
+            label: (context) => {
+              const dsLabel = context.dataset.label || '';
+              if (dsLabel.includes('Turnout')) {
+                return `${dsLabel}: ${context.raw}%`;
+              }
+              return `${dsLabel}: ${context.raw.toLocaleString()}`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          position: 'left',
+          title: {
+            display: true,
+            text: ctxCurrentSeries === 'elections'
+              ? (ctxCurrentBreakdown === 'year' ? 'Number of Elections' : 'Elections')
+              : 'Number of Voters',
+            font: { size: 14, weight: 'bold' }
+          }
+        },
+        y1: {
+          beginAtZero: true,
+          max: 100,
+          position: 'right',
+          title: {
+            display: true,
+            text: 'Turnout Rate (%)',
+            font: { size: 14, weight: 'bold' }
+          },
+          ticks: { callback: v => v + '%' },
+          grid: { drawOnChartArea: false }
+        },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  renderCtxYearTable();
 }
 
-function showChartNoDataMessage(message = 'No data available for chart') {
-  const canvas = document.getElementById('turnoutChart');
-  const noDataDiv = document.getElementById('chartNoData');
-  
-  if (canvas) {
-    canvas.style.display = 'none';
+function renderCtxYearTable() {
+  const container = document.getElementById('ctxTurnoutBreakdownTable');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  if (ctxCurrentBreakdown === 'election') {
+    // Per-election table
+    if (!ctxElectionStats || ctxElectionStats.length === 0) {
+      container.innerHTML = `
+        <div class="table-no-data">
+          <i class="fas fa-table text-gray-400 text-4xl mb-3"></i>
+          <p class="text-gray-600 text-lg">No elections found for <?= htmlspecialchars($ctxYear) ?>.</p>
+        </div>`;
+      return;
+    }
+
+    const table = document.createElement('table');
+    table.className = 'data-table';
+
+    const thead = document.createElement('thead');
+    thead.innerHTML = `
+      <tr>
+        <th>Election</th>
+        <th class="text-center">Eligible Voters (seat-wide)</th>
+        <th class="text-center">Voters Participated</th>
+        <th class="text-center">Turnout Rate</th>
+        <th class="text-center">Status</th>
+      </tr>
+    `;
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+
+    ctxElectionStats.forEach(row => {
+      const tr = document.createElement('tr');
+      const rate = row.turnout_rate ?? 0;
+      const trendClass = rate >= 70 ? 'text-green-600'
+                       : rate >= 40 ? 'text-yellow-600'
+                                    : 'text-red-600';
+
+      tr.innerHTML = `
+        <td class="px-6 py-4 whitespace-nowrap font-medium">${row.title}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-center">${(row.total_eligible ?? 0).toLocaleString()}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-center">${(row.total_voted ?? 0).toLocaleString()}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-center">
+          <span class="${trendClass}">${rate}%</span>
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-center">${row.status || ''}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    container.appendChild(table);
+    return;
   }
-  if (noDataDiv) {
-    noDataDiv.querySelector('p').textContent = message;
-    noDataDiv.style.display = 'flex';
+
+  // Year mode (original)
+  const labels   = ctxTurnoutYears;
+  const counts   = ctxElectionCounts;
+  const eligibles= ctxTotalEligible;
+  const voted    = ctxTotalVoted;
+  const rates    = ctxTurnoutRates;
+
+  if (!labels || labels.length === 0) {
+    container.innerHTML = `
+      <div class="table-no-data">
+        <i class="fas fa-table text-gray-400 text-4xl mb-3"></i>
+        <p class="text-gray-600 text-lg">No college turnout data available.</p>
+      </div>`;
+    return;
   }
+
+  const table = document.createElement('table');
+  table.className = 'data-table';
+
+  const thead = document.createElement('thead');
+  thead.innerHTML = `
+    <tr>
+      <th>Year</th>
+      <th class="text-center">Elections</th>
+      <th class="text-center">Eligible Voters</th>
+      <th class="text-center">Voters Participated</th>
+      <th class="text-center">Turnout Rate</th>
+    </tr>
+  `;
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+
+  labels.forEach((year, idx) => {
+    const tr = document.createElement('tr');
+    const rate = rates[idx] ?? 0;
+    const trendClass = rate >= 70 ? 'text-green-600'
+                     : rate >= 40 ? 'text-yellow-600'
+                                  : 'text-red-600';
+
+    tr.innerHTML = `
+      <td class="px-6 py-4 whitespace-nowrap font-medium">${year}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-center">${(counts[idx] ?? 0).toLocaleString()}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-center">${(eligibles[idx] ?? 0).toLocaleString()}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-center">${(voted[idx] ?? 0).toLocaleString()}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-center">
+        <span class="${trendClass}">${rate}%</span>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  container.appendChild(table);
 }
 </script>
 </body>

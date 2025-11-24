@@ -2,21 +2,80 @@
 session_start();
 date_default_timezone_set('Asia/Manila');
 
+require_once __DIR__ . '/includes/auth_helpers.php';
+require_once __DIR__ . '/includes/analytics_scopes.php';
+
+// --- DB Connection ---
+$host    = 'localhost';
+$db      = 'evoting_system';
+$user    = 'root';
+$pass    = '';
+$charset = 'utf8mb4';
+
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
+   PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+   PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+   PDO::ATTR_EMULATE_PREPARES   => false,
+];
+
+try {
+   $pdo = new PDO($dsn, $user, $pass, $options);
+} catch (\PDOException $e) {
+   die("Database connection error.");
+}
+
 // --- Auth check ---
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'super_admin'], true)) {
     header('Location: login.php');
     exit();
 }
 
-// Scope info from session — this dashboard is for Academic-Student (college student admins)
- $scope_category   = $_SESSION['scope_category']   ?? '';
- $assigned_scope   = $_SESSION['assigned_scope']   ?? ''; // college code (e.g., CEIT)
- $assigned_scope_1 = $_SESSION['assigned_scope_1'] ?? ''; // e.g., "Multiple: BSIT, BSCS"
- $scope_details    = $_SESSION['scope_details']    ?? [];
- $admin_status     = $_SESSION['admin_status']     ?? 'inactive';
+// --- Scope info (session default) ---
+$scope_category   = $_SESSION['scope_category']   ?? '';
+$assigned_scope   = $_SESSION['assigned_scope']   ?? ''; // college code (e.g., CEIT)
+$assigned_scope_1 = $_SESSION['assigned_scope_1'] ?? ''; // e.g., "Multiple: BSIT, BSCS"
+$scope_details    = $_SESSION['scope_details']    ?? [];
+$admin_status     = $_SESSION['admin_status']     ?? 'inactive';
 
-// Validate: Academic-Student admins only (faculty admins use admin_dashboard_faculty.php)
-if ($scope_category !== 'Academic-Student') {
+// --- Super admin impersonation via ?scope_id= ---
+$seat = null;
+$impersonatedScopeId = getImpersonatedScopeId();
+
+if ($impersonatedScopeId !== null) {
+    // Fetch the seat from admin_scopes; verify it is Academic-Student
+    $seat = fetchScopeSeatById($pdo, $impersonatedScopeId);
+
+    if (!$seat || $seat['scope_type'] !== SCOPE_ACAD_STUDENT) {
+        die('Invalid scope for this dashboard.');
+    }
+
+    // Override local scope variables based on seat
+    $scope_category   = $seat['scope_type'];              // "Academic-Student"
+    $assigned_scope   = $seat['assigned_scope'] ?? '';    // college code (CEIT, CAS, ...)
+    $assigned_scope_1 = $seat['assigned_scope_1'] ?? '';  // e.g. "BSIT, BSCS"
+    $scope_details    = $seat['scope_details_array'] ?? [];
+    // Treat impersonated admin as active for view purposes
+    $admin_status     = 'active';
+}
+
+// Now decide which admin_id to use for analytics (for legacy uses, if any)
+$userId           = (int)$_SESSION['user_id'];
+$analyticsAdminId = $userId;
+
+// If super admin is impersonating a seat, use the seat admin's user_id
+if ($seat !== null && isset($seat['user_id'])) {
+    $analyticsAdminId = (int)$seat['user_id'];
+}
+
+// --- force_password_change flag for this admin (real logged-in user) ---
+$stmtFP = $pdo->prepare("SELECT force_password_change FROM users WHERE user_id = :uid");
+$stmtFP->execute([':uid' => $userId]);
+$forceRow = $stmtFP->fetch();
+$force_password_flag = (int)($forceRow['force_password_change'] ?? 0);
+
+// Validate: Academic-Student admins only
+if ($scope_category !== SCOPE_ACAD_STUDENT) {
     header('Location: admin_dashboard_redirect.php');
     exit();
 }
@@ -26,28 +85,59 @@ if ($admin_status !== 'active') {
     exit();
 }
 
-// --- DB Connection ---
- $host    = 'localhost';
- $db      = 'evoting_system';
- $user    = 'root';
- $pass    = '';
- $charset = 'utf8mb4';
+// ------------------------------------------------------------------
+// 1. Resolve scope seat (scope_id) for this Academic-Student admin
+// ------------------------------------------------------------------
 
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
-    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    PDO::ATTR_EMULATE_PREPARES   => false,
-];
+$scopeSeatId = null;
 
-try {
-    $pdo = new PDO($dsn, $user, $pass, $options);
-} catch (\PDOException $e) {
-    die("Database connection error.");
+if ($impersonatedScopeId !== null) {
+    $scopeSeatId = (int)$impersonatedScopeId;
+} else {
+    // Find seat where this admin is the owner (scope_type = Academic-Student)
+    $acadSeats = getScopeSeats($pdo, SCOPE_ACAD_STUDENT);
+    foreach ($acadSeats as $sRow) {
+        if ((int)$sRow['admin_user_id'] === $analyticsAdminId) {
+            $scopeSeatId   = (int)$sRow['scope_id'];
+            // If session assigned_scope is empty, sync from seat
+            if (empty($assigned_scope) && !empty($sRow['assigned_scope'])) {
+                $assigned_scope = $sRow['assigned_scope'];
+            }
+            break;
+        }
+    }
 }
 
-// --- COURSE MAP: canonical code => full name ---
- $courseMap = [
+if ($scopeSeatId === null) {
+    die('No Academic-Student scope seat found for this admin.');
+}
+
+// ------------------------------------------------------------------
+// 2. College names (for header + titles)
+// ------------------------------------------------------------------
+
+$collegeFullNameMap = [
+    'CAFENR'  => 'College of Agriculture, Food, Environment and Natural Resources',
+    'CEIT'    => 'College of Engineering and Information Technology',
+    'CAS'     => 'College of Arts and Sciences',
+    'CVMBS'   => 'College of Veterinary Medicine and Biomedical Sciences',
+    'CED'     => 'College of Education',
+    'CEMDS'   => 'College of Economics, Management and Development Studies',
+    'CSPEAR'  => 'College of Sports, Physical Education and Recreation',
+    'CCJ'     => 'College of Criminal Justice',
+    'CON'     => 'College of Nursing',
+    'CTHM'    => 'College of Tourism and Hospitality Management',
+    'COM'     => 'College of Medicine',
+    'GS-OLC'  => 'Graduate School and Open Learning College',
+];
+
+$collegeFullName = $collegeFullNameMap[$assigned_scope] ?? $assigned_scope;
+
+// ------------------------------------------------------------------
+// 3. Course map (for pretty display in tables / charts only)
+// ------------------------------------------------------------------
+
+$courseMap = [
     'BSCS'  => 'Bachelor of Science in Computer Science',
     'BSIT'  => 'Bachelor of Science in Information Technology',
     'BSCpE' => 'Bachelor of Science in Computer Engineering',
@@ -101,252 +191,71 @@ try {
     'MA'  => 'Master of Arts',
 ];
 
-// College full names
- $collegeFullNameMap = [
-    'CAFENR'  => 'College of Agriculture, Food, Environment and Natural Resources',
-    'CEIT'    => 'College of Engineering and Information Technology',
-    'CAS'     => 'College of Arts and Sciences',
-    'CVMBS'   => 'College of Veterinary Medicine and Biomedical Sciences',
-    'CED'     => 'College of Education',
-    'CEMDS'   => 'College of Economics, Management and Development Studies',
-    'CSPEAR'  => 'College of Sports, Physical Education and Recreation',
-    'CCJ'     => 'College of Criminal Justice',
-    'CON'     => 'College of Nursing',
-    'CTHM'    => 'College of Tourism and Hospitality Management',
-    'COM'     => 'College of Medicine',
-    'GS-OLC'  => 'Graduate School and Open Learning College',
-];
-
- $collegeFullName = $collegeFullNameMap[$assigned_scope] ?? $assigned_scope;
-
-// --- Normalization helpers ----------------------------------------
-
+// Simple course normalization/display helpers
 function normalize_course_code(string $raw): string {
     $s = strtoupper(trim($raw));
     if ($s === '') return 'UNSPECIFIED';
-
-    $s = preg_replace('/[.\-_,]/', ' ', $s);    // remove ., -, _, ,
+    $s = preg_replace('/[.\-_,]/', ' ', $s);
     $s = preg_replace('/\s+/', ' ', $s);
-
-    $replacements = [
-        'BACHELOR OF SCIENCE IN ' => 'BS ',
-        'BACHELOR OF SCIENCE '    => 'BS ',
-        'BACHELOR OF '            => 'B ',
-        'INFORMATION TECHNOLOGY'  => 'IT',
-        'COMPUTER SCIENCE'        => 'CS',
-        'COMPUTER ENGINEERING'    => 'CPE',
-        'ELECTRONICS ENGINEERING' => 'ECE',
-        'CIVIL ENGINEERING'       => 'CE',
-        'MECHANICAL ENGINEERING'  => 'ME',
-        'ELECTRICAL ENGINEERING'  => 'EE',
-        'INDUSTRIAL ENGINEERING'  => 'IE',
-        'AGRICULTURE'             => 'AGRI',
-        'AGRIBUSINESS'            => 'AB',
-        'ENVIRONMENTAL SCIENCE'   => 'ES',
-        'FOOD TECHNOLOGY'         => 'FT',
-        'FORESTRY'                => 'FOR',
-        'AGRICULTURAL AND BIOSYSTEMS ENGINEERING' => 'ABE',
-        'AGRICULTURAL ENTREPRENEURSHIP'           => 'AE',
-        'LAND USE DESIGN AND MANAGEMENT'          => 'LDM',
-        'BIOLOGY'                 => 'BIO',
-        'CHEMISTRY'               => 'CHEM',
-        'MATHEMATICS'             => 'MATH',
-        'PHYSICS'                 => 'PHYSICS',
-        'PSYCHOLOGY'              => 'PSYCH',
-        'ENGLISH LANGUAGE STUDIES'=> 'ELS',
-        'COMMUNICATION'           => 'COMM',
-        'STATISTICS'              => 'STAT',
-        'CRIMINOLOGY'             => 'CRIM',
-        'NURSING'                 => 'N',
-        'HOSPITALITY MANAGEMENT'  => 'HM',
-        'TOURISM MANAGEMENT'      => 'TM',
-        'LIBRARY AND INFORMATION SCIENCE' => 'LIS',
-        'LIBRARY & INFORMATION SCIENCE'   => 'LIS',
-        'EXERCISE AND SPORTS SCIENCES'    => 'ESS',
-        'OFFICE ADMINISTRATION'   => 'OA',
-        'ENTREPRENEURSHIP'        => 'ENT',
-        'ECONOMICS'               => 'ECO',
-        'ACCOUNTANCY'             => 'ACC',
-        'SECONDARY EDUCATION'     => 'SED',
-        'ELEMENTARY EDUCATION'    => 'EED',
-        'PHYSICAL EDUCATION'      => 'PE',
-        'TECHNOLOGY AND LIVELIHOOD EDUCATION' => 'TLE',
-        'PRE VETERINARY'          => 'PV',
-        'VETERINARY MEDICINE'     => 'DVM',
-    ];
-    foreach ($replacements as $from => $to) {
-        $s = str_replace($from, $to, $s);
-    }
-
-    $s       = preg_replace('/\s+/', ' ', trim($s));
     $noSpace = str_replace(' ', '', $s);
-
-    $patterns = [
-        '/^BSIT$/'      => 'BSIT',
-        '/^BSCS$/'      => 'BSCS',
-        '/^BSCPE$/'     => 'BSCpE',
-        '/^BSECE$/'     => 'BSECE',
-        '/^BSCE$/'      => 'BSCE',
-        '/^BSME$/'      => 'BSME',
-        '/^BSEE$/'      => 'BSEE',
-        '/^BSIE$/'      => 'BSIE',
-        '/^BSAGRI$/'    => 'BSAgri',
-        '/^BSAB$/'      => 'BSAB',
-        '/^BSES$/'      => 'BSES',
-        '/^BSFT$/'      => 'BSFT',
-        '/^BSFOR$/'     => 'BSFor',
-        '/^BSABE$/'     => 'BSABE',
-        '/^BAE$/'       => 'BAE',
-        '/^BSLDM$/'     => 'BSLDM',
-        '/^BSBIO$/'     => 'BSBio',
-        '/^BSCHEM$/'    => 'BSChem',
-        '/^BSMATH$/'    => 'BSMath',
-        '/^BSPHYSICS$/' => 'BSPhysics',
-        '/^BSPSYCH$/'   => 'BSPsych',
-        '/^BAELS$/'     => 'BAELS',
-        '/^BACOMM$/'    => 'BAComm',
-        '/^BSSTAT$/'    => 'BSStat',
-        '/^DVM$/'       => 'DVM',
-        '/^BSPV$/'      => 'BSPV',
-        '/^BEED$/'      => 'BEEd',
-        '/^BSED$/'      => 'BSEd',
-        '/^BPE$/'       => 'BPE',
-        '/^BTLE$/'      => 'BTLE',
-        '/^BSBA$/'      => 'BSBA',
-        '/^BSACC$/'     => 'BSAcc',
-        '/^BSECO$/'     => 'BSEco',
-        '/^BSENT$/'     => 'BSEnt',
-        '/^BSOA$/'      => 'BSOA',
-        '/^BSESS$/'     => 'BSESS',
-        '/^BSCRIM$/'    => 'BSCrim',
-        '/^BSN$/'       => 'BSN',
-        '/^BSHM$/'      => 'BSHM',
-        '/^BSTM$/'      => 'BSTM',
-        '/^BLIS$/'      => 'BLIS',
-        '/^PHD$/'       => 'PhD',
-        '/^MS$/'        => 'MS',
-        '/^MA$/'        => 'MA',
-    ];
-    foreach ($patterns as $regex => $code) {
-        if (preg_match($regex, $noSpace)) {
-            return $code;
-        }
-    }
-
-    return $noSpace !== '' ? $noSpace : 'UNSPECIFIED';
+    return $noSpace ?: 'UNSPECIFIED';
 }
-
 function getCanonicalCourseDisplay(string $raw, array $courseMap): string {
     $code = normalize_course_code($raw);
     return $courseMap[$code] ?? $code;
 }
 
-// --- Scope: allowed courses only (Academic-Student) --------------------------
+// ------------------------------------------------------------------
+// 4. Scoped students via analytics_scopes (Academic-Student seat)
+// ------------------------------------------------------------------
 
- $allowedCourseCodes = [];
-
-// Academic-Student: COURSE scope for this college
-if (!empty($assigned_scope_1) && $assigned_scope_1 !== 'All') {
-    // Example: "Multiple: BSIT, BSCS"
-    $rawCourseScope = preg_replace('/^(Courses?:\s*)?Multiple:\s*/i', '', $assigned_scope_1);
-    $allowedCourseCodes = array_filter(array_map('trim', explode(',', $rawCourseScope)));
-} elseif (!empty($scope_details['courses']) && is_array($scope_details['courses'])) {
-    // If scope_details has courses from admin_scopes, prefer that
-    $allowedCourseCodes = $scope_details['courses']; // may be codes or full names
-} else {
-    // Empty = all courses in this college
-    $allowedCourseCodes = [];
-}
-
-/**
- * Fetch ALL college students, then apply scope filters in PHP.
- */
-function fetchScopedStudents(
-    PDO $pdo,
-    string $assigned_scope,
-    array $allowedCourseCodes
-): array {
-    $sql = "SELECT user_id, department, department1, course, status, created_at
-            FROM users
-            WHERE role = 'voter'
-              AND position = 'student'";
-
-    $conditions = [];
-    $params     = [];
-
-    // College scope (department column = college code)
-    if (!empty($assigned_scope)) {
-        $conditions[] = "department = ?";
-        $params[]     = $assigned_scope;
-    }
-
-    if ($conditions) {
-        $sql .= ' AND ' . implode(' AND ', $conditions);
-    }
-
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $rows = $stmt->fetchAll();
-
-    // Academic-Student: filter by allowed course list, if any
-    if (!empty($allowedCourseCodes)) {
-        // Normalize allowed list to course codes
-        $normalizedAllowedSet = [];
-        foreach ($allowedCourseCodes as $c) {
-            $normalizedAllowedSet[] = strtoupper(normalize_course_code($c));
-        }
-        $normalizedAllowedSet = array_unique($normalizedAllowedSet);
-
-        $rows = array_filter($rows, function ($row) use ($normalizedAllowedSet) {
-            $codeNorm = strtoupper(normalize_course_code($row['course'] ?? ''));
-            return in_array($codeNorm, $normalizedAllowedSet, true);
-        });
-    }
-
-    return array_values($rows);
-}
-
-// --- Master scoped dataset: ALL stats will be based on this --------
-
- $scopedStudents = fetchScopedStudents(
+$scopedStudents = getScopedVoters(
     $pdo,
-    $assigned_scope,
-    $allowedCourseCodes
+    SCOPE_ACAD_STUDENT,
+    $scopeSeatId,
+    [
+        'year_end'      => null, // no cutoff; we'll filter per year where needed
+        'include_flags' => true,
+    ]
 );
+$total_voters = count($scopedStudents);
 
- $userId       = $_SESSION['user_id'];
- $total_voters = count($scopedStudents);
+// ------------------------------------------------------------------
+// 5. Total elections & ongoing elections (scope-based)
+// ------------------------------------------------------------------
 
-// --- Election counts -----------------------------------------------
+$scopedElectionsAll = getScopedElections(
+    $pdo,
+    SCOPE_ACAD_STUDENT,
+    $scopeSeatId
+);
+$total_elections   = count($scopedElectionsAll);
+$ongoing_elections = 0;
+foreach ($scopedElectionsAll as $eRow) {
+    if (($eRow['status'] ?? '') === 'ongoing') {
+        $ongoing_elections++;
+    }
+}
 
- $stmt = $pdo->prepare("SELECT COUNT(*) AS total_elections
-                       FROM elections
-                       WHERE assigned_admin_id = ?");
- $stmt->execute([$userId]);
- $total_elections = (int) $stmt->fetch()['total_elections'];
+// ------------------------------------------------------------------
+// 6. Date/time ranges & selected year
+// ------------------------------------------------------------------
 
- $stmt = $pdo->prepare("SELECT COUNT(*) AS ongoing_elections
-                       FROM elections
-                       WHERE status = 'ongoing'
-                         AND assigned_admin_id = ?");
- $stmt->execute([$userId]);
- $ongoing_elections = (int) $stmt->fetch()['ongoing_elections'];
+$currentYear       = (int) date('Y');
+$selectedYear      = isset($_GET['year']) && ctype_digit($_GET['year']) ? (int) $_GET['year'] : $currentYear;
+$currentMonthStart = date('Y-m-01');
+$currentMonthEnd   = date('Y-m-t');
+$lastMonthStart    = date('Y-m-01', strtotime('-1 month'));
+$lastMonthEnd      = date('Y-m-t', strtotime('-1 month'));
 
-// --- Date/time ranges ----------------------------------------------
+// ------------------------------------------------------------------
+// 7. New / last month voters (scopedStudents)
+// ------------------------------------------------------------------
 
- $currentYear       = (int) date('Y');
- $selectedYear      = isset($_GET['year']) && ctype_digit($_GET['year']) ? (int) $_GET['year'] : $currentYear;
- $currentMonthStart = date('Y-m-01');
- $currentMonthEnd   = date('Y-m-t');
- $lastMonthStart    = date('Y-m-01', strtotime('-1 month'));
- $lastMonthEnd      = date('Y-m-t', strtotime('-1 month'));
-
-// --- New / last month voters (scoped) ------------------------------
-
- $newVoters       = 0;
- $lastMonthVoters = 0;
+$newVoters       = 0;
+$lastMonthVoters = 0;
 foreach ($scopedStudents as $s) {
-    $createdDate = substr($s['created_at'], 0, 10);
+    $createdDate = substr($s['created_at'] ?? '', 0, 10);
     if ($createdDate >= $currentMonthStart && $createdDate <= $currentMonthEnd) {
         $newVoters++;
     }
@@ -355,26 +264,26 @@ foreach ($scopedStudents as $s) {
     }
 }
 
-// --- Group by department -------------------------------------------
+// ------------------------------------------------------------------
+// 8. Group by department & course (for student distribution charts)
+// ------------------------------------------------------------------
 
- $votersByDepartment = [];
+$votersByDepartment = [];
 foreach ($scopedStudents as $s) {
-    $deptName = $s['department1'] ?: $s['department'] ?: 'Unspecified';
+    $deptName = $s['department1'] ?? $s['department'] ?? 'Unspecified';
     if (!isset($votersByDepartment[$deptName])) {
         $votersByDepartment[$deptName] = 0;
     }
     $votersByDepartment[$deptName]++;
 }
- $votersByDepartment = array_map(
+$votersByDepartment = array_map(
     fn($count, $name) => ['department_name' => $name, 'count' => $count],
     $votersByDepartment,
     array_keys($votersByDepartment)
 );
 usort($votersByDepartment, fn($a, $b) => $b['count'] <=> $a['count']);
 
-// --- Group by course -----------------------------------------------
-
- $tempCourseCounts = [];
+$tempCourseCounts = [];
 foreach ($scopedStudents as $s) {
     $code = normalize_course_code($s['course'] ?? '');
     if (!isset($tempCourseCounts[$code])) {
@@ -382,176 +291,146 @@ foreach ($scopedStudents as $s) {
     }
     $tempCourseCounts[$code]++;
 }
- $votersByCourse = [];
+$votersByCourse = [];
 foreach ($tempCourseCounts as $code => $count) {
     $votersByCourse[] = ['course' => $code, 'count' => $count];
 }
 usort($votersByCourse, fn($a, $b) => $b['count'] <=> $a['count']);
 
-// --- Status distribution -------------------------------------------
+// ------------------------------------------------------------------
+// 9. Status distribution & growth rate
+// ------------------------------------------------------------------
 
- $statusCounts = [];
+$statusCounts = [];
 foreach ($scopedStudents as $s) {
     $st = $s['status'] ?? 'Unspecified';
     if ($st === '') $st = 'Unspecified';
     if (!isset($statusCounts[$st])) $statusCounts[$st] = 0;
     $statusCounts[$st]++;
 }
- $byStatus = [];
+$byStatus = [];
 foreach ($statusCounts as $status => $count) {
     $byStatus[] = ['status' => $status, 'count' => $count];
 }
 
-// --- Growth rate ---------------------------------------------------
-
- $growthRate = ($lastMonthVoters > 0)
+$growthRate = ($lastMonthVoters > 0)
     ? round((($newVoters - $lastMonthVoters) / $lastMonthVoters) * 100, 1)
     : 0.0;
 
-// --- Turnout analytics (per year) ---------------------------------
+// ------------------------------------------------------------------
+// 10. Turnout by year via analytics_scopes
+// ------------------------------------------------------------------
 
- $stmt = $pdo->prepare("SELECT DISTINCT YEAR(start_datetime) AS year
-                       FROM elections
-                       WHERE assigned_admin_id = ?
-                       ORDER BY year ASC");
- $stmt->execute([$userId]);
- $turnoutYears = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+// Full turnout map (no year_from/year_to filter yet)
+$turnoutDataByYear = computeTurnoutByYear(
+    $pdo,
+    SCOPE_ACAD_STUDENT,
+    $scopeSeatId,
+    $scopedStudents,
+    [
+        'year_from' => null,
+        'year_to'   => null,
+    ]
+);
 
- $turnoutDataByYear = [];
-
-// Build full per-year metrics for all years that have elections
-foreach ($turnoutYears as $year) {
-    // total voted (distinct students who voted in this admin's elections this year)
-    $stmt = $pdo->prepare("SELECT COUNT(DISTINCT v.voter_id) AS total_voted
-                           FROM votes v
-                           JOIN elections e ON v.election_id = e.election_id
-                           WHERE e.assigned_admin_id = ?
-                             AND YEAR(e.start_datetime) = ?");
-    $stmt->execute([$userId, $year]);
-    $totalVoted = (int) ($stmt->fetch()['total_voted'] ?? 0);
-
-    // total eligible in scopedStudents as of year end
-    $yearEnd       = sprintf('%04d-12-31 23:59:59', $year);
-    $totalEligible = 0;
-    foreach ($scopedStudents as $s) {
-        if ($s['created_at'] <= $yearEnd) {
-            $totalEligible++;
-        }
-    }
-
-    $turnoutRate = ($totalEligible > 0)
-        ? round(($totalVoted / $totalEligible) * 100, 1)
-        : 0.0;
-
-    // election count for that year
-    $stmt = $pdo->prepare("SELECT COUNT(*) AS election_count
-                           FROM elections
-                           WHERE assigned_admin_id = ?
-                             AND YEAR(start_datetime) = ?");
-    $stmt->execute([$userId, $year]);
-    $electionCount = (int) ($stmt->fetch()['election_count'] ?? 0);
-
-    $turnoutDataByYear[$year] = [
-        'year'           => $year,
-        'total_voted'    => $totalVoted,
-        'total_eligible' => $totalEligible,
-        'turnout_rate'   => $turnoutRate,
-        'election_count' => $electionCount,
-    ];
-}
-
-// === Year range filtering for turnout analytics (faculty-style) ===
-
-// All years we have data for
- $allTurnoutYears = array_keys($turnoutDataByYear);
+// All years in data
+$allTurnoutYears = array_keys($turnoutDataByYear);
 sort($allTurnoutYears);
 
-// If walang data pa, gumamit ng current year as safe default
- $defaultYear = (int)date('Y');
- $minYear = $allTurnoutYears ? min($allTurnoutYears) : $defaultYear;
- $maxYear = $allTurnoutYears ? max($allTurnoutYears) : $defaultYear;
+// Safe defaults if empty
+$defaultYear = (int)date('Y');
+$minYear = $allTurnoutYears ? min($allTurnoutYears) : $defaultYear;
+$maxYear = $allTurnoutYears ? max($allTurnoutYears) : $defaultYear;
 
-// Read range from query string (e.g., ?from_year=2021&to_year=2024)
- $fromYear = isset($_GET['from_year']) && ctype_digit($_GET['from_year'])
+// Year range from query (?from_year=&to_year=)
+$fromYear = isset($_GET['from_year']) && ctype_digit($_GET['from_year'])
     ? (int)$_GET['from_year']
     : $minYear;
- $toYear   = isset($_GET['to_year']) && ctype_digit($_GET['to_year'])
+$toYear = isset($_GET['to_year']) && ctype_digit($_GET['to_year'])
     ? (int)$_GET['to_year']
     : $maxYear;
 
-// Clamp to known bounds
 if ($fromYear < $minYear) $fromYear = $minYear;
 if ($toYear   > $maxYear) $toYear   = $maxYear;
 if ($toYear   < $fromYear) $toYear  = $fromYear;
 
-// Build range [fromYear..toYear], ensuring missing years appear with zeros
- $turnoutRangeData = [];
+// Build turnoutRangeData subset based on [fromYear..toYear]
+$turnoutRangeData = [];
 for ($y = $fromYear; $y <= $toYear; $y++) {
     if (isset($turnoutDataByYear[$y])) {
         $turnoutRangeData[$y] = $turnoutDataByYear[$y];
     } else {
+        // If computeTurnoutByYear didn't include this year, fill with zeros
         $turnoutRangeData[$y] = [
             'year'           => $y,
             'total_voted'    => 0,
             'total_eligible' => 0,
             'turnout_rate'   => 0.0,
             'election_count' => 0,
+            'growth_rate'    => 0.0,
         ];
     }
 }
 
-// Recompute growth_rate within the selected range
- $prevY = null;
-foreach ($turnoutRangeData as $y => &$data) {
-    if ($prevY === null) {
-        $data['growth_rate'] = 0.0;
-    } else {
-        $prevRate = $turnoutRangeData[$prevY]['turnout_rate'] ?? 0;
-        $data['growth_rate'] = $prevRate > 0
-            ? round(($data['turnout_rate'] - $prevRate) / $prevRate * 100, 1)
-            : 0.0;
-    }
-    $prevY = $y;
-}
-unset($data);
+// Summary cards: selectedYear vs previous year
+$currentYearTurnout  = $turnoutDataByYear[$selectedYear]     ?? null;
+$previousYearTurnout = $turnoutDataByYear[$selectedYear - 1] ?? null;
 
-// Summary cards still use single selected year (via ?year=...)
- $currentYearTurnout  = $turnoutDataByYear[$selectedYear]     ?? null;
- $previousYearTurnout = $turnoutDataByYear[$selectedYear - 1] ?? null;
+// ------------------------------------------------------------------
+// 11. Department & course turnout (selected year, scoped)
+// ------------------------------------------------------------------
 
-// --- Department turnout (selected year) ----------------------------
+$departmentTurnoutData = [];
+$courseTurnoutData     = [];
 
- $departmentTurnoutData = [];
-
- $stmt = $pdo->prepare("
+// All voters who voted in ANY scoped election that year
+$stmt = $pdo->prepare("
     SELECT DISTINCT v.voter_id
     FROM votes v
     JOIN elections e ON v.election_id = e.election_id
-    WHERE e.assigned_admin_id = ?
-      AND YEAR(e.start_datetime) = ?
+    WHERE e.election_scope_type = :stype
+      AND e.owner_scope_id      = :sid
+      AND YEAR(e.start_datetime) = :year
 ");
- $stmt->execute([$userId, $selectedYear]);
- $votedIds = array_column($stmt->fetchAll(), 'voter_id');
- $votedSet = array_flip($votedIds);
+$stmt->execute([
+    ':stype' => SCOPE_ACAD_STUDENT,
+    ':sid'   => $scopeSeatId,
+    ':year'  => $selectedYear,
+]);
+$votedIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+$votedSet = array_flip($votedIds);
 
- $deptBuckets     = [];
- $yearEndSelected = sprintf('%04d-12-31 23:59:59', $selectedYear);
+$yearEndSelected = sprintf('%04d-12-31 23:59:59', $selectedYear);
+$deptBuckets     = [];
+$courseBuckets   = [];
 
 foreach ($scopedStudents as $s) {
-    if ($s['created_at'] > $yearEndSelected) continue;
+    $createdAt = $s['created_at'] ?? null;
+    if ($createdAt && $createdAt > $yearEndSelected) {
+        continue;
+    }
 
-    $dept = $s['department1'] ?: $s['department'] ?: 'Unspecified';
+    $dept = $s['department1'] ?? $s['department'] ?? 'Unspecified';
+    $courseCode = normalize_course_code($s['course'] ?? '');
+
     if (!isset($deptBuckets[$dept])) {
         $deptBuckets[$dept] = ['eligible_count' => 0, 'voted_count' => 0];
     }
+    if (!isset($courseBuckets[$courseCode])) {
+        $courseBuckets[$courseCode] = ['eligible_count' => 0, 'voted_count' => 0];
+    }
+
     $deptBuckets[$dept]['eligible_count']++;
+    $courseBuckets[$courseCode]['eligible_count']++;
+
     if (isset($votedSet[$s['user_id']])) {
         $deptBuckets[$dept]['voted_count']++;
+        $courseBuckets[$courseCode]['voted_count']++;
     }
 }
 
 foreach ($deptBuckets as $dept => $c) {
-    $rate = ($c['eligible_count'] > 0)
+    $rate = $c['eligible_count'] > 0
         ? round(($c['voted_count'] / $c['eligible_count']) * 100, 1)
         : 0.0;
     $departmentTurnoutData[] = [
@@ -562,28 +441,8 @@ foreach ($deptBuckets as $dept => $c) {
     ];
 }
 
-// --- Course turnout (selected year) -------------------------------
-
- $courseTurnoutData = [];
- $courseBuckets     = [];
-
-foreach ($scopedStudents as $s) {
-    if ($s['created_at'] > $yearEndSelected) continue;
-
-    $code = normalize_course_code($s['course'] ?? '');
-    if ($code === '') $code = 'UNSPECIFIED';
-
-    if (!isset($courseBuckets[$code])) {
-        $courseBuckets[$code] = ['eligible_count' => 0, 'voted_count' => 0];
-    }
-    $courseBuckets[$code]['eligible_count']++;
-    if (isset($votedSet[$s['user_id']])) {
-        $courseBuckets[$code]['voted_count']++;
-    }
-}
-
 foreach ($courseBuckets as $code => $c) {
-    $rate = ($c['eligible_count'] > 0)
+    $rate = $c['eligible_count'] > 0
         ? round(($c['voted_count'] / $c['eligible_count']) * 100, 1)
         : 0.0;
     $courseTurnoutData[] = [
@@ -595,23 +454,97 @@ foreach ($courseBuckets as $code => $c) {
 }
 usort($courseTurnoutData, fn($a, $b) => $b['eligible_count'] <=> $a['eligible_count']);
 
-// --- Scope display ------------------------------------------------
+// ------------------------------------------------------------------
+// 12. Per-election stats + abstain (selected year) via analytics_scopes
+// ------------------------------------------------------------------
 
-function formatScopeForDisplay(string $category, string $scope, string $scope1, array $details): string {
-    switch ($category) {
-        case 'Academic-Student':
-            if (empty($scope1) || $scope1 === 'All') return "$scope - All Courses";
-            return "$scope - Courses: $scope1";
-        case 'Academic-Faculty':
-            if (empty($scope1) || $scope1 === 'All') return "$scope - All Departments";
-            return "$scope - Departments: $scope1";
-        default:
-            return $scope;
+$electionTurnoutStats = computePerElectionStatsWithAbstain(
+    $pdo,
+    SCOPE_ACAD_STUDENT,
+    $scopeSeatId,
+    $scopedStudents,
+    $selectedYear
+);
+
+// ------------------------------------------------------------------
+// 13. Abstain by year via analytics_scopes (for Abstained → Year)
+// ------------------------------------------------------------------
+
+// --- Abstain by year (aggregated) ----------------------------------
+
+// 1) Kunin lahat ng abstain stats (walang year range filter muna)
+$abstainAllYears = computeAbstainByYear(
+    $pdo,
+    SCOPE_ACAD_STUDENT,
+    $scopeSeatId,          // or $scopeSeatId depending sa variable name mo
+    $scopedStudents,
+    [
+        'year_from' => null,
+        'year_to'   => null,
+    ]
+);
+
+// 2) Gumawa ng abstainByYear EXACTLY over [fromYear..toYear] (same as turnoutRangeData)
+$abstainByYear = [];
+for ($y = $fromYear; $y <= $toYear; $y++) {
+    if (isset($abstainAllYears[$y])) {
+        $abstainByYear[$y] = $abstainAllYears[$y];
+    } else {
+        // Stub year with zero values so the chart can still show it
+        $abstainByYear[$y] = [
+            'year'           => (int)$y,
+            'abstain_count'  => 0,
+            'total_eligible' => 0,
+            'abstain_rate'   => 0.0,
+        ];
     }
 }
 
- $scopeDisplay = formatScopeForDisplay($scope_category, $assigned_scope, $assigned_scope_1, $scope_details);
+// 3) Flatten for JS
+$abstainYears      = array_keys($abstainByYear);
+sort($abstainYears);
+$abstainCountsYear = [];
+$abstainRatesYear  = [];
+foreach ($abstainYears as $y) {
+    $abstainCountsYear[] = (int)($abstainByYear[$y]['abstain_count']  ?? 0);
+    $abstainRatesYear[]  = (float)($abstainByYear[$y]['abstain_rate'] ?? 0.0);
+}
+
+// ------------------------------------------------------------------
+// 14. Scope display for header (CEIT : BSIT, BSCS)
+// ------------------------------------------------------------------
+
+function formatScopeForDisplay(string $category, string $scope, string $scope1, array $details): string {
+    // Standard format target: "CEIT : BSIT, BSCS" or "CEIT : All Courses"
+    $scopeCode = $scope ?: '';
+
+    switch ($category) {
+        case SCOPE_ACAD_STUDENT:
+            if (empty($scope1) || strcasecmp($scope1, 'All') === 0) {
+                return $scopeCode . ' : All Courses';
+            }
+            $clean = preg_replace('/^(Courses?:\s*)?/i', '', $scope1);
+            $clean = preg_replace('/^Multiple:\s*/i', '', $clean);
+            $clean = trim($clean);
+            return $scopeCode . ' : ' . $clean;
+
+        case SCOPE_ACAD_FACULTY:
+            if (empty($scope1) || strcasecmp($scope1, 'All') === 0) {
+                return $scopeCode . ' : All Departments';
+            }
+            $clean = preg_replace('/^(Departments?:\s*)?/i', '', $scope1);
+            $clean = preg_replace('/^Multiple:\s*/i', '', $clean);
+            $clean = trim($clean);
+            return $scopeCode . ' : ' . $clean;
+
+        default:
+            return $scopeCode;
+    }
+}
+
+$scopeDisplay = formatScopeForDisplay($scope_category, $assigned_scope, $assigned_scope_1, $scope_details);
 ?>
+
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
@@ -685,20 +618,197 @@ function formatScopeForDisplay(string $category, string $scope, string $scope1, 
       font-weight: bold;
       margin-bottom: 0;
     }
+    /* Force password change modal utilities */
+    .modal-backdrop {
+      background-color: rgba(0, 0, 0, 0.7);
+      z-index: 9999;
+    }
+    .password-strength-bar {
+      transition: width 0.3s ease;
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
+
+<!-- Force Password Change Modal (same design as voter dashboard) -->
+<div id="forcePasswordChangeModal" class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 hidden">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 relative">
+      <button onclick="closePasswordModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl">
+          &times;
+      </button>
+      
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 bg-[var(--cvsu-green-light)] rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+        </div>
+        <h2 class="text-2xl font-bold text-[var(--cvsu-green-dark)]">Change Your Password</h2>
+        <p class="text-gray-600 mt-2">For security reasons, you must change your password before continuing.</p>
+      </div>
+      
+      <form id="forcePasswordChangeForm" class="space-y-5">
+          <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+              <div class="relative">
+                  <input type="password" id="newPassword" name="new_password" required 
+                         class="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
+                  <button type="button" id="togglePassword" class="absolute inset-y-0 right-0 pr-3 flex items-center">
+                      <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5,12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                  </button>
+              </div>
+              <div class="mt-2">
+                  <div class="flex items-center text-xs text-gray-500 mb-1">
+                      <span id="passwordStrength" class="font-medium">Password strength:</span>
+                      <div class="ml-2 flex-1 bg-gray-200 rounded-full h-2">
+                          <div id="strengthBar" class="h-2 rounded-full password-strength-bar" style="width: 0%"></div>
+                      </div>
+                  </div>
+                  <ul class="text-xs text-gray-500 space-y-1">
+                      <li id="lengthCheck" class="flex items-center">
+                          <svg class="h-4 w-4 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                          At least 8 characters
+                      </li>
+                      <li id="uppercaseCheck" class="flex items-center">
+                          <svg class="h-4 w-4 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                          Contains uppercase letter
+                      </li>
+                      <li id="numberCheck" class="flex items-center">
+                          <svg class="h-4 w-4 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                          Contains number
+                      </li>
+                      <li id="specialCheck" class="flex items-center">
+                          <svg class="h-4 w-4 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                          Contains special character
+                      </li>
+                  </ul>
+              </div>
+          </div>
+          
+          <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+              <div class="relative">
+                  <input type="password" id="confirmPassword" name="confirm_password" required 
+                         class="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
+                  <button type="button" id="toggleConfirmPassword" class="absolute inset-y-0 right-0 pr-3 flex items-center">
+                      <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5,12 5c4.478 0 8.268-2.943 9.542-7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                  </button>
+              </div>
+              <div id="matchError" class="mt-1 text-xs text-red-500 hidden">Passwords do not match</div>
+          </div>
+          
+          <div id="notificationContainer" class="space-y-3">
+              <div id="passwordError" class="hidden bg-red-50 border-l-4 border-red-500 p-4 rounded-lg shadow-sm">
+                  <div class="flex items-start">
+                      <div class="flex-shrink-0">
+                          <svg class="h-5 w-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                      </div>
+                      <div class="ml-3">
+                          <h3 class="text-sm font-medium text-red-800">Error</h3>
+                          <div class="mt-1 text-sm text-red-700" id="passwordErrorText"></div>
+                      </div>
+                  </div>
+              </div>
+              
+              <div id="passwordSuccess" class="hidden bg-green-50 border-l-4 border-green-500 p-4 rounded-lg shadow-sm">
+                  <div class="flex items-start">
+                      <div class="flex-shrink-0">
+                          <svg class="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                      </div>
+                      <div class="ml-3">
+                          <h3 class="text-sm font-medium text-green-800">Success</h3>
+                          <div class="mt-1 text-sm text-green-700">
+                              Password updated successfully! Redirecting to dashboard...
+                          </div>
+                      </div>
+                  </div>
+              </div>
+              
+              <div id="passwordLoading" class="hidden bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg shadow-sm">
+                  <div class="flex items-start">
+                      <div class="flex-shrink-0">
+                          <svg class="animate-spin h-5 w-5 text-blue-400" fill="none" viewBox="0 0 24 24">
+                              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                      </div>
+                      <div class="ml-3">
+                          <h3 class="text-sm font-medium text-blue-800">Processing</h3>
+                          <div class="mt-1 text-sm text-blue-700">
+                              Updating your password...
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          </div>
+          
+          <div class="flex justify-center pt-4">
+              <button type="submit" id="submitBtn" class="bg-[var(--cvsu-green)] hover:bg-[var(--cvsu-green-dark)] text-white px-8 py-3 rounded-lg font-medium flex items-center justify-center min-w-[180px] transition-all duration-200 transform hover:scale-105">
+                  <span id="submitBtnText">Update Password</span>
+                  <svg id="submitLoader" class="ml-2 h-5 w-5 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291
+A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+              </button>
+          </div>
+      </form>
+  </div>
+</div>
+
 <div class="flex min-h-screen">
 
-  <?php include 'sidebar.php'; ?>
+
+  <?php
+  // If super admin is impersonating a scope seat, use super admin sidebar
+  if (function_exists('isSuperAdmin') && isSuperAdmin() && getImpersonatedScopeId() !== null) {
+      include 'super_admin_sidebar.php';
+  } else {
+      include 'sidebar.php';
+  }
+  ?>
 
   <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:var(--cvsu-green-dark);">
-    <div class="flex items-center space-x-4">
-      <div class="scope-badge"><?= htmlspecialchars($scopeDisplay) ?></div>
+    <!-- Left side: title + scope line (+ optional View As) -->
+    <div class="flex flex-col">
       <h1 class="text-2xl font-bold text-white">
-        <?= htmlspecialchars($collegeFullName) ?> ADMIN DASHBOARD
+        <?= htmlspecialchars(strtoupper($collegeFullName)) ?> ADMIN DASHBOARD
       </h1>
+
+      <div class="flex items-center space-x-3 mt-1">
+        <!-- Scope identifier: e.g. CEIT : BSIT, BSCS -->
+        <span class="scope-badge">
+          <?= htmlspecialchars($scopeDisplay) ?>
+        </span>
+
+        <!-- View As indicator when super admin is impersonating -->
+        <?php if (function_exists('isSuperAdmin') && isSuperAdmin() && getImpersonatedScopeId() !== null): ?>
+          <span class="inline-flex items-center max-w-fit px-3 py-0.5 rounded-full text-xs font-semibold bg-yellow-300 text-gray-900 shadow-sm">
+            View As College Admin
+          </span>
+        <?php endif; ?>
+      </div>
     </div>
+
+    <!-- Right side: icon -->
     <div class="text-white">
       <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round"
@@ -1090,12 +1200,14 @@ function formatScopeForDisplay(string $category, string $scope, string $scope1, 
                 <select id="dataSeriesSelect" class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm">
                   <option value="elections">Elections vs Turnout</option>
                   <option value="voters">Students vs Turnout</option>
+                  <option value="abstained">Abstained</option>
                 </select>
               </div>
               <div class="flex items-center">
                 <label for="breakdownSelect" class="mr-3 text-sm font-medium text-gray-700">Breakdown by:</label>
                 <select id="breakdownSelect" class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm">
                   <option value="year">Year</option>
+                  <option value="election">Election (Current Year)</option>
                   <option value="department">Department</option>
                   <option value="course">Course</option>
                 </select>
@@ -1143,6 +1255,248 @@ function formatScopeForDisplay(string $category, string $scope, string $scope1, 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // ===== Force password change (same design as voter modal) =====
+  const forcePasswordChange = <?= $force_password_flag ?>;
+  
+  if (forcePasswordChange === 1) {
+    const modal = document.getElementById('forcePasswordChangeModal');
+    if (modal) {
+      modal.classList.remove('hidden');
+      document.body.style.pointerEvents = 'none';
+      modal.style.pointerEvents = 'auto';
+    }
+  }
+
+  const togglePassword = document.getElementById('togglePassword');
+  const toggleConfirmPassword = document.getElementById('toggleConfirmPassword');
+  const passwordInput = document.getElementById('newPassword');
+  const confirmPasswordInput = document.getElementById('confirmPassword');
+
+  if (togglePassword && passwordInput) {
+    togglePassword.addEventListener('click', function() {
+      const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+      passwordInput.setAttribute('type', type);
+    });
+  }
+
+  if (toggleConfirmPassword && confirmPasswordInput) {
+    toggleConfirmPassword.addEventListener('click', function() {
+      const type = confirmPasswordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+      confirmPasswordInput.setAttribute('type', type);
+    });
+  }
+
+  function updateCheck(id, isValid) {
+    const element = document.getElementById(id);
+    if (!element) return;
+    const icon = element.querySelector('svg');
+    
+    if (isValid) {
+      element.classList.remove('text-gray-500');
+      element.classList.add('text-green-500');
+      if (icon) {
+        icon.classList.remove('text-gray-400');
+        icon.classList.add('text-green-500');
+      }
+    } else {
+      element.classList.remove('text-green-500');
+      element.classList.add('text-gray-500');
+      if (icon) {
+        icon.classList.remove('text-green-500');
+        icon.classList.add('text-gray-400');
+      }
+    }
+  }
+
+  function checkPasswordMatch() {
+    if (!passwordInput || !confirmPasswordInput) return;
+    const password = passwordInput.value;
+    const confirmPassword = confirmPasswordInput.value;
+    const matchError = document.getElementById('matchError');
+    
+    if (!matchError) return;
+    
+    if (confirmPassword && password !== confirmPassword) {
+      matchError.classList.remove('hidden');
+      confirmPasswordInput.classList.add('border-red-500');
+    } else {
+      matchError.classList.add('hidden');
+      confirmPasswordInput.classList.remove('border-red-500');
+    }
+  }
+
+  if (passwordInput) {
+    passwordInput.addEventListener('input', function() {
+      const password = this.value;
+      const strengthBar = document.getElementById('strengthBar');
+      const strengthText = document.getElementById('passwordStrength');
+      
+      const length = password.length >= 8;
+      const uppercase = /[A-Z]/.test(password);
+      const number = /[0-9]/.test(password);
+      const special = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+      
+      updateCheck('lengthCheck', length);
+      updateCheck('uppercaseCheck', uppercase);
+      updateCheck('numberCheck', number);
+      updateCheck('specialCheck', special);
+      
+      let strength = 0;
+      if (length) strength++;
+      if (uppercase) strength++;
+      if (number) strength++;
+      if (special) strength++;
+      
+      if (strengthBar && strengthText) {
+        const strengthPercentage = (strength / 4) * 100;
+        strengthBar.style.width = strengthPercentage + '%';
+        
+        if (strength === 0) {
+          strengthBar.className = 'h-2 rounded-full bg-red-500 password-strength-bar';
+          strengthText.textContent = 'Password strength: Very Weak';
+          strengthText.className = 'font-medium text-red-500';
+        } else if (strength === 1) {
+          strengthBar.className = 'h-2 rounded-full bg-orange-500 password-strength-bar';
+          strengthText.textContent = 'Password strength: Weak';
+          strengthText.className = 'font-medium text-orange-500';
+        } else if (strength === 2) {
+          strengthBar.className = 'h-2 rounded-full bg-yellow-500 password-strength-bar';
+          strengthText.textContent = 'Password strength: Medium';
+          strengthText.className = 'font-medium text-yellow-500';
+        } else if (strength === 3) {
+          strengthBar.className = 'h-2 rounded-full bg-blue-500 password-strength-bar';
+          strengthText.textContent = 'Password strength: Strong';
+          strengthText.className = 'font-medium text-blue-500';
+        } else {
+          strengthBar.className = 'h-2 rounded-full bg-green-500 password-strength-bar';
+          strengthText.textContent = 'Password strength: Very Strong';
+          strengthText.className = 'font-medium text-green-500';
+        }
+      }
+      
+      checkPasswordMatch();
+    });
+  }
+
+  if (confirmPasswordInput) {
+    confirmPasswordInput.addEventListener('input', checkPasswordMatch);
+  }
+
+  const forcePasswordChangeForm = document.getElementById('forcePasswordChangeForm');
+  const passwordError = document.getElementById('passwordError');
+  const passwordSuccess = document.getElementById('passwordSuccess');
+  const passwordLoading = document.getElementById('passwordLoading');
+  const passwordErrorText = document.getElementById('passwordErrorText');
+  const submitBtn = document.getElementById('submitBtn');
+  const submitBtnText = document.getElementById('submitBtnText');
+  const submitLoader = document.getElementById('submitLoader');
+
+  if (forcePasswordChangeForm && passwordInput && confirmPasswordInput) {
+    forcePasswordChangeForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      if (passwordError) passwordError.classList.add('hidden');
+      if (passwordSuccess) passwordSuccess.classList.add('hidden');
+      if (passwordLoading) passwordLoading.classList.remove('hidden');
+      
+      const newPassword = passwordInput.value;
+      const confirmPassword = confirmPasswordInput.value;
+      
+      const length = newPassword.length >= 8;
+      const uppercase = /[A-Z]/.test(newPassword);
+      const number = /[0-9]/.test(newPassword);
+      const special = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
+      
+      let strength = 0;
+      if (length) strength++;
+      if (uppercase) strength++;
+      if (number) strength++;
+      if (special) strength++;
+      
+      if (!length) {
+        if (passwordLoading) passwordLoading.classList.add('hidden');
+        if (passwordErrorText) passwordErrorText.textContent = "Password must be at least 8 characters long.";
+        if (passwordError) passwordError.classList.remove('hidden');
+        return;
+      }
+      
+      if (strength < 3) {
+        if (passwordLoading) passwordLoading.classList.add('hidden');
+        if (passwordErrorText) passwordErrorText.textContent = "Password is not strong enough. Please include at least 2 of the following: uppercase letter, number, special character.";
+        if (passwordError) passwordError.classList.remove('hidden');
+        return;
+      }
+      
+      if (newPassword !== confirmPassword) {
+        if (passwordLoading) passwordLoading.classList.add('hidden');
+        if (passwordErrorText) passwordErrorText.textContent = "Passwords do not match.";
+        if (passwordError) passwordError.classList.remove('hidden');
+        return;
+      }
+      
+      if (submitBtn) submitBtn.disabled = true;
+      if (submitBtnText) submitBtnText.textContent = 'Updating...';
+      if (submitLoader) submitLoader.classList.remove('hidden');
+      
+      fetch('update_admin_password.php', {   // admin endpoint for college admin
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_password: newPassword })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (passwordLoading) passwordLoading.classList.add('hidden');
+        
+        if (data.status === 'success') {
+          if (passwordSuccess) passwordSuccess.classList.remove('hidden');
+          if (submitBtn) submitBtn.disabled = false;
+          if (submitBtnText) submitBtnText.textContent = 'Update Password';
+          if (submitLoader) submitLoader.classList.add('hidden');
+          
+          setTimeout(() => {
+            const modal = document.getElementById('forcePasswordChangeModal');
+            if (modal) modal.classList.add('hidden');
+            document.body.style.pointerEvents = 'auto';
+            
+            const redirectOverlay = document.createElement('div');
+            redirectOverlay.className = 'fixed inset-0 bg-white bg-opacity-90 z-50 flex items-center justify-center';
+            redirectOverlay.innerHTML = `
+              <div class="text-center">
+                <svg class="animate-spin h-12 w-12 text-[var(--cvsu-green)] mx-auto mb-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-lg font-medium text-gray-700">Redirecting to dashboard...</p>
+              </div>
+            `;
+            document.body.appendChild(redirectOverlay);
+            
+            setTimeout(() => {
+              window.location.reload();
+            }, 1500);
+          }, 2000);
+        } else {
+          if (submitBtn) submitBtn.disabled = false;
+          if (submitBtnText) submitBtnText.textContent = 'Update Password';
+          if (submitLoader) submitLoader.classList.add('hidden');
+          
+          if (passwordErrorText) passwordErrorText.textContent = data.message || "Failed to update password.";
+          if (passwordError) passwordError.classList.remove('hidden');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        if (passwordLoading) passwordLoading.classList.add('hidden');
+        if (submitBtn) submitBtn.disabled = false;
+        if (submitBtnText) submitBtnText.textContent = 'Update Password';
+        if (submitLoader) submitLoader.classList.add('hidden');
+        if (passwordErrorText) passwordErrorText.textContent = "An error occurred. Please try again.";
+        if (passwordError) passwordError.classList.remove('hidden');
+      });
+    });
+  }
+
+
   // Toggle breakdown table (department / course)
   const breakdownType = document.getElementById('breakdownType');
   breakdownType?.addEventListener('change', function() {
@@ -1173,9 +1527,21 @@ document.addEventListener('DOMContentLoaded', function() {
   const departmentTurnoutData = <?= json_encode($departmentTurnoutData) ?>;
   const courseTurnoutData     = <?= json_encode($courseTurnoutData) ?>;
   const courseMapJS      = <?= json_encode($courseMap) ?>;
+  const abstainYearsJS   = <?= json_encode($abstainYears) ?>;
+  const abstainCountsYearJS = <?= json_encode($abstainCountsYear) ?>;
+  const abstainRatesYearJS  = <?= json_encode($abstainRatesYear) ?>;
 
   function getFullCourseNameJS(code) {
     return courseMapJS[code] || code;
+  }
+
+  function closePasswordModal() {
+    const forcePasswordChange = <?= $force_password_flag ?>;
+    // Do not allow closing if still forced
+    if (forcePasswordChange === 1) return;
+    const modal = document.getElementById('forcePasswordChangeModal');
+    if (modal) modal.classList.add('hidden');
+    document.body.style.pointerEvents = 'auto';
   }
 
   function getAbbreviatedName(fullName) {
@@ -1443,7 +1809,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Elections vs Turnout chart
+  // === Elections vs Turnout / Students vs Turnout / Abstained ===
+
   const chartData = {
     elections: {
       year: {
@@ -1460,93 +1827,131 @@ document.addEventListener('DOMContentLoaded', function() {
       },
       department: departmentTurnoutData,
       course:     courseTurnoutData
+    },
+    abstained: {
+      year: {
+        labels: abstainYearsJS,
+        abstainCounts: abstainCountsYearJS,
+        abstainRates:  abstainRatesYearJS
+      }
     }
   };
 
-  let currentDataSeries = 'elections';
-  let currentBreakdown  = 'year';
+  // Per-election stats for selected year (current year context)
+  const electionTurnoutStats = <?= json_encode($electionTurnoutStats) ?>;
+  const selectedYearJS       = <?= (int)$selectedYear ?>;
+
+  let currentDataSeries = 'elections'; // 'elections' | 'voters' | 'abstained'
+  let currentBreakdown  = 'year';      // 'year' | 'election' | 'department' | 'course'
+
+  function resetBreakdownOptions() {
+    const select = document.getElementById('breakdownSelect');
+    if (!select) return;
+
+    // Clear options
+    select.innerHTML = '';
+
+    let options = [];
+    if (currentDataSeries === 'elections') {
+      options = [
+        { value: 'year',     label: 'Year' },
+        { value: 'election', label: 'Election (Current Year)' }
+      ];
+    } else if (currentDataSeries === 'voters') {
+      options = [
+        { value: 'year',       label: 'Year' },
+        { value: 'election',   label: 'Election (Current Year)' },
+        { value: 'department', label: 'Department' },
+        { value: 'course',     label: 'Course' }
+      ];
+    } else if (currentDataSeries === 'abstained') {
+      options = [
+        { value: 'year',     label: 'Year' },
+        { value: 'election', label: 'Election (Current Year)' }
+      ];
+    }
+
+    options.forEach(opt => {
+      const o = document.createElement('option');
+      o.value = opt.value;
+      o.textContent = opt.label;
+      select.appendChild(o);
+    });
+
+    const validValues = options.map(o => o.value);
+    if (!validValues.includes(currentBreakdown)) {
+      currentBreakdown = options[0].value;
+    }
+    select.value = currentBreakdown;
+  }
 
   function renderElectionsVsTurnout() {
     const ctx = document.getElementById('electionsVsTurnoutChart');
     if (!ctx) return;
     if (electionsVsTurnoutChartInstance) electionsVsTurnoutChartInstance.destroy();
 
-    const breakdownSelect = document.getElementById('breakdownSelect');
+    resetBreakdownOptions();
+
     let data, options;
+    let titleText = '';
 
     if (currentDataSeries === 'elections') {
-      breakdownSelect.value    = 'year';
-      breakdownSelect.disabled = true;
-      currentBreakdown         = 'year';
-
-      data = {
-        labels: chartData.elections.year.labels,
-        datasets: [
-          {
-            label: 'Number of Elections',
-            data: chartData.elections.year.electionCounts,
-            backgroundColor: '#1E6F46',
-            borderColor: '#154734',
-            borderWidth: 1,
-            borderRadius: 4,
-            yAxisID: 'y'
-          },
-          {
-            label: 'Turnout Rate (%)',
-            data: chartData.elections.year.turnoutRates,
-            backgroundColor: '#FFD166',
-            borderColor: '#F59E0B',
-            borderWidth: 1,
-            borderRadius: 4,
-            yAxisID: 'y1'
-          }
-        ]
-      };
-
-      options = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'top',
-            labels: { font: { size: 12 }, padding: 15 }
-          },
-          title: {
-            display: true,
-            text: 'Elections vs Turnout Rate by Year',
-            font: { size: 16, weight: 'bold' },
-            padding: { top: 10, bottom: 20 }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            position: 'left',
-            title: {
-              display: true,
-              text: 'Number of Elections',
-              font: { size: 14, weight: 'bold' }
-            }
-          },
-          y1: {
-            beginAtZero: true,
-            max: 100,
-            position: 'right',
-            title: {
-              display: true,
-              text: 'Turnout Rate (%)',
-              font: { size: 14, weight: 'bold' }
+      if (currentBreakdown === 'year') {
+        data = {
+          labels: chartData.elections.year.labels,
+          datasets: [
+            {
+              label: 'Number of Elections',
+              data: chartData.elections.year.electionCounts,
+              backgroundColor: '#1E6F46',
+              borderColor: '#154734',
+              borderWidth: 1,
+              borderRadius: 4,
+              yAxisID: 'y'
             },
-            ticks: { callback: v => v + '%' },
-            grid: { drawOnChartArea: false }
-          },
-          x: { grid: { display: false } }
-        }
-      };
+            {
+              label: 'Turnout Rate (%)',
+              data: chartData.elections.year.turnoutRates,
+              backgroundColor: '#FFD166',
+              borderColor: '#F59E0B',
+              borderWidth: 1,
+              borderRadius: 4,
+              yAxisID: 'y1'
+            }
+          ]
+        };
+        titleText = 'Elections vs Turnout Rate by Year';
+      } else if (currentBreakdown === 'election') {
+        const labels = electionTurnoutStats.map(e => e.title);
+        const voted  = electionTurnoutStats.map(e => e.total_voted);
+        const rates  = electionTurnoutStats.map(e => e.turnout_rate);
 
-    } else {
-      breakdownSelect.disabled = false;
-
+        data = {
+          labels,
+          datasets: [
+            {
+              label: 'Students Participated',
+              data: voted,
+              backgroundColor: '#1E6F46',
+              borderColor: '#154734',
+              borderWidth: 1,
+              borderRadius: 4,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Turnout Rate (%)',
+              data: rates,
+              backgroundColor: '#FFD166',
+              borderColor: '#F59E0B',
+              borderWidth: 1,
+              borderRadius: 4,
+              yAxisID: 'y1'
+            }
+          ]
+        };
+        titleText = `Elections vs Turnout Rate by Election (${selectedYearJS})`;
+      }
+    } else if (currentDataSeries === 'voters') {
       if (currentBreakdown === 'year') {
         data = {
           labels: chartData.voters.year.labels,
@@ -1571,48 +1976,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
           ]
         };
-
-        options = {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'top',
-              labels: { font: { size: 12 }, padding: 15 }
-            },
-            title: {
-              display: true,
-              text: 'Eligible Students vs Turnout Rate by Year',
-              font: { size: 16, weight: 'bold' },
-              padding: { top: 10, bottom: 20 }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              position: 'left',
-              title: {
-                display: true,
-                text: 'Number of Students',
-                font: { size: 14, weight: 'bold' }
-              }
-            },
-            y1: {
-              beginAtZero: true,
-              max: 100,
-              position: 'right',
-              title: {
-                display: true,
-                text: 'Turnout Rate (%)',
-                font: { size: 14, weight: 'bold' }
-              },
-              ticks: { callback: v => v + '%' },
-              grid: { drawOnChartArea: false }
-            },
-            x: { grid: { display: false } }
-          }
-        };
-
+        titleText = 'Eligible Students vs Turnout Rate by Year';
       } else if (currentBreakdown === 'department') {
         const labels   = chartData.voters.department.map(x => getAbbreviatedName(x.department));
         const eligible = chartData.voters.department.map(x => x.eligible_count);
@@ -1641,48 +2005,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
           ]
         };
-
-        options = {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'top',
-              labels: { font: { size: 12 }, padding: 15 }
-            },
-            title: {
-              display: true,
-              text: 'Eligible Students vs Turnout Rate by Department',
-              font: { size: 16, weight: 'bold' },
-              padding: { top: 10, bottom: 20 }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              position: 'left',
-              title: {
-                display: true,
-                text: 'Number of Students',
-                font: { size: 14, weight: 'bold' }
-              }
-            },
-            y1: {
-              beginAtZero: true,
-              max: 100,
-              position: 'right',
-              title: {
-                display: true,
-                text: 'Turnout Rate (%)',
-                font: { size: 14, weight: 'bold' }
-              },
-              ticks: { callback: v => v + '%' },
-              grid: { drawOnChartArea: false }
-            },
-            x: { grid: { display: false } }
-          }
-        };
-
+        titleText = 'Eligible Students vs Turnout Rate by Department';
       } else if (currentBreakdown === 'course') {
         const labels   = chartData.voters.course.map(x => getAbbreviatedName(x.course));
         const eligible = chartData.voters.course.map(x => x.eligible_count);
@@ -1711,49 +2034,158 @@ document.addEventListener('DOMContentLoaded', function() {
             }
           ]
         };
+        titleText = 'Eligible Students vs Turnout Rate by Course';
+      } else if (currentBreakdown === 'election') {
+        const labels   = electionTurnoutStats.map(e => e.title);
+        const eligible = electionTurnoutStats.map(e => e.total_eligible);
+        const tr       = electionTurnoutStats.map(e => e.turnout_rate);
 
-        options = {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'top',
-              labels: { font: { size: 12 }, padding: 15 }
+        data = {
+          labels,
+          datasets: [
+            {
+              label: 'Eligible Students',
+              data: eligible,
+              backgroundColor: '#1E6F46',
+              borderColor: '#154734',
+              borderWidth: 1,
+              borderRadius: 4,
+              yAxisID: 'y'
             },
-            title: {
-              display: true,
-              text: 'Eligible Students vs Turnout Rate by Course',
-              font: { size: 16, weight: 'bold' },
-              padding: { top: 10, bottom: 20 }
+            {
+              label: 'Turnout Rate (%)',
+              data: tr,
+              backgroundColor: '#FFD166',
+              borderColor: '#F59E0B',
+              borderWidth: 1,
+              borderRadius: 4,
+              yAxisID: 'y1'
             }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              position: 'left',
-              title: {
-                display: true,
-                text: 'Number of Students',
-                font: { size: 14, weight: 'bold' }
-              }
-            },
-            y1: {
-              beginAtZero: true,
-              max: 100,
-              position: 'right',
-              title: {
-                display: true,
-                text: 'Turnout Rate (%)',
-                font: { size: 14, weight: 'bold' }
-              },
-              ticks: { callback: v => v + '%' },
-              grid: { drawOnChartArea: false }
-            },
-            x: { grid: { display: false } }
-          }
+          ]
         };
+        titleText = `Eligible Students vs Turnout Rate by Election (${selectedYearJS})`;
+      }
+    } else if (currentDataSeries === 'abstained') {
+      if (currentBreakdown === 'year') {
+        const labels = chartData.abstained.year.labels;
+        const abst   = chartData.abstained.year.abstainCounts;
+        const rates  = chartData.abstained.year.abstainRates;
+
+        data = {
+          labels,
+          datasets: [
+            {
+              label: 'Abstained Students',
+              data: abst,
+              backgroundColor: '#EF4444',
+              borderColor: '#B91C1C',
+              borderWidth: 1,
+              borderRadius: 4,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Abstain Rate (%)',
+              data: rates,
+              backgroundColor: '#F97316',
+              borderColor: '#C2410C',
+              borderWidth: 1,
+              borderRadius: 4,
+              yAxisID: 'y1'
+            }
+          ]
+        };
+        titleText = 'Abstained Students by Year';
+      } else if (currentBreakdown === 'election') {
+        const withAbstain = electionTurnoutStats.filter(e => (e.abstain_count || 0) > 0);
+        const labels = withAbstain.map(e => e.title);
+        const abst   = withAbstain.map(e => e.abstain_count);
+        const rates  = withAbstain.map(e => e.abstain_rate);
+
+        data = {
+          labels,
+          datasets: [
+            {
+              label: 'Abstained Students',
+              data: abst,
+              backgroundColor: '#EF4444',
+              borderColor: '#B91C1C',
+              borderWidth: 1,
+              borderRadius: 4,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Abstain Rate (%)',
+              data: rates,
+              backgroundColor: '#F97316',
+              borderColor: '#C2410C',
+              borderWidth: 1,
+              borderRadius: 4,
+              yAxisID: 'y1'
+            }
+          ]
+        };
+        titleText = `Abstained Students by Election (${selectedYearJS})`;
       }
     }
+
+    options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { font: { size: 12 }, padding: 15 }
+        },
+        title: {
+          display: true,
+          text: titleText,
+          font: { size: 16, weight: 'bold' },
+          padding: { top: 10, bottom: 20 }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          titleFont: { size: 14 },
+          bodyFont:  { size: 13 },
+          padding: 12,
+          callbacks: {
+            label: (context) => {
+              const dsLabel = context.dataset.label || '';
+              if (dsLabel.includes('%')) {
+                return `${dsLabel}: ${context.raw}%`;
+              }
+              return `${dsLabel}: ${context.raw.toLocaleString()}`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          position: 'left',
+          title: {
+            display: true,
+            text:
+              currentDataSeries === 'elections'
+                ? (currentBreakdown === 'year' ? 'Number of Elections' : 'Students Participated')
+                : (currentDataSeries === 'abstained' ? 'Abstained Students' : 'Number of Students'),
+            font: { size: 14, weight: 'bold' }
+          }
+        },
+        y1: {
+          beginAtZero: true,
+          max: 100,
+          position: 'right',
+          title: {
+            display: true,
+            text: currentDataSeries === 'abstained' ? 'Abstain Rate (%)' : 'Turnout Rate (%)',
+            font: { size: 14, weight: 'bold' }
+          },
+          ticks: { callback: v => v + '%' },
+          grid: { drawOnChartArea: false }
+        },
+        x: { grid: { display: false } }
+      }
+    };
 
     electionsVsTurnoutChartInstance = new Chart(ctx, {
       type: 'bar',
@@ -1773,13 +2205,23 @@ document.addEventListener('DOMContentLoaded', function() {
     let rows    = [];
 
     if (currentDataSeries === 'elections') {
-      headers = ['Year', 'Number of Elections', 'Turnout Rate'];
-      rows    = chartData.elections.year.labels.map((label, i) => [
-        label,
-        chartData.elections.year.electionCounts[i].toLocaleString(),
-        chartData.elections.year.turnoutRates[i] + '%'
-      ]);
-    } else {
+      if (currentBreakdown === 'year') {
+        headers = ['Year', 'Number of Elections', 'Turnout Rate'];
+        rows    = chartData.elections.year.labels.map((label, i) => [
+          label,
+          chartData.elections.year.electionCounts[i].toLocaleString(),
+          chartData.elections.year.turnoutRates[i] + '%'
+        ]);
+      } else if (currentBreakdown === 'election') {
+        headers = ['Election', 'Students Participated', 'Eligible Students', 'Turnout Rate'];
+        rows    = electionTurnoutStats.map(e => [
+          e.title,
+          (e.total_voted    || 0).toLocaleString(),
+          (e.total_eligible || 0).toLocaleString(),
+          (e.turnout_rate   || 0) + '%'
+        ]);
+      }
+    } else if (currentDataSeries === 'voters') {
       if (currentBreakdown === 'year') {
         headers = ['Year', 'Eligible Students', 'Turnout Rate'];
         rows    = chartData.voters.year.labels.map((label, i) => [
@@ -1803,8 +2245,46 @@ document.addEventListener('DOMContentLoaded', function() {
           row.voted_count.toLocaleString(),
           row.turnout_rate + '%'
         ]);
+      } else if (currentBreakdown === 'election') {
+        headers = ['Election', 'Eligible Students', 'Students Participated', 'Turnout Rate'];
+        rows    = electionTurnoutStats.map(e => [
+          e.title,
+          (e.total_eligible || 0).toLocaleString(),
+          (e.total_voted    || 0).toLocaleString(),
+          (e.turnout_rate   || 0) + '%'
+        ]);
+      }
+    } else if (currentDataSeries === 'abstained') {
+      if (currentBreakdown === 'year') {
+        headers = ['Year', 'Abstained Students', 'Abstain Rate'];
+        rows    = chartData.abstained.year.labels.map((label, i) => [
+          label,
+          (chartData.abstained.year.abstainCounts[i] || 0).toLocaleString(),
+          (chartData.abstained.year.abstainRates[i]  || 0) + '%'
+        ]);
+      } else if (currentBreakdown === 'election') {
+        headers = ['Election', 'Abstained Students', 'Abstain Rate', 'Eligible Students'];
+
+        const withAbstain = electionTurnoutStats.filter(e => (e.abstain_count || 0) > 0);
+
+        if (withAbstain.length === 0) {
+          const msg = document.createElement('div');
+          msg.className = 'text-center text-gray-600 text-sm py-4';
+          msg.textContent = `No abstained voters found for ${selectedYearJS}.`;
+          container.appendChild(msg);
+          return;
+        }
+
+        rows = withAbstain.map(e => [
+          e.title,
+          (e.abstain_count || 0).toLocaleString(),
+          (e.abstain_rate  || 0) + '%',
+          (e.total_eligible || 0).toLocaleString()
+        ]);
       }
     }
+
+    if (!headers.length) return;
 
     const table = document.createElement('table');
     table.className = 'min-w-full divide-y divide-gray-200';
@@ -1845,13 +2325,7 @@ document.addEventListener('DOMContentLoaded', function() {
   renderElectionsVsTurnout();
 
   document.getElementById('dataSeriesSelect')?.addEventListener('change', function() {
-    currentDataSeries = this.value;
-    if (currentDataSeries === 'elections') {
-      const breakdownSelect = document.getElementById('breakdownSelect');
-      breakdownSelect.value    = 'year';
-      breakdownSelect.disabled = true;
-      currentBreakdown         = 'year';
-    }
+    currentDataSeries = this.value; // 'elections' | 'voters' | 'abstained'
     renderElectionsVsTurnout();
   });
 

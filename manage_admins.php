@@ -239,6 +239,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 ':scope_type' => $scopeCategory,
             ]);
 
+            // 3) Transfer candidate ownership to the new admin
+            $stmt = $pdo->prepare("
+                UPDATE candidates
+                SET created_by = :target_id
+                WHERE created_by = :source_id
+            ");
+            $stmt->execute([
+                ':target_id' => $targetAdminId,
+                ':source_id' => $sourceAdminId,
+            ]);
+
+            // 4) Transfer custom positions (so new admin sees old admin's custom positions)
+            $stmt = $pdo->prepare("
+                UPDATE positions
+                SET created_by = :target_id
+                WHERE created_by = :source_id
+            ");
+            $stmt->execute([
+                ':target_id' => $targetAdminId,
+                ':source_id' => $sourceAdminId,
+            ]);
+
+            // 5) Transfer disabled default positions (so default positions you disabled stay disabled)
+            $stmt = $pdo->prepare("
+                UPDATE disabled_default_positions
+                SET admin_id = :target_id
+                WHERE admin_id = :source_id
+            ");
+            $stmt->execute([
+                ':target_id' => $targetAdminId,
+                ':source_id' => $sourceAdminId,
+            ]);
+
             // Activate target admin after inheriting
             $stmt = $pdo->prepare("UPDATE users SET admin_status = 'active' WHERE user_id = :target_id");
             $stmt->execute([':target_id' => $targetAdminId]);

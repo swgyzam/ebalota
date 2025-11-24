@@ -3,14 +3,14 @@ session_start();
 date_default_timezone_set('Asia/Manila');
 
 // --- DB Connection ---
- $host = 'localhost';
- $db = 'evoting_system';
- $user = 'root';
- $pass = '';
- $charset = 'utf8mb4';
+$host    = 'localhost';
+$db      = 'evoting_system';
+$user    = 'root';
+$pass    = '';
+$charset = 'utf8mb4';
 
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
@@ -23,90 +23,174 @@ try {
     die("A system error occurred. Please try again later.");
 }
 
+// --- Shared scope / analytics helpers ---
+require_once __DIR__ . '/includes/analytics_scopes.php';
+
 // --- Auth check ---
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit();
 }
 
-// Verify this is a COOP Admin
- $stmt = $pdo->prepare("SELECT role, assigned_scope FROM users WHERE user_id = ?");
- $stmt->execute([$_SESSION['user_id']]);
- $userInfo = $stmt->fetch();
+$userId = (int) $_SESSION['user_id'];
 
- $role = $userInfo['role'] ?? '';
- $scope = strtoupper(trim($userInfo['assigned_scope'] ?? ''));
+// Fetch basic user info
+$stmt = $pdo->prepare("SELECT role FROM users WHERE user_id = ?");
+$stmt->execute([$userId]);
+$userInfo = $stmt->fetch();
 
-if ($scope !== 'COOP') {
+$role = $userInfo['role'] ?? '';
+
+if ($role !== 'admin') {
     header('Location: admin_analytics.php');
     exit();
 }
 
-// Get election ID from URL
- $electionId = $_GET['id'] ?? 0;
-if (!$electionId) {
-    header('Location: admin_analytics_coop.php');
+/* ==========================================================
+   FIND THIS ADMIN'S COOP SCOPE SEAT (Others-COOP)
+   ========================================================== */
+
+$mySeat    = null;
+$coopSeats = getScopeSeats($pdo, SCOPE_OTHERS_COOP);
+
+foreach ($coopSeats as $seat) {
+    if ((int) $seat['admin_user_id'] === $userId) {
+        $mySeat = $seat;
+        break;
+    }
+}
+
+if (!$mySeat) {
+    // This admin has no COOP scope seat
+    header('Location: admin_analytics.php');
     exit();
 }
 
-// Fetch election details (only COOP elections)
- $stmt = $pdo->prepare("SELECT * FROM elections WHERE election_id = ? AND target_position = 'coop'");
- $stmt->execute([$electionId]);
- $election = $stmt->fetch();
+$scopeId   = (int) $mySeat['scope_id'];   // owner_scope_id for elections/voters
+$scopeType = $mySeat['scope_type'];       // 'Others-COOP'
+
+/* ==========================================================
+   ELECTION SELECTION & SCOPE GUARD (NEW MODEL)
+   ========================================================== */
+
+$electionId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+if ($electionId <= 0) {
+    header('Location: admin_analytics.php');
+    exit();
+}
+
+// Ensure election belongs to this COOP scope seat
+$scopedElections    = getScopedElections($pdo, SCOPE_OTHERS_COOP, $scopeId);
+$allowedElectionIds = array_map('intval', array_column($scopedElections, 'election_id'));
+
+if (!in_array($electionId, $allowedElectionIds, true)) {
+    $_SESSION['toast_message'] = 'You are not allowed to view analytics for this COOP election.';
+    $_SESSION['toast_type']    = 'error';
+    header('Location: admin_analytics.php');
+    exit();
+}
+
+// Fetch full election row
+$stmt = $pdo->prepare("SELECT * FROM elections WHERE election_id = ?");
+$stmt->execute([$electionId]);
+$election = $stmt->fetch();
 
 if (!$election) {
-    header('Location: admin_analytics_coop.php');
+    header('Location: admin_analytics.php');
     exit();
 }
 
-// Determine if election is completed
- $now = new DateTime();
- $start = new DateTime($election['start_datetime']);
- $end = new DateTime($election['end_datetime']);
- $status = ($now < $start) ? 'upcoming' : (($now >= $start && $now <= $end) ? 'ongoing' : 'completed');
+// Ensure this is a COOP / all election (safety)
+$targetPos = strtolower($election['target_position'] ?? '');
+if (!in_array($targetPos, ['coop', 'all'], true)) {
+    header('Location: admin_analytics.php');
+    exit();
+}
 
-// ===== GET UNIQUE VOTERS WHO HAVE VOTED (not total votes) =====
- $sql = "SELECT COUNT(DISTINCT voter_id) as total FROM votes WHERE election_id = ?";
- $stmt = $pdo->prepare($sql);
- $stmt->execute([$electionId]);
- $totalVotesCast = $stmt->fetch()['total'];
+/* ==========================================================
+   ELECTION STATUS
+   ========================================================== */
 
-// ===== GET ELIGIBLE VOTERS COUNT =====
-// For COOP elections, we only count voters with is_coop_member=1 AND migs_status=1
- $conditions = ["role = 'voter'", "is_coop_member = 1", "migs_status = 1"];
- $params = [];
+$now   = new DateTime();
+$start = new DateTime($election['start_datetime']);
+$end   = new DateTime($election['end_datetime']);
 
-// Build and execute the query for eligible voters
- $sql = "SELECT COUNT(*) as total FROM users WHERE " . implode(' AND ', $conditions);
- $stmt = $pdo->prepare($sql);
- $stmt->execute($params);
- $totalEligibleVoters = $stmt->fetch()['total'];
+if ($now < $start) {
+    $status = 'upcoming';
+} elseif ($now >= $start && $now <= $end) {
+    $status = 'ongoing';
+} else {
+    $status = 'completed';
+}
 
-// Calculate turnout percentage
- $turnoutPercentage = ($totalEligibleVoters > 0) ? round(($totalVotesCast / $totalEligibleVoters) * 100, 1) : 0;
+/* ==========================================================
+   ELIGIBLE VOTERS (SCOPED COOP MIGS) & VOTERS WHO VOTED
+   ========================================================== */
 
-// ===== GET WINNERS BY POSITION =====
- $sql = "
+$yearEnd = $election['end_datetime'] ?? null;
+
+// Scoped COOP MIGS as of this election's end
+$scopedCoopMembers = getScopedVoters(
+    $pdo,
+    SCOPE_OTHERS_COOP,
+    $scopeId,
+    [
+        'year_end'      => $yearEnd,
+        'include_flags' => true,
+    ]
+);
+
+// Build eligible set for this election
+$eligibleCoopForElection = [];
+foreach ($scopedCoopMembers as $v) {
+    $eligibleCoopForElection[$v['user_id']] = $v;
+}
+$totalEligibleVoters = count($eligibleCoopForElection);
+
+// Distinct voters who voted in this election
+$stmt = $pdo->prepare("SELECT DISTINCT voter_id FROM votes WHERE election_id = ?");
+$stmt->execute([$electionId]);
+$votedIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+$votedSet = array_flip($votedIds);
+
+// Count only eligible + voted
+$totalVotesCast = 0;
+foreach ($eligibleCoopForElection as $uid => $_row) {
+    if (isset($votedSet[$uid])) {
+        $totalVotesCast++;
+    }
+}
+
+$turnoutPercentage = $totalEligibleVoters > 0
+    ? round(($totalVotesCast / $totalEligibleVoters) * 100, 1)
+    : 0.0;
+
+/* ==========================================================
+   WINNERS BY POSITION
+   ========================================================== */
+
+$sql = "
    SELECT 
        ec.position,
-       c.id as candidate_id,
-       CONCAT(c.first_name, ' ', c.last_name) as candidate_name,
-       COUNT(v.vote_id) as vote_count
+       c.id AS candidate_id,
+       CONCAT(c.first_name, ' ', c.last_name) AS candidate_name,
+       COUNT(v.vote_id) AS vote_count
    FROM election_candidates ec
    JOIN candidates c ON ec.candidate_id = c.id
-   LEFT JOIN votes v ON ec.election_id = v.election_id 
-                  AND ec.candidate_id = v.candidate_id
+   LEFT JOIN votes v 
+          ON ec.election_id = v.election_id 
+         AND ec.candidate_id = v.candidate_id
    WHERE ec.election_id = ?
    GROUP BY ec.position, c.id, c.first_name, c.last_name
    ORDER BY ec.position, vote_count DESC
 ";
 
- $stmt = $pdo->prepare($sql);
- $stmt->execute([$electionId]);
- $allCandidates = $stmt->fetchAll();
+$stmt = $pdo->prepare($sql);
+$stmt->execute([$electionId]);
+$allCandidates = $stmt->fetchAll();
 
-// Group by position and find winners
- $winnersByPosition = [];
+// Group by position and find winners (ties)
+$winnersByPosition = [];
 foreach ($allCandidates as $candidate) {
     $position = $candidate['position'];
     if (!isset($winnersByPosition[$position])) {
@@ -115,12 +199,11 @@ foreach ($allCandidates as $candidate) {
     $winnersByPosition[$position][] = $candidate;
 }
 
-// For each position, determine winners (handle ties)
 foreach ($winnersByPosition as $position => &$candidates) {
     if (empty($candidates)) continue;
     
     $maxVotes = $candidates[0]['vote_count'];
-    $winners = [];
+    $winners  = [];
     
     foreach ($candidates as $candidate) {
         if ($candidate['vote_count'] == $maxVotes && $maxVotes > 0) {
@@ -132,65 +215,260 @@ foreach ($winnersByPosition as $position => &$candidates) {
     
     $candidates = $winners;
 }
+unset($candidates);
 
-// ===== GET VOTER TURNOUT BREAKDOWN =====
-// We'll get data for both breakdown types and store them in arrays
- $breakdownData = [];
+// Build winner lookup maps + list of all positions (for filters)
+$winnerKeyMap   = [];  // "POSITION|CANDIDATE_ID" => true
+$positionTieMap = [];  // "POSITION" => bool (true kung tie)
+$allPositions   = [];
 
-// Breakdown by Position (Academic and Non-Academic)
- $sql_position = "
-   SELECT 
-       u.position,
-       COUNT(DISTINCT u.user_id) as eligible_count,
-       COUNT(DISTINCT v.voter_id) as voted_count
-   FROM users u
-   LEFT JOIN votes v ON u.user_id = v.voter_id AND v.election_id = ?
-   WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
-   GROUP BY u.position
-   ORDER BY u.position
-";
- $stmt = $pdo->prepare($sql_position);
- $stmt->execute([$electionId]);
- $positionData = $stmt->fetchAll();
+foreach ($winnersByPosition as $position => $winners) {
+    if (!in_array($position, $allPositions, true)) {
+        $allPositions[] = $position;
+    }
 
-// Calculate turnout percentage for each position
-foreach ($positionData as &$data) {
-    $data['turnout_percentage'] = ($data['eligible_count'] > 0) ? 
-        round(($data['voted_count'] / $data['eligible_count']) * 100, 1) : 0;
+    $isTie = count($winners) > 1;
+    $positionTieMap[$position] = $isTie;
+
+    foreach ($winners as $w) {
+        $key = $position . '|' . (int) $w['candidate_id'];
+        $winnerKeyMap[$key] = true;
+    }
 }
- $breakdownData['position'] = $positionData;
+sort($allPositions);
 
-// Breakdown by Status
- $sql_status = "
-   SELECT 
-       u.status,
-       COUNT(DISTINCT u.user_id) as eligible_count,
-       COUNT(DISTINCT v.voter_id) as voted_count
-   FROM users u
-   LEFT JOIN votes v ON u.user_id = v.voter_id AND v.election_id = ?
-   WHERE u.role = 'voter' AND u.is_coop_member = 1 AND u.migs_status = 1
-   GROUP BY u.status
-   ORDER BY u.status
-";
- $stmt = $pdo->prepare($sql_status);
- $stmt->execute([$electionId]);
- $statusData = $stmt->fetchAll();
+/* ==========================================================
+   TURNOUT BREAKDOWN (POSITION / STATUS)
+   ========================================================== */
 
-// Calculate turnout percentage for each status
-foreach ($statusData as &$data) {
-    $data['turnout_percentage'] = ($data['eligible_count'] > 0) ? 
-        round(($data['voted_count'] / $data['eligible_count']) * 100, 1) : 0;
+// Build buckets from eligible set
+$positionBuckets = [];
+$statusBuckets   = [];
+
+foreach ($eligibleCoopForElection as $v) {
+    $pos    = $v['position'] ?: 'UNSPECIFIED';
+    $status = $v['status']   ?: 'Unspecified';
+    $uid    = $v['user_id'];
+
+    // Position bucket
+    if (!isset($positionBuckets[$pos])) {
+        $positionBuckets[$pos] = [
+            'position'       => $pos,
+            'eligible_count' => 0,
+            'voted_count'    => 0,
+        ];
+    }
+    $positionBuckets[$pos]['eligible_count']++;
+    if (isset($votedSet[$uid])) {
+        $positionBuckets[$pos]['voted_count']++;
+    }
+
+    // Status bucket
+    if (!isset($statusBuckets[$status])) {
+        $statusBuckets[$status] = [
+            'status'         => $status,
+            'eligible_count' => 0,
+            'voted_count'    => 0,
+        ];
+    }
+    $statusBuckets[$status]['eligible_count']++;
+    if (isset($votedSet[$uid])) {
+        $statusBuckets[$status]['voted_count']++;
+    }
 }
- $breakdownData['status'] = $statusData;
 
-// Get list of statuses for the dropdown
- $statusesList = array_column($statusData, 'status');
+$positionData = [];
+foreach ($positionBuckets as $row) {
+    $pct = $row['eligible_count'] > 0
+        ? round(($row['voted_count'] / $row['eligible_count']) * 100, 1)
+        : 0.0;
+    $row['turnout_percentage'] = $pct;
+    $positionData[] = $row;
+}
 
- $pageTitle = 'COOP Election Analytics';
+$statusData = [];
+foreach ($statusBuckets as $row) {
+    $pct = $row['eligible_count'] > 0
+        ? round(($row['voted_count'] / $row['eligible_count']) * 100, 1)
+        : 0.0;
+    $row['turnout_percentage'] = $pct;
+    $statusData[] = $row;
+}
+
+$breakdownData = [
+    'position' => $positionData,
+    'status'   => $statusData,
+];
+
+$statusesList = array_column($statusData, 'status');
+
+/* ==========================================================
+   COOP-WIDE TURNOUT BY YEAR (ALL ELECTIONS FOR THIS SEAT)
+   ========================================================== */
+
+// Full scoped COOP voters for all years
+$scopedAllCoopMembers = getScopedVoters(
+    $pdo,
+    SCOPE_OTHERS_COOP,
+    $scopeId,
+    [
+        'year_end'      => null,
+        'include_flags' => true,
+    ]
+);
+
+// Turnout by year for this COOP seat
+$turnoutDataByYear = computeTurnoutByYear(
+    $pdo,
+    SCOPE_OTHERS_COOP,
+    $scopeId,
+    $scopedAllCoopMembers,
+    [
+        'year_from' => null,
+        'year_to'   => null,
+    ]
+);
+
+// Years present
+$allTurnoutYears = array_keys($turnoutDataByYear);
+sort($allTurnoutYears);
+
+$defaultYear = (int) date('Y');
+$minYear     = $allTurnoutYears ? min($allTurnoutYears) : $defaultYear;
+$maxYear     = $allTurnoutYears ? max($allTurnoutYears) : $defaultYear;
+
+// Year range (?from_year=YYYY&to_year=YYYY)
+$fromYear = isset($_GET['from_year']) && ctype_digit($_GET['from_year'])
+    ? (int) $_GET['from_year']
+    : $minYear;
+
+$toYear = isset($_GET['to_year']) && ctype_digit($_GET['to_year'])
+    ? (int) $_GET['to_year']
+    : $maxYear;
+
+// Clamp
+if ($fromYear < $minYear) $fromYear = $minYear;
+if ($toYear   > $maxYear) $toYear   = $maxYear;
+if ($toYear   < $fromYear) $toYear  = $fromYear;
+
+// Subset for [fromYear..toYear]
+$turnoutRangeData = [];
+for ($y = $fromYear; $y <= $toYear; $y++) {
+    if (isset($turnoutDataByYear[$y])) {
+        $turnoutRangeData[$y] = $turnoutDataByYear[$y];
+    } else {
+        $turnoutRangeData[$y] = [
+            'year'           => $y,
+            'total_voted'    => 0,
+            'total_eligible' => 0,
+            'turnout_rate'   => 0.0,
+            'election_count' => 0,
+            'growth_rate'    => 0.0,
+        ];
+    }
+}
+
+// Recompute growth_rate within selected range
+$prevY = null;
+foreach ($turnoutRangeData as $y => &$row) {
+    if ($prevY === null) {
+        $row['growth_rate'] = 0.0;
+    } else {
+        $prevRate = $turnoutRangeData[$prevY]['turnout_rate'] ?? 0.0;
+        $row['growth_rate'] = $prevRate > 0
+            ? round(($row['turnout_rate'] - $prevRate) / $prevRate * 100, 1)
+            : 0.0;
+    }
+    $prevY = $y;
+}
+unset($row);
+
+// Focus year for summary cards
+$ctxYear = isset($_GET['ctx_year']) && ctype_digit($_GET['ctx_year'])
+    ? (int) $_GET['ctx_year']
+    : (int) date('Y', strtotime($election['start_datetime']));
+
+$currentYearTurnout  = $turnoutDataByYear[$ctxYear]     ?? null;
+$previousYearTurnout = $turnoutDataByYear[$ctxYear - 1] ?? null;
+
+/* ==========================================================
+   PER-ELECTION TURNOUT STATS FOR FOCUS YEAR (ctxYear)
+   ========================================================== */
+
+$ctxYearElections = [];
+if ($scopeId !== null) {
+    $ctxYearElections = getScopedElections(
+        $pdo,
+        SCOPE_OTHERS_COOP,
+        $scopeId,
+        [
+            'from_year' => $ctxYear,
+            'to_year'   => $ctxYear,
+        ]
+    );
+}
+
+$ctxElectionStats = [];
+foreach ($ctxYearElections as $erow) {
+    $eid    = (int) $erow['election_id'];
+    $etitle = $erow['title'];
+    $eend   = $erow['end_datetime'] ?: ($ctxYear . '-12-31 23:59:59');
+
+    // 1) Eligible: all scoped COOP MIGS as of this election's end
+    $seatCoop = getScopedVoters(
+        $pdo,
+        SCOPE_OTHERS_COOP,
+        $scopeId,
+        [
+            'year_end'      => $eend,
+            'include_flags' => true,
+        ]
+    );
+
+    $eligibleForElection = [];
+    foreach ($seatCoop as $emp) {
+        $eligibleForElection[$emp['user_id']] = true;
+    }
+    $totalEligible = count($eligibleForElection);
+
+    // 2) Distinct voted for this election
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT v.voter_id
+        FROM votes v
+        JOIN users u ON u.user_id = v.voter_id
+        WHERE v.election_id = :eid
+          AND u.role = 'voter'
+    ");
+    $stmt->execute([':eid' => $eid]);
+    $votedIdsForElection = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    $votedSetForElection = array_flip($votedIdsForElection);
+
+    $totalVoted = 0;
+    foreach ($eligibleForElection as $uid => $_) {
+        if (isset($votedSetForElection[$uid])) {
+            $totalVoted++;
+        }
+    }
+
+    $turnoutRate = $totalEligible > 0
+        ? round(($totalVoted / $totalEligible) * 100, 1)
+        : 0.0;
+
+    $ctxElectionStats[] = [
+        'election_id'    => $eid,
+        'title'          => $etitle,
+        'year'           => (int) date('Y', strtotime($erow['start_datetime'])),
+        'total_eligible' => $totalEligible,
+        'total_voted'    => $totalVoted,
+        'turnout_rate'   => $turnoutRate,
+        'status'         => $erow['status'],
+    ];
+}
+
+$pageTitle = 'COOP Election Analytics';
 
 include 'sidebar.php';
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -217,18 +495,14 @@ include 'sidebar.php';
       background: linear-gradient(135deg, #FFD700, #FFA500);
       color: white;
     }
-    
-    /* Custom table styles */
     .data-table {
       width: 100%;
       border-collapse: collapse;
     }
-    
     .data-table th, .data-table td {
       padding: 0.75rem;
       text-align: left;
     }
-    
     .data-table th {
       background-color: #f3f4f6;
       font-weight: 600;
@@ -237,23 +511,15 @@ include 'sidebar.php';
       font-size: 0.75rem;
       letter-spacing: 0.05em;
     }
-    
     .data-table td {
       border-bottom: 1px solid #e5e7eb;
     }
-    
     .data-table tr:hover {
       background-color: #f9fafb;
     }
-    
     .data-table .text-center {
       text-align: center;
     }
-    
-    .data-table .text-right {
-      text-align: right;
-    }
-    
     .turnout-bar-container {
       width: 100%;
       height: 8px;
@@ -261,50 +527,30 @@ include 'sidebar.php';
       border-radius: 4px;
       overflow: hidden;
     }
-    
     .turnout-bar {
       height: 100%;
       border-radius: 4px;
     }
-    
-    .turnout-high {
-      background-color: #10b981;
-    }
-    
-    .turnout-medium {
-      background-color: #f59e0b;
-    }
-    
-    .turnout-low {
-      background-color: #ef4444;
-    }
-    
-    /* Custom scrollbar for table */
+    .turnout-high   { background-color: #10b981; }
+    .turnout-medium { background-color: #f59e0b; }
+    .turnout-low    { background-color: #ef4444; }
     .table-container::-webkit-scrollbar {
       height: 8px;
     }
-    
     .table-container::-webkit-scrollbar-track {
       background: #f1f1f1;
       border-radius: 4px;
     }
-    
     .table-container::-webkit-scrollbar-thumb {
       background: #888;
       border-radius: 4px;
     }
-    
     .table-container::-webkit-scrollbar-thumb:hover {
       background: #555;
     }
-    
-    /* Loading indicator */
     .loading-overlay {
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      top: 0; left: 0; right: 0; bottom: 0;
       background-color: rgba(0, 0, 0, 0.5);
       display: flex;
       justify-content: center;
@@ -314,12 +560,10 @@ include 'sidebar.php';
       visibility: hidden;
       transition: opacity 0.3s, visibility 0.3s;
     }
-    
     .loading-overlay.active {
       opacity: 1;
       visibility: visible;
     }
-    
     .loading-spinner {
       width: 50px;
       height: 50px;
@@ -328,13 +572,10 @@ include 'sidebar.php';
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
-    
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
-    
-    /* No data message styles */
     .no-data-message {
       display: flex;
       flex-direction: column;
@@ -344,47 +585,29 @@ include 'sidebar.php';
       text-align: center;
       color: #6b7280;
     }
-    
     .no-data-message i {
       font-size: 3rem;
       margin-bottom: 1rem;
       color: #d1d5db;
     }
-    
     .no-data-message h3 {
       font-size: 1.5rem;
       font-weight: 600;
       margin-bottom: 0.5rem;
       color: #4b5563;
     }
-    
     .no-data-message p {
       font-size: 1rem;
       font-weight: 500;
     }
-    
-    /* Custom dropdown styles */
-    .filter-dropdown {
-      transition: all 0.3s ease;
-    }
-    
-    .filter-dropdown:focus {
-      box-shadow: 0 0 0 3px rgba(30, 111, 70, 0.2);
-    }
-    
-    /* Chart container with no data message */
     .chart-wrapper {
       position: relative;
       height: 100%;
       width: 100%;
     }
-    
     .chart-no-data {
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      inset: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -402,7 +625,6 @@ include 'sidebar.php';
     <div class="max-w-7xl mx-auto">
       <!-- Election Information Header -->
       <div class="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl overflow-hidden mb-8 border border-gray-100">
-        <!-- Card Header -->
         <div class="bg-gradient-to-r from-[var(--cvsu-green-dark)] to-[var(--cvsu-green)] p-6 relative">
           <div class="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -mr-16 -mt-16"></div>
           <div class="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-5 rounded-full -ml-12 -mb-12"></div>
@@ -440,7 +662,6 @@ include 'sidebar.php';
           </div>
         </div>
         
-        <!-- Card Body -->
         <div class="p-6">
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
@@ -482,45 +703,101 @@ include 'sidebar.php';
         </div>
       </div>
       
-      <!-- Winners Section -->
+      <!-- Winners / Candidates Section -->
       <div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
         <div class="px-6 py-4 border-b border-gray-200">
-          <h2 class="text-xl font-semibold text-gray-800">
-            <i class="fas fa-trophy text-yellow-500 mr-2"></i>Election Winners
-          </h2>
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+            <h2 class="text-xl font-semibold text-gray-800">
+              <i class="fas fa-trophy text-yellow-500 mr-2"></i>Candidate Summary
+            </h2>
+
+            <?php if (!empty($allCandidates)): ?>
+              <div class="mt-3 md:mt-0 flex flex-col sm:flex-row sm:items-center gap-3">
+                <!-- Show winners / all -->
+                <div class="flex items-center">
+                  <label for="candidateDisplayMode" class="mr-2 text-sm font-medium text-gray-700">
+                    Show:
+                  </label>
+                  <select id="candidateDisplayMode"
+                          class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
+                    <option value="winners" selected>Winners only</option>
+                    <option value="all">All candidates</option>
+                  </select>
+                </div>
+
+                <!-- Filter by position -->
+                <div class="flex items-center">
+                  <label for="candidatePositionFilter" class="mr-2 text-sm font-medium text-gray-700">
+                    Position:
+                  </label>
+                  <select id="candidatePositionFilter"
+                          class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
+                    <option value="all">All positions</option>
+                    <?php foreach ($allPositions as $pos): ?>
+                      <option value="<?= htmlspecialchars($pos) ?>"><?= htmlspecialchars($pos) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              </div>
+            <?php endif; ?>
+          </div>
         </div>
-        
+
         <div class="p-6">
-          <?php if (empty($winnersByPosition)): ?>
-            <div class="text-center py-8">
-              <i class="fas fa-users text-gray-400 text-4xl mb-3"></i>
-              <p class="text-gray-600">No winners data available.</p>
+          <?php if (empty($allCandidates)): ?>
+            <div class="no-data-message">
+              <i class="fas fa-users"></i>
+              <p>No candidate data available</p>
             </div>
           <?php else: ?>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <?php foreach ($winnersByPosition as $position => $winners): ?>
-                <?php foreach ($winners as $winner): ?>
-                  <div class="analytics-card bg-gradient-to-br from-yellow-50 to-white rounded-xl border border-yellow-200 p-6 shadow-sm">
-                    <div class="flex items-center mb-4">
-                      <div class="winner-badge w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg mr-4">
-                        <i class="fas fa-trophy"></i>
-                      </div>
-                      <div>
-                        <h3 class="text-lg font-bold text-gray-800"><?= htmlspecialchars($winner['candidate_name']) ?></h3>
-                        <p class="text-sm text-gray-600"><?= htmlspecialchars($position) ?></p>
-                      </div>
+            <div id="candidateCardsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <?php foreach ($allCandidates as $cand): ?>
+                <?php
+                  $position      = $cand['position'];
+                  $candidateId   = (int) $cand['candidate_id'];
+                  $candidateName = $cand['candidate_name'];
+                  $voteCount     = (int) $cand['vote_count'];
+                  $winnerKey     = $position . '|' . $candidateId;
+                  $isWinner      = !empty($winnerKeyMap[$winnerKey]);
+                  $isTiePosition = !empty($positionTieMap[$position]);
+                ?>
+                <div class="candidate-summary-card analytics-card bg-gradient-to-br from-yellow-50 to-white rounded-xl border border-yellow-200 p-6 shadow-sm"
+                    data-winner="<?= $isWinner ? '1' : '0' ?>"
+                    data-position="<?= htmlspecialchars($position) ?>">
+                  <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg mr-4
+                                <?= $isWinner ? 'winner-badge' : 'bg-gray-200 text-gray-600' ?>">
+                      <i class="fas <?= $isWinner ? 'fa-trophy' : 'fa-user' ?>"></i>
                     </div>
-                    <div class="flex justify-between items-center">
-                      <div>
-                        <p class="text-2xl font-bold text-gray-800"><?= number_format($winner['vote_count']) ?></p>
-                        <p class="text-sm text-gray-500">votes</p>
-                      </div>
-                      <?php if (count($winners) > 1): ?>
-                        <span class="text-xs font-bold bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">TIE</span>
-                      <?php endif; ?>
+                    <div>
+                      <h3 class="text-lg font-bold text-gray-800">
+                        <?= htmlspecialchars($candidateName) ?>
+                      </h3>
+                      <p class="text-sm text-gray-600">
+                        <?= htmlspecialchars($position) ?>
+                      </p>
                     </div>
                   </div>
-                <?php endforeach; ?>
+
+                  <div class="flex justify-between items-center">
+                    <div>
+                      <p class="text-2xl font-bold text-gray-800"><?= number_format($voteCount) ?></p>
+                      <p class="text-sm text-gray-500">votes</p>
+                    </div>
+
+                    <?php if ($isWinner && $voteCount > 0): ?>
+                      <?php if ($isTiePosition): ?>
+                        <span class="text-xs font-bold bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+                          TIE
+                        </span>
+                      <?php else: ?>
+                        <span class="text-xs font-bold bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                          WINNER
+                        </span>
+                      <?php endif; ?>
+                    <?php endif; ?>
+                  </div>
+                </div>
               <?php endforeach; ?>
             </div>
           <?php endif; ?>
@@ -543,10 +820,8 @@ include 'sidebar.php';
               <p class="text-gray-600 text-lg">No voter turnout data available.</p>
             </div>
           <?php else: ?>
-            <!-- Filter Section -->
             <div class="mb-8">
               <div class="flex flex-wrap items-center justify-center gap-6">
-                <!-- Breakdown Dropdown -->
                 <div>
                   <label for="breakdownSelect" class="block text-sm font-medium text-gray-700 mb-1">Breakdown by:</label>
                   <select id="breakdownSelect" class="filter-dropdown block w-56 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
@@ -554,15 +829,10 @@ include 'sidebar.php';
                     <option value="status">Status</option>
                   </select>
                 </div>
-                
-                <!-- Filter Dropdown Container -->
-                <div id="filterContainer">
-                  <!-- This will be populated by JavaScript -->
-                </div>
+                <div id="filterContainer"></div>
               </div>
             </div>
             
-            <!-- Chart Section -->
             <div class="mb-12">
               <h3 class="text-xl font-semibold text-gray-800 mb-6 text-center">Turnout Visualization</h3>
               <div class="bg-gray-50 p-6 rounded-xl shadow-sm">
@@ -581,24 +851,171 @@ include 'sidebar.php';
               </div>
             </div>
             
-            <!-- Detailed Breakdown Section -->
             <div class="mt-12">
               <h3 class="text-xl font-semibold text-gray-800 mb-6 text-center">Detailed Breakdown</h3>
               <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
                 <div class="overflow-x-auto table-container">
-                  <div id="tableContainer" class="w-full">
-                    <!-- Table will be dynamically generated here -->
-                  </div>
+                  <div id="tableContainer" class="w-full"></div>
                 </div>
               </div>
             </div>
           <?php endif; ?>
         </div>
       </div>
+
+      <!-- COOP Turnout Comparison (Year Range) -->
+      <div class="bg-white rounded-xl shadow-md overflow-hidden mt-8">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 class="text-xl font-semibold text-gray-800">
+                <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
+                COOP Turnout Comparison (All Elections)
+              </h2>
+              <p class="text-sm text-gray-500 mt-1">
+                Compare <strong>COOP-wide turnout</strong> over time for all elections under this seat.
+              </p>
+            </div>
+            <div class="mt-3 md:mt-0 flex items-center space-x-3">
+              <label for="ctxYearSelector" class="text-sm font-medium text-gray-700">Focus year:</label>
+              <select id="ctxYearSelector"
+                      class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
+                <?php foreach (array_keys($turnoutDataByYear) as $y): ?>
+                  <option value="<?= $y ?>" <?= $y == $ctxYear ? 'selected' : '' ?>><?= $y ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-6">
+          <!-- Summary cards -->
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="p-4 rounded-lg border" style="background-color: rgba(99,102,241,0.05); border-color:#6366F1;">
+              <div class="flex items-center">
+                <div class="p-3 rounded-lg mr-4 bg-indigo-500">
+                  <i class="fas fa-percentage text-white text-xl"></i>
+                </div>
+                <div>
+                  <p class="text-sm text-indigo-600"><?= $ctxYear ?> Turnout</p>
+                  <p class="text-2xl font-bold text-indigo-800">
+                    <?= $currentYearTurnout['turnout_rate'] ?? 0 ?>%
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-lg border" style="background-color: rgba(139,92,246,0.05); border-color:#8B5CF6;">
+              <div class="flex items-center">
+                <div class="p-3 rounded-lg mr-4 bg-purple-500">
+                  <i class="fas fa-percentage text-white text-xl"></i>
+                </div>
+                <div>
+                  <p class="text-sm text-purple-600"><?= $ctxYear - 1 ?> Turnout</p>
+                  <p class="text-2xl font-bold text-purple-800">
+                    <?= $previousYearTurnout['turnout_rate'] ?? 0 ?>%
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-lg border" style="background-color: rgba(16,185,129,0.05); border-color:#10B981;">
+              <div class="flex items-center">
+                <div class="p-3 rounded-lg mr-4 bg-green-500">
+                  <i class="fas fa-chart-line text-white text-xl"></i>
+                </div>
+                <div>
+                  <p class="text-sm text-green-600">Growth Rate</p>
+                  <p class="text-2xl font-bold text-green-800">
+                    <?php
+                      $ct = $currentYearTurnout['turnout_rate']  ?? 0;
+                      $pt = $previousYearTurnout['turnout_rate'] ?? 0;
+                      echo $pt > 0
+                        ? ((($ct - $pt) / $pt > 0 ? '+' : '') . round((($ct - $pt) / $pt) * 100, 1) . '%')
+                        : '0%';
+                    ?>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-lg border" style="background-color: rgba(59,130,246,0.05); border-color:#3B82F6;">
+              <div class="flex items-center">
+                <div class="p-3 rounded-lg mr-4 bg-blue-500">
+                  <i class="fas fa-vote-yea text-white text-xl"></i>
+                </div>
+                <div>
+                  <p class="text-sm text-blue-600">Elections (<?= $ctxYear ?>)</p>
+                  <p class="text-2xl font-bold text-blue-800">
+                    <?= $currentYearTurnout['election_count'] ?? 0 ?>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Data series & breakdown select -->
+          <div class="mb-4">
+            <div class="flex flex-col md:flex-row md:items-center space-y-2 md:space-y-0 md:space-x-6">
+              <div class="flex items-center">
+                <label for="ctxDataSeriesSelect" class="mr-3 text-sm font-medium text-gray-700">Data Series:</label>
+                <select id="ctxDataSeriesSelect"
+                        class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm">
+                  <option value="elections">Elections vs Turnout</option>
+                  <option value="voters">Voters vs Turnout</option>
+                </select>
+              </div>
+
+              <div class="flex items-center">
+                <label for="ctxBreakdownSelect" class="mr-3 text-sm font-medium text-gray-700">Breakdown by:</label>
+                <select id="ctxBreakdownSelect"
+                        class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm">
+                  <option value="year">Year</option>
+                  <option value="election">Election (current year)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chart -->
+          <div class="chart-container" style="height: 400px;">
+            <canvas id="ctxElectionsVsTurnoutChart"></canvas>
+          </div>
+
+          <!-- Year range selector -->
+          <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 class="font-medium text-blue-800 mb-2">Turnout Analysis – Year Range</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="ctxFromYear" class="block text-sm font-medium text-blue-800">From year</label>
+                <select id="ctxFromYear" class="mt-1 p-2 border rounded w-full">
+                  <?php foreach ($allTurnoutYears as $y): ?>
+                    <option value="<?= $y ?>" <?= $y == $fromYear ? 'selected' : '' ?>><?= $y ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div>
+                <label for="ctxToYear" class="block text-sm font-medium text-blue-800">To year</label>
+                <select id="ctxToYear" class="mt-1 p-2 border rounded w-full">
+                  <?php foreach ($allTurnoutYears as $y): ?>
+                    <option value="<?= $y ?>" <?= $y == $toYear ? 'selected' : '' ?>><?= $y ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+            </div>
+            <p class="text-xs text-blue-700 mt-2">
+              Select a start and end year to compare COOP turnout. Years with no elections in this range will appear with zero values.
+            </p>
+          </div>
+
+          <!-- Table container -->
+          <div id="ctxTurnoutBreakdownTable" class="mt-6 overflow-x-auto"></div>
+        </div>
+      </div>
       
       <!-- Back Button -->
       <div class="mt-6">
-        <a href="admin_analytics_coop.php" 
+        <a href="admin_analytics.php" 
            class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
           <i class="fas fa-arrow-left mr-2"></i>
           Back to Election Analytics
@@ -617,76 +1034,51 @@ include 'sidebar.php';
 // Store all breakdown data
 const breakdownData = {
   'position': <?= json_encode($breakdownData['position']) ?>,
-  'status': <?= json_encode($breakdownData['status']) ?>
+  'status'  : <?= json_encode($breakdownData['status']) ?>
 };
 
-// Chart instance
 let turnoutChartInstance = null;
 
-// Current state
 let currentState = {
   breakdown: 'position',
-  filter: 'all'
+  filter:    'all'
 };
 
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('DOM loaded');
-  
-  // Initialize URL parameters
   const urlParams = new URLSearchParams(window.location.search);
   currentState.breakdown = urlParams.get('breakdown') || 'position';
-  currentState.filter = urlParams.get('filter') || 'all';
+  currentState.filter    = urlParams.get('filter')    || 'all';
   
-  // Set dropdown values
   document.getElementById('breakdownSelect').value = currentState.breakdown;
-  
-  // Initialize filter dropdown
   updateFilterDropdown();
   
-  // Check if Chart.js is loaded
   if (typeof Chart === 'undefined') {
-    console.error('Chart.js is not loaded!');
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
-    script.onload = function() {
-      console.log('Chart.js loaded dynamically');
-      updateView();
-    };
-    script.onerror = function() {
-      console.error('Failed to load Chart.js');
-      showChartNoDataMessage('Error loading chart library');
-    };
+    script.src   = 'https://cdn.jsdelivr.net/npm/chart.js';
+    script.onload  = () => updateView();
+    script.onerror = () => showChartNoDataMessage('Error loading chart library');
     document.head.appendChild(script);
   } else {
-    console.log('Chart.js is already loaded');
     updateView();
   }
   
-  // Add event listener to breakdown dropdown
   document.getElementById('breakdownSelect')?.addEventListener('change', function() {
     updateState({ breakdown: this.value, filter: 'all' });
   });
   
-  // Handle back/forward buttons
   window.addEventListener('popstate', function(event) {
     if (event.state) {
       currentState = event.state;
-      
-      // Update dropdowns
       document.getElementById('breakdownSelect').value = currentState.breakdown;
       updateFilterDropdown();
-      
-      // Update view without showing loading
       updateView(false);
     }
   });
 });
 
-// Update the filter dropdown based on the selected breakdown type
 function updateFilterDropdown() {
   const filterContainer = document.getElementById('filterContainer');
   const breakdown = currentState.breakdown;
-  
   let options = '';
   
   if (breakdown === 'position') {
@@ -715,310 +1107,189 @@ function updateFilterDropdown() {
   }
   
   filterContainer.innerHTML = options;
-  
-  // Add event listener to the new filter dropdown
   document.getElementById('filterSelect')?.addEventListener('change', function() {
     updateState({ filter: this.value });
   });
 }
 
 function updateState(newState) {
-  // Show loading
   showLoading();
-  
-  // Update current state
   currentState = { ...currentState, ...newState };
   
-  // Update URL without reloading the page
   const url = new URL(window.location);
   url.searchParams.set('breakdown', currentState.breakdown);
-  url.searchParams.set('filter', currentState.filter);
-  
-  // Push new state to history
+  url.searchParams.set('filter',    currentState.filter);
   window.history.pushState(currentState, '', url);
   
-  // Update filter dropdown if breakdown changed
   if (newState.breakdown) {
     updateFilterDropdown();
   }
   
-  // Update view
   updateView();
 }
 
 function updateView(showLoading = true) {
-  if (showLoading) {
-    // Small delay to show loading indicator
-    setTimeout(() => {
-      const data = getFilteredData();
-      updateChart(data, currentState.breakdown);
-      generateTable(data, currentState.breakdown);
-      hideLoading();
-    }, 300);
-  } else {
+  const work = () => {
     const data = getFilteredData();
     updateChart(data, currentState.breakdown);
     generateTable(data, currentState.breakdown);
-  }
+    hideLoading();
+  };
+  if (showLoading) setTimeout(work, 300); else work();
 }
 
 function getFilteredData() {
-  let data = breakdownData[currentState.breakdown];
-  
-  // If there's a filter selected, filter the data
+  let data = breakdownData[currentState.breakdown] || [];
   if (currentState.filter !== 'all') {
     if (currentState.breakdown === 'position') {
-      // For position, the filter is the position value (academic or non-academic)
       data = data.filter(item => item.position === currentState.filter);
     } else if (currentState.breakdown === 'status') {
-      // For status, the filter is the status value
       data = data.filter(item => item.status === currentState.filter);
     }
   }
-  
   return data;
 }
 
 function updateChart(data, breakdownType) {
   const canvas = document.getElementById('turnoutChart');
-  if (!canvas) {
-    console.error('Canvas element not found!');
-    return;
-  }
-  
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
   
-  // Check if data is empty
   if (!data || data.length === 0) {
     showChartNoDataMessage();
     return;
   }
   
-  // Make sure canvas is visible (in case it was hidden before)
   canvas.style.display = 'block';
   hideChartNoDataMessage();
   
-  // Prepare labels and data based on breakdown type
   let labels, eligibleData, votedData, chartTitle;
   
   if (breakdownType === 'position') {
-    // Map position values to proper display names
     labels = data.map(item => {
-      if (item.position === 'academic') {
-        return 'Faculty';
-      } else if (item.position === 'non-academic') {
-        return 'Non-Academic';
-      } else {
-        return item.position;
-      }
+      if (item.position === 'academic') return 'Faculty';
+      if (item.position === 'non-academic') return 'Non-Academic';
+      return item.position;
     });
     chartTitle = 'Voter Turnout by Position';
-  } else if (breakdownType === 'status') {
+  } else {
     labels = data.map(item => item.status);
     chartTitle = 'Voter Turnout by Status';
   }
   
   eligibleData = data.map(item => parseInt(item.eligible_count) || 0);
-  votedData = data.map(item => parseInt(item.voted_count) || 0);
+  votedData    = data.map(item => parseInt(item.voted_count)    || 0);
   
-  // Destroy existing chart if it exists
-  if (turnoutChartInstance) {
-    turnoutChartInstance.destroy();
-  }
+  if (turnoutChartInstance) turnoutChartInstance.destroy();
   
-  // Calculate dynamic settings based on data count
   const dataCount = labels.length;
-  
-  // Adjust bar thickness and spacing based on data count
   let barThickness, categorySpacing, fontSize, maxBarThickness;
-  
   if (dataCount <= 5) {
-    // Few data points - thicker bars, larger text
-    barThickness = 0.8;
-    categorySpacing = 0.2;
-    fontSize = 14;
-    maxBarThickness = 80;
+    barThickness = 0.8; categorySpacing = 0.2; fontSize = 14; maxBarThickness = 80;
   } else if (dataCount <= 10) {
-    // Medium data points - medium bars and text
-    barThickness = 0.6;
-    categorySpacing = 0.3;
-    fontSize = 12;
-    maxBarThickness = 60;
+    barThickness = 0.6; categorySpacing = 0.3; fontSize = 12; maxBarThickness = 60;
   } else if (dataCount <= 20) {
-    // Many data points - thinner bars, smaller text
-    barThickness = 0.4;
-    categorySpacing = 0.4;
-    fontSize = 10;
-    maxBarThickness = 40;
+    barThickness = 0.4; categorySpacing = 0.4; fontSize = 10; maxBarThickness = 40;
   } else {
-    // Very many data points - very thin bars, smallest text
-    barThickness = 0.3;
-    categorySpacing = 0.5;
-    fontSize = 9;
-    maxBarThickness = 30;
+    barThickness = 0.3; categorySpacing = 0.5; fontSize = 9;  maxBarThickness = 30;
   }
   
-  try {
-    turnoutChartInstance = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: 'Eligible Voters',
-            data: eligibleData,
-            backgroundColor: 'rgba(54, 162, 235, 0.7)',
-            borderColor: 'rgba(54, 162, 235, 1)',
-            borderWidth: 1,
-            borderRadius: 4,
-            barPercentage: barThickness,
-            categoryPercentage: 1 - categorySpacing,
-            maxBarThickness: maxBarThickness
-          },
-          {
-            label: 'Voted',
-            data: votedData,
-            backgroundColor: 'rgba(75, 192, 192, 0.7)',
-            borderColor: 'rgba(75, 192, 192, 1)',
-            borderWidth: 1,
-            borderRadius: 4,
-            barPercentage: barThickness,
-            categoryPercentage: 1 - categorySpacing,
-            maxBarThickness: maxBarThickness
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'top',
-            labels: {
-              font: {
-                size: 14
-              },
-              padding: 20
-            }
-          },
-          title: {
-            display: true,
-            text: chartTitle,
-            font: {
-              size: 18,
-              weight: 'bold'
-            },
-            padding: {
-              top: 10,
-              bottom: 30
-            }
-          },
-          tooltip: {
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            titleFont: {
-              size: 14
-            },
-            bodyFont: {
-              size: 13
-            },
-            padding: 12,
-            cornerRadius: 4,
-            callbacks: {
-              label: function(context) {
-                let label = context.dataset.label || '';
-                if (label) {
-                  label += ': ';
-                }
-                if (context.parsed.y !== null) {
-                  label += new Intl.NumberFormat('en-US', { 
-                    style: 'decimal', 
-                    maximumFractionDigits: 0 
-                  }).format(context.parsed.y);
-                }
-                return label;
-              }
-            }
-          }
+  turnoutChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Eligible Voters',
+          data: eligibleData,
+          backgroundColor: 'rgba(54, 162, 235, 0.7)',
+          borderColor:     'rgba(54, 162, 235, 1)',
+          borderWidth: 1,
+          borderRadius: 4,
+          barPercentage: barThickness,
+          categoryPercentage: 1 - categorySpacing,
+          maxBarThickness
         },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              precision: 0,
-              font: {
-                size: 12
-              }
-            },
-            grid: {
-              color: 'rgba(0, 0, 0, 0.1)'
-            },
-            title: {
-              display: true,
-              text: 'Number of Voters',
-              font: {
-                size: 14,
-                weight: 'bold'
-              }
-            }
-          },
-          x: {
-            ticks: {
-              font: {
-                size: fontSize
-              },
-              maxRotation: 0, // Keep labels horizontal
-              minRotation: 0,
-              autoSkip: true,
-              maxTicksLimit: 20 // Limit number of ticks shown
-            },
-            grid: {
-              display: false
-            },
-            title: {
-              display: true,
-              text: breakdownType === 'position' ? 'Position' : 'Status',
-              font: {
-                size: 14,
-                weight: 'bold'
-              }
-            }
-          }
+        {
+          label: 'Voted',
+          data: votedData,
+          backgroundColor: 'rgba(75, 192, 192, 0.7)',
+          borderColor:     'rgba(75, 192, 192, 1)',
+          borderWidth: 1,
+          borderRadius: 4,
+          barPercentage: barThickness,
+          categoryPercentage: 1 - categorySpacing,
+          maxBarThickness
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { font: { size: 14 }, padding: 20 }
         },
-        animation: {
-          duration: 1000,
-          easing: 'easeOutQuart'
+        title: {
+          display: true,
+          text: chartTitle,
+          font: { size: 18, weight: 'bold' },
+          padding: { top: 10, bottom: 30 }
         },
-        layout: {
-          padding: {
-            left: 10,
-            right: 10,
-            top: 10,
-            bottom: 10
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          titleFont: { size: 14 },
+          bodyFont:  { size: 13 },
+          padding: 12,
+          cornerRadius: 4,
+          callbacks: {
+            label: (context) => {
+              let label = context.dataset.label || '';
+              if (label) label += ': ';
+              if (context.parsed.y !== null) {
+                label += new Intl.NumberFormat('en-US', {
+                  style: 'decimal', maximumFractionDigits: 0
+                }).format(context.parsed.y);
+              }
+              return label;
+            }
           }
         }
-      }
-    });
-    
-    console.log('Chart updated successfully!');
-  } catch (error) {
-    console.error('Error updating chart:', error);
-    showChartNoDataMessage('Error loading chart data');
-  }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { precision: 0, font: { size: 12 } },
+          grid: { color: 'rgba(0, 0, 0, 0.1)' },
+          title: { display: true, text: 'Number of Voters',
+                   font: { size: 14, weight: 'bold' } }
+        },
+        x: {
+          ticks: {
+            font: { size: fontSize },
+            maxRotation: 0, minRotation: 0,
+            autoSkip: true, maxTicksLimit: 20
+          },
+          grid: { display: false },
+          title: { display: true,
+                   text: breakdownType === 'position' ? 'Position' : 'Status',
+                   font: { size: 14, weight: 'bold' } }
+        }
+      },
+      animation: { duration: 1000, easing: 'easeOutQuart' },
+      layout: { padding: { left: 10, right: 10, top: 10, bottom: 10 } }
+    }
+  });
 }
 
 function generateTable(data, breakdownType) {
   const tableContainer = document.getElementById('tableContainer');
-  
-  // Clear existing content
   tableContainer.innerHTML = '';
   
-  // Check if data is empty
   if (!data || data.length === 0) {
-    // Create no data message for table
     const noDataDiv = document.createElement('div');
     noDataDiv.className = 'no-data-message';
-    
-    // Set appropriate message based on breakdown type
     let message;
     if (breakdownType === 'position') {
       message = 'No position data available for the selected filter';
@@ -1027,32 +1298,21 @@ function generateTable(data, breakdownType) {
     } else {
       message = 'No data available for the selected filter';
     }
-    
     noDataDiv.innerHTML = `
       <i class="fas fa-table"></i>
       <h3>No Data Available</h3>
       <p>${message}</p>
     `;
-    
     tableContainer.appendChild(noDataDiv);
     return;
   }
   
-  // Create table element
   const table = document.createElement('table');
   table.className = 'data-table';
   
-  // Create table header
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
-  
-  // Determine header label based on breakdown type
-  let headerLabel;
-  if (breakdownType === 'position') {
-    headerLabel = 'Position';
-  } else if (breakdownType === 'status') {
-    headerLabel = 'Status';
-  }
+  let headerLabel = breakdownType === 'position' ? 'Position' : 'Status';
   
   headerRow.innerHTML = `
     <th style="width: 40%">${headerLabel}</th>
@@ -1060,54 +1320,37 @@ function generateTable(data, breakdownType) {
     <th style="width: 20%" class="text-center">Voted</th>
     <th style="width: 20%" class="text-center">Turnout %</th>
   `;
-  
   thead.appendChild(headerRow);
   table.appendChild(thead);
   
-  // Create table body
   const tbody = document.createElement('tbody');
-  
   data.forEach(item => {
     const row = document.createElement('tr');
-    
-    // Determine cell value based on breakdown type
     let cellValue;
     if (breakdownType === 'position') {
-      // Map position values to proper display names
-      if (item.position === 'academic') {
-        cellValue = 'Faculty';
-      } else if (item.position === 'non-academic') {
-        cellValue = 'Non-Academic';
-      } else {
-        cellValue = item.position;
-      }
-    } else if (breakdownType === 'status') {
+      if (item.position === 'academic') cellValue = 'Faculty';
+      else if (item.position === 'non-academic') cellValue = 'Non-Academic';
+      else cellValue = item.position;
+    } else {
       cellValue = item.status;
     }
-    
     row.innerHTML = `
       <td style="width: 40%">${cellValue}</td>
       <td style="width: 20%" class="text-center">${numberFormat(item.eligible_count)}</td>
       <td style="width: 20%" class="text-center">${numberFormat(item.voted_count)}</td>
       <td style="width: 20%" class="text-center">${createTurnoutBar(item.turnout_percentage)}</td>
     `;
-    
     tbody.appendChild(row);
   });
-  
   table.appendChild(tbody);
   tableContainer.appendChild(table);
 }
 
 function createTurnoutBar(percentage) {
-  // Determine color based on percentage
-  let barColor = 'turnout-low'; // Low turnout
-  if (percentage >= 70) {
-    barColor = 'turnout-high'; // High turnout
-  } else if (percentage >= 40) {
-    barColor = 'turnout-medium'; // Medium turnout
-  }
-  
+  let barColor = 'turnout-low';
+  if (percentage >= 70)      barColor = 'turnout-high';
+  else if (percentage >= 40) barColor = 'turnout-medium';
+
   return `
     <div class="flex flex-col items-center">
       <div class="turnout-bar-container w-32">
@@ -1123,19 +1366,17 @@ function numberFormat(num) {
 }
 
 function showLoading() {
-  document.getElementById('loadingOverlay').classList.add('active');
+  document.getElementById('loadingOverlay')?.classList.add('active');
 }
 
 function hideLoading() {
-  document.getElementById('loadingOverlay').classList.remove('active');
+  document.getElementById('loadingOverlay')?.classList.remove('active');
 }
 
 function showChartNoDataMessage(message = 'No data available for the selected filter') {
   const canvas = document.getElementById('turnoutChart');
   const noDataDiv = document.getElementById('chartNoData');
   const messageElement = document.getElementById('chartNoDataMessage');
-  
-  // Hide canvas and show no data message
   if (canvas) canvas.style.display = 'none';
   if (noDataDiv) {
     noDataDiv.style.display = 'flex';
@@ -1146,11 +1387,362 @@ function showChartNoDataMessage(message = 'No data available for the selected fi
 function hideChartNoDataMessage() {
   const canvas = document.getElementById('turnoutChart');
   const noDataDiv = document.getElementById('chartNoData');
-  
-  // Show canvas and hide no data message
   if (canvas) canvas.style.display = 'block';
   if (noDataDiv) noDataDiv.style.display = 'none';
 }
 </script>
+
+<script>
+// === COOP Elections vs Turnout (Year Range) ===
+
+// PHP → JS data
+const ctxTurnoutYears   = <?= json_encode(array_keys($turnoutRangeData)) ?>;
+const ctxElectionCounts = <?= json_encode(array_column($turnoutRangeData, 'election_count')) ?>;
+const ctxTotalEligible  = <?= json_encode(array_column($turnoutRangeData, 'total_eligible')) ?>;
+const ctxTotalVoted     = <?= json_encode(array_column($turnoutRangeData, 'total_voted')) ?>;
+const ctxTurnoutRates   = <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?>;
+
+// Per-election stats (focus year)
+const ctxElectionStats = <?= json_encode($ctxElectionStats) ?>;
+
+const ctxChartData = {
+  elections: {
+    year: {
+      labels: ctxTurnoutYears,
+      electionCounts: ctxElectionCounts,
+      turnoutRates:   ctxTurnoutRates
+    },
+    election: {
+      labels:        ctxElectionStats.map(e => e.title),
+      electionCounts: ctxElectionStats.map(e => 1),
+      turnoutRates:   ctxElectionStats.map(e => e.turnout_rate)
+    }
+  },
+  voters: {
+    year: {
+      labels:         ctxTurnoutYears,
+      eligibleCounts: ctxTotalEligible,
+      turnoutRates:   ctxTurnoutRates
+    },
+    election: {
+      labels:         ctxElectionStats.map(e => e.title),
+      eligibleCounts: ctxElectionStats.map(e => e.total_eligible),
+      turnoutRates:   ctxElectionStats.map(e => e.turnout_rate)
+    }
+  }
+};
+
+let ctxCurrentSeries    = 'elections';
+let ctxCurrentBreakdown = 'year';
+let ctxChartInstance    = null;
+
+document.addEventListener('DOMContentLoaded', function () {
+  const seriesSelect    = document.getElementById('ctxDataSeriesSelect');
+  const breakdownSelect = document.getElementById('ctxBreakdownSelect');
+  const fromYearSelect  = document.getElementById('ctxFromYear');
+  const toYearSelect    = document.getElementById('ctxToYear');
+  const ctxYearSelector = document.getElementById('ctxYearSelector');
+
+  ctxYearSelector?.addEventListener('change', function () {
+    const url = new URL(window.location.href);
+    url.searchParams.set('ctx_year', this.value);
+    window.location.href = url.toString();
+  });
+
+  function updateYearRangeParams() {
+    const url  = new URL(window.location.href);
+    const from = fromYearSelect.value;
+    const to   = toYearSelect.value;
+
+    if (from) url.searchParams.set('from_year', from); else url.searchParams.delete('from_year');
+    if (to)   url.searchParams.set('to_year',   to);   else url.searchParams.delete('to_year');
+
+    window.location.href = url.toString();
+  }
+  fromYearSelect?.addEventListener('change', updateYearRangeParams);
+  toYearSelect?.addEventListener('change',   updateYearRangeParams);
+
+  seriesSelect?.addEventListener('change', function () {
+    ctxCurrentSeries = this.value;
+    renderCtxChartAndTable();
+  });
+
+  breakdownSelect?.addEventListener('change', function () {
+    ctxCurrentBreakdown = this.value;
+    renderCtxChartAndTable();
+  });
+
+  renderCtxChartAndTable();
+});
+
+function renderCtxChartAndTable() {
+  const canvas = document.getElementById('ctxElectionsVsTurnoutChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  if (ctxChartInstance) ctxChartInstance.destroy();
+
+  let labels   = [];
+  let leftData = [];
+  let rightData= [];
+  let titleText;
+
+  if (ctxCurrentSeries === 'elections') {
+    if (ctxCurrentBreakdown === 'year') {
+      labels   = ctxChartData.elections.year.labels;
+      leftData = ctxChartData.elections.year.electionCounts;
+      rightData= ctxChartData.elections.year.turnoutRates;
+      titleText= 'Elections vs Turnout Rate (By Year)';
+    } else {
+      labels   = ctxChartData.elections.election.labels;
+      leftData = ctxChartData.elections.election.electionCounts;
+      rightData= ctxChartData.elections.election.turnoutRates;
+      titleText= 'Elections vs Turnout Rate (By Election)';
+    }
+  } else {
+    if (ctxCurrentBreakdown === 'year') {
+      labels   = ctxChartData.voters.year.labels;
+      leftData = ctxChartData.voters.year.eligibleCounts;
+      rightData= ctxChartData.voters.year.turnoutRates;
+      titleText= 'Voters vs Turnout Rate (By Year)';
+    } else {
+      labels   = ctxChartData.voters.election.labels;
+      leftData = ctxChartData.voters.election.eligibleCounts;
+      rightData= ctxChartData.voters.election.turnoutRates;
+      titleText= 'Voters vs Turnout Rate (By Election)';
+    }
+  }
+
+  ctxChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: ctxCurrentSeries === 'elections'
+            ? (ctxCurrentBreakdown === 'year' ? 'Number of Elections' : 'Elections')
+            : (ctxCurrentBreakdown === 'year' ? 'Eligible Voters' : 'Eligible Voters (per election)'),
+          data: leftData,
+          backgroundColor: '#1E6F46',
+          borderColor: '#154734',
+          borderWidth: 1,
+          borderRadius: 4,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Turnout Rate (%)',
+          data: rightData,
+          backgroundColor: '#FFD166',
+          borderColor: '#F59E0B',
+          borderWidth: 1,
+          borderRadius: 4,
+          yAxisID: 'y1'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { font: { size: 12 }, padding: 15 }
+        },
+        title: {
+          display: true,
+          text: titleText,
+          font: { size: 16, weight: 'bold' },
+          padding: { top: 10, bottom: 20 }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          titleFont: { size: 14 },
+          bodyFont:  { size: 13 },
+          padding: 12,
+          callbacks: {
+            label: (context) => {
+              const dsLabel = context.dataset.label || '';
+              if (dsLabel.includes('Turnout')) {
+                return `${dsLabel}: ${context.raw}%`;
+              }
+              return `${dsLabel}: ${context.raw.toLocaleString()}`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          position: 'left',
+          title: {
+            display: true,
+            text: ctxCurrentSeries === 'elections'
+              ? (ctxCurrentBreakdown === 'year' ? 'Number of Elections' : 'Elections')
+              : 'Number of Voters',
+            font: { size: 14, weight: 'bold' }
+          }
+        },
+        y1: {
+          beginAtZero: true,
+          max: 100,
+          position: 'right',
+          title: {
+            display: true,
+            text: 'Turnout Rate (%)',
+            font: { size: 14, weight: 'bold' }
+          },
+          ticks: { callback: v => v + '%' },
+          grid: { drawOnChartArea: false }
+        },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  renderCtxYearTable();
+}
+
+function renderCtxYearTable() {
+  const container = document.getElementById('ctxTurnoutBreakdownTable');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  if (ctxCurrentBreakdown === 'election') {
+    if (!ctxElectionStats || ctxElectionStats.length === 0) {
+      container.innerHTML = `
+        <div class="table-no-data">
+          <i class="fas fa-table text-gray-400 text-4xl mb-3"></i>
+          <p class="text-gray-600 text-lg">No elections found for this year.</p>
+        </div>`;
+      return;
+    }
+
+    const table = document.createElement('table');
+    table.className = 'data-table';
+
+    const thead = document.createElement('thead');
+    thead.innerHTML = `
+      <tr>
+        <th>Election</th>
+        <th class="text-center">Eligible Voters (seat-wide)</th>
+        <th class="text-center">Voters Participated</th>
+        <th class="text-center">Turnout Rate</th>
+        <th class="text-center">Status</th>
+      </tr>`;
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    ctxElectionStats.forEach(row => {
+      const rate = row.turnout_rate ?? 0;
+      const cls  = rate >= 70 ? 'text-green-600'
+                 : rate >= 40 ? 'text-yellow-600'
+                              : 'text-red-600';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="px-6 py-4 whitespace-nowrap font-medium">${row.title}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-center">${(row.total_eligible ?? 0).toLocaleString()}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-center">${(row.total_voted ?? 0).toLocaleString()}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-center"><span class="${cls}">${rate}%</span></td>
+        <td class="px-6 py-4 whitespace-nowrap text-center">${row.status || ''}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    container.appendChild(table);
+    return;
+  }
+
+  const labels    = ctxTurnoutYears;
+  const counts    = ctxElectionCounts;
+  const eligibles = ctxTotalEligible;
+  const voted     = ctxTotalVoted;
+  const rates     = ctxTurnoutRates;
+
+  if (!labels || labels.length === 0) {
+    container.innerHTML = `
+      <div class="table-no-data">
+        <i class="fas fa-table text-gray-400 text-4xl mb-3"></i>
+        <p class="text-gray-600 text-lg">No COOP turnout data available.</p>
+      </div>`;
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'data-table';
+
+  const thead = document.createElement('thead');
+  thead.innerHTML = `
+    <tr>
+      <th>Year</th>
+      <th class="text-center">Elections</th>
+      <th class="text-center">Eligible Voters</th>
+      <th class="text-center">Voters Participated</th>
+      <th class="text-center">Turnout Rate</th>
+    </tr>`;
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  labels.forEach((year, idx) => {
+    const rate = rates[idx] ?? 0;
+    const cls  = rate >= 70 ? 'text-green-600'
+               : rate >= 40 ? 'text-yellow-600'
+                            : 'text-red-600';
+    const tr   = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="px-6 py-4 whitespace-nowrap font-medium">${year}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-center">${(counts[idx] ?? 0).toLocaleString()}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-center">${(eligibles[idx] ?? 0).toLocaleString()}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-center">${(voted[idx] ?? 0).toLocaleString()}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-center"><span class="${cls}">${rate}%</span></td>`;
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  container.appendChild(table);
+}
+</script>
+
+<script>
+// === Candidate Winners / All Toggle + Position Filter (COOP) ===
+document.addEventListener('DOMContentLoaded', function () {
+  const modeSelect     = document.getElementById('candidateDisplayMode');
+  const positionSelect = document.getElementById('candidatePositionFilter');
+  const cards          = document.querySelectorAll('.candidate-summary-card');
+
+  if (!modeSelect || !positionSelect || cards.length === 0) return;
+
+  function applyCandidateFilters() {
+    const mode     = modeSelect.value;      // 'winners' | 'all'
+    const position = positionSelect.value;  // 'all' | specific position
+
+    cards.forEach(card => {
+      const isWinner = card.getAttribute('data-winner') === '1';
+      const cardPos  = card.getAttribute('data-position') || '';
+
+      // Mode filter
+      if (mode === 'winners' && !isWinner) {
+        card.style.display = 'none';
+        return;
+      }
+
+      // Position filter
+      if (position !== 'all' && cardPos !== position) {
+        card.style.display = 'none';
+        return;
+      }
+
+      card.style.display = 'block';
+    });
+  }
+
+  modeSelect.addEventListener('change',     applyCandidateFilters);
+  positionSelect.addEventListener('change', applyCandidateFilters);
+
+  // Initial state
+  applyCandidateFilters();
+});
+</script>
+
 </body>
 </html>

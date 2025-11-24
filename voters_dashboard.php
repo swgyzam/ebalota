@@ -8,14 +8,14 @@ session_start();
 date_default_timezone_set('Asia/Manila');
 
 // === DB CONNECTION ===
- $host    = 'localhost';
- $db      = 'evoting_system';
- $user    = 'root';
- $pass    = '';
- $charset = 'utf8mb4';
+$host    = 'localhost';
+$db      = 'evoting_system';
+$user    = 'root';
+$pass    = '';
+$charset = 'utf8mb4';
 
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
@@ -27,6 +27,10 @@ try {
     die("Database connection failed: " . $e->getMessage());
 }
 
+// Shared helpers for normalization & scopes
+require_once __DIR__ . '/includes/election_scope_helpers.php'; // normalize_course_code
+require_once __DIR__ . '/includes/analytics_scopes.php';       // getScopedVoters, scope constants
+
 // ===== AUTH CHECK =====
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'voter') {
     header('Location: login.html');
@@ -34,7 +38,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'voter') {
 }
 
 // ===== MAPPINGS (COLLEGES & COURSES) =====
- $department_map = [
+$department_map = [
     // Colleges
     'cafenr' => 'CAFENR',
     'college of agriculture, food and natural resources' => 'CAFENR',
@@ -88,8 +92,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'voter') {
     'nae it'     => 'NAEIT',
 ];
 
-// Faculty department full-name → code (used when comparing to allowed_departments for faculty elections)
- $faculty_department_map = [
+// Faculty department full-name → code
+$faculty_department_map = [
     // CAFENR
     'department of animal science'                          => 'DAS',
     'department of crop science'                            => 'DCS',
@@ -143,8 +147,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'voter') {
     'department of various graduate programs'              => 'DVGP',
 ];
 
-// Non-academic department full-name → code (for ADMIN, LIBRARY, HR, etc.)
- $nonacad_department_map = [
+// Non-academic department full-name → code
+$nonacad_department_map = [
     'administration'                 => 'ADMIN',
     'admin'                          => 'ADMIN',
     'administrative'                 => 'ADMIN',
@@ -187,7 +191,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'voter') {
     'nae it'                             => 'NAEIT',
 ];
 
- $course_map = [
+// Course map for election visibility (kept for filtering which elections appear)
+$course_map = [
   // === CEIT ===
   'bs computer science'               => 'BSCS',
   'bs cs'                             => 'BSCS',
@@ -389,9 +394,9 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'voter') {
 ];
 
 // ===== LOAD CURRENT VOTER =====
- $user_id = (int)$_SESSION['user_id'];
+$user_id = (int)$_SESSION['user_id'];
 
- $userSql = "
+$userSql = "
    SELECT 
        position,
        department,
@@ -407,62 +412,57 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'voter') {
    WHERE user_id = :uid
    LIMIT 1
 ";
- $stmtUser = $pdo->prepare($userSql);
- $stmtUser->execute([':uid' => $user_id]);
- $user = $stmtUser->fetch();
+$stmtUser = $pdo->prepare($userSql);
+$stmtUser->execute([':uid' => $user_id]);
+$user = $stmtUser->fetch();
 
 if (!$user) {
     die('User not found.');
 }
 
- $voter_position      = $user['position'] ?? '';
- $voter_department    = $user['department'] ?? '';
- $voter_course        = $user['course'] ?? '';
- $voter_status        = $user['status'] ?? '';
- $voter_migs_status   = (int)($user['migs_status'] ?? 0);
- $force_password_flag = (int)($user['force_password_change'] ?? 0);
- $is_coop_member      = $voter_migs_status === 1; // MIGS = COOP member (COOP+MIGS rule)
- $voter_owner_scope_id= (int)($user['owner_scope_id'] ?? 0);
- $voter_is_other_mem  = (int)($user['is_other_member'] ?? 0);
- $voter_department1  = $user['department1'] ?? '';
+$voter_position      = $user['position'] ?? '';
+$voter_department    = $user['department'] ?? '';
+$voter_course        = $user['course'] ?? '';
+$voter_status        = $user['status'] ?? '';
+$voter_migs_status    = (int)($user['migs_status'] ?? 0);
+$force_password_flag  = (int)($user['force_password_change'] ?? 0);
+$raw_is_coop_member   = (int)($user['is_coop_member'] ?? 0);
+$is_coop_member       = ($raw_is_coop_member === 1 && $voter_migs_status === 1);
+$voter_owner_scope_id = (int)($user['owner_scope_id'] ?? 0);
+$voter_is_other_mem   = (int)($user['is_other_member'] ?? 0);
+$voter_department1   = $user['department1'] ?? '';
 
 // Normalize college / department & course
- $voter_department_lower = strtolower(trim($voter_department));
+$voter_department_lower = strtolower(trim($voter_department));
 if (isset($department_map[$voter_department_lower])) {
     $voter_college_normalized = $department_map[$voter_department_lower];
 } elseif (isset($department_map[strtoupper($voter_department_lower)])) {
     $voter_college_normalized = $department_map[strtoupper($voter_department_lower)];
 } else {
-    // fallback: use department as-is (works for HR/DIT/etc)
     $voter_college_normalized = strtoupper($voter_department_lower);
 }
 
-// Normalize course (supports both full names and codes → canonical code like BSIT, BSCS)
- $voter_course_raw   = $voter_course ?? '';
- $voter_course_lower = strtolower(trim($voter_course_raw));
+// Normalize course using course_map for visibility logic
+$voter_course_raw   = $voter_course ?? '';
+$voter_course_lower = strtolower(trim($voter_course_raw));
 
-// Try direct match (full name or code)
 if (isset($course_map[$voter_course_lower])) {
     $voter_course_normalized = $course_map[$voter_course_lower];
 } else {
-    // Normalize spaces (collapse multiple spaces)
     $key_spaces = preg_replace('/\s+/', ' ', $voter_course_lower);
-
     if (isset($course_map[$key_spaces])) {
         $voter_course_normalized = $course_map[$key_spaces];
     } else {
-        // Remove non-letters (e.g., dots, commas) for very rough matches
         $key_letters = preg_replace('/[^a-z]/', '', $voter_course_lower);
         if (isset($course_map[$key_letters])) {
             $voter_course_normalized = $course_map[$key_letters];
         } else {
-            // Fallback: just uppercase what we have (will only match if elections also use that format)
             $voter_course_normalized = strtoupper($voter_course_lower);
         }
     }
 }
 
- $voter_status_normalized = strtoupper(trim($voter_status));
+$voter_status_normalized = strtoupper(trim($voter_status));
 
 // ===== DEBUG: Log voter info =====
 error_log("Voter Info:");
@@ -478,9 +478,9 @@ error_log("Owner Scope ID: " . $voter_owner_scope_id);
 error_log("Is Other Member: " . ($voter_is_other_mem ? 'Yes' : 'No'));
 
 // ===== LOAD ALL ELECTIONS (we will filter in PHP) =====
- $sql = "SELECT * FROM elections ORDER BY election_id DESC";
- $stmt = $pdo->query($sql);
- $all_elections = $stmt->fetchAll();
+$sql = "SELECT * FROM elections ORDER BY election_id DESC";
+$stmt = $pdo->query($sql);
+$all_elections = $stmt->fetchAll();
 
 // Mapper: users.position → elections.target_position
 function mapUserPositionToElection($position) {
@@ -498,7 +498,7 @@ function mapUserPositionToElection($position) {
     }
 }
 
- $voter = [
+$voter = [
     'position'        => $voter_position,
     'department'      => $voter_department,
     'status'          => $voter_status,
@@ -507,10 +507,10 @@ function mapUserPositionToElection($position) {
     'is_other_member' => $voter_is_other_mem,
 ];
 
- $filtered_elections = [];
- $now = date('Y-m-d H:i:s'); // current date/time
+$filtered_elections = [];
+$now = date('Y-m-d H:i:s'); // current date/time
 
- $mappedPosition = mapUserPositionToElection($voter['position']);
+$mappedPosition = mapUserPositionToElection($voter['position']);
 
 // ===== MAIN ELECTION FILTERING LOOP =====
 foreach ($all_elections as $election) {
@@ -527,8 +527,6 @@ foreach ($all_elections as $election) {
     $isNonAcadElection   = ($electionTargetPos === 'non-academic');
 
     // ---- SCOPE-BASED VISIBILITY FOR ORG ADMINS ----
-    // Non-Academic-Student & Others-Default are org-based elections.
-    // Only voters whose owner_scope_id matches the election's owner_scope_id should see them.
     if (in_array($electionScopeType, ['Non-Academic-Student', 'Others-Default'], true)) {
         if ($electionOwnerScope > 0 && $voter['owner_scope_id'] !== $electionOwnerScope) {
             continue;
@@ -545,7 +543,7 @@ foreach ($all_elections as $election) {
 
     // ---- Position-level filtering ----
     if ($isOthersElection) {
-        // "others" = employee elections, open to academic + non-academic staff only
+        // "others" = employees: academic + non-academic
         if (!in_array($mappedPosition, ['faculty', 'non-academic'], true)) {
             continue;
         }
@@ -572,23 +570,21 @@ foreach ($all_elections as $election) {
     error_log("Election Scope Type: " . $electionScopeType);
     error_log("Owner Scope ID: " . $electionOwnerScope);
 
-    // ---- Non-academic & "others" (employee) elections: use departments + status ----
+    // ---- Non-academic & "others" elections: departments + status ----
     if ($isNonAcadElection || $isOthersElection) {
         $deptMatch   = false;
         $statusMatch = false;
 
-        // Department check (non-academic & others)
         if (empty($allowed_departments) || in_array('ALL', $allowed_departments, true)) {
             $deptMatch = true;
         } else {
             $rawDept   = $voter['department'] ?: $voter_college_normalized;
             $deptKey   = strtolower(trim($rawDept));
 
-            // Normalize to canonical department code (ADMIN, LIBRARY, HR, etc.)
             if (isset($nonacad_department_map[$deptKey])) {
-                $voterDeptUpper = $nonacad_department_map[$deptKey];   // canonical code
+                $voterDeptUpper = $nonacad_department_map[$deptKey];
             } else {
-                $voterDeptUpper = strtoupper($rawDept); // fallback: treat as already a code
+                $voterDeptUpper = strtoupper($rawDept);
             }
 
             if (in_array($voterDeptUpper, $allowed_departments, true)) {
@@ -600,7 +596,6 @@ foreach ($all_elections as $election) {
             continue;
         }
 
-        // Status check
         if (empty($allowed_status) || in_array('ALL', $allowed_status, true)) {
             $statusMatch = true;
         } else {
@@ -622,7 +617,6 @@ foreach ($all_elections as $election) {
         || in_array('ALL', $allowed_colleges, true)
         || in_array(strtoupper($voter_college_normalized), $allowed_colleges, true);
 
-    // For faculty voters, course should be optional since they don't have courses
     if ($electionTargetPos === 'faculty') {
         $courseAllowed = empty($allowed_courses) || in_array('ALL', $allowed_courses, true);
     } else {
@@ -635,37 +629,10 @@ foreach ($all_elections as $election) {
         || in_array('ALL', $allowed_status, true)
         || in_array(strtoupper($voter_status_normalized), $allowed_status, true);
 
-    // ===== DEBUG: Log condition results for faculty election =====
     if ($electionTargetPos === 'faculty') {
-        error_log("Faculty Election - Condition Results:");
-        error_log("College Allowed: " . ($collegeAllowed ? 'Yes' : 'No'));
-        error_log("Course Allowed: " . ($courseAllowed ? 'Yes' : 'No'));
-        error_log("Status Allowed: " . ($statusAllowed ? 'Yes' : 'No'));
-        
-        // Log department condition if it was applied
         if (!empty($allowed_departments) && !in_array('ALL', $allowed_departments, true)) {
             $voterDept1     = trim($voter_department1 ?? '');
-            $voterDeptUpper = 'General'; // Default value
-
-            if ($voterDept1 !== '') {
-                $deptKey        = strtolower($voterDept1);
-                $voterDeptUpper = $faculty_department_map[$deptKey] ?? $voterDeptUpper;
-            }
-
-            $deptAllowed = in_array($voterDeptUpper, $allowed_departments, true);
-            error_log("Department Allowed: " . ($deptAllowed ? 'Yes' : 'No') . " (Voter Dept: " . $voterDeptUpper . ")");
-        } else {
-            error_log("Department Allowed: Yes (no department filter)");
-        }
-    }
-
-    // NOTE: For faculty elections we *could* also respect allowed_departments here if needed,
-    // e.g. only certain academic departments within a college.
-    if ($electionTargetPos === 'faculty') {
-        // Optional: if allowed_departments is set and not ALL, restrict by department code.
-        if (!empty($allowed_departments) && !in_array('ALL', $allowed_departments, true)) {
-            $voterDept1     = trim($voter_department1 ?? '');
-            $voterDeptUpper = 'General'; // Default value
+            $voterDeptUpper = 'GENERAL';
 
             if ($voterDept1 !== '') {
                 $deptKey        = strtolower($voterDept1);
@@ -729,7 +696,6 @@ include 'voters_sidebar.php';
       animation: pulse 2s infinite;
     }
     
-    /* Force password modal styles */
     .modal-backdrop {
       background-color: rgba(0, 0, 0, 0.7);
       z-index: 9999;
@@ -754,7 +720,6 @@ include 'voters_sidebar.php';
   <!-- Force Password Change Modal -->
   <div id="forcePasswordChangeModal" class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 relative">
-      <!-- Close button (X) at top right -->
       <button onclick="closePasswordModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl">
           &times;
       </button>
@@ -833,9 +798,7 @@ include 'voters_sidebar.php';
               <div id="matchError" class="mt-1 text-xs text-red-500 hidden">Passwords do not match</div>
           </div>
           
-          <!-- Notification Container -->
           <div id="notificationContainer" class="space-y-3">
-              <!-- Error Notification -->
               <div id="passwordError" class="hidden bg-red-50 border-l-4 border-red-500 p-4 rounded-lg shadow-sm">
                   <div class="flex items-start">
                       <div class="flex-shrink-0">
@@ -850,7 +813,6 @@ include 'voters_sidebar.php';
                   </div>
               </div>
               
-              <!-- Success Notification -->
               <div id="passwordSuccess" class="hidden bg-green-50 border-l-4 border-green-500 p-4 rounded-lg shadow-sm">
                   <div class="flex items-start">
                       <div class="flex-shrink-0">
@@ -867,7 +829,6 @@ include 'voters_sidebar.php';
                   </div>
               </div>
               
-              <!-- Loading Notification -->
               <div id="passwordLoading" class="hidden bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg shadow-sm">
                   <div class="flex items-start">
                       <div class="flex-shrink-0">
@@ -886,7 +847,6 @@ include 'voters_sidebar.php';
               </div>
           </div>
           
-          <!-- Button Container -->
           <div class="flex justify-center pt-4">
               <button type="submit" id="submitBtn" class="bg-[var(--cvsu-green)] hover:bg-[var(--cvsu-green-dark)] text-white px-8 py-3 rounded-lg font-medium flex items-center justify-center min-w-[180px] transition-all duration-200 transform hover:scale-105">
                   <span id="submitBtnText">Update Password</span>
@@ -971,9 +931,8 @@ include 'voters_sidebar.php';
       <?php if (count($filtered_elections) > 0): ?>
         <div class="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2 lg:grid-cols-3" id="electionsGrid">
           <?php 
-          // Create current datetime once outside the loop
-          $now = new DateTime();
-          $nowString = $now->format('Y-m-d H:i:s');
+          $nowDT = new DateTime();
+          $nowString = $nowDT->format('Y-m-d H:i:s');
           
           foreach ($filtered_elections as $election): 
           ?>
@@ -981,29 +940,17 @@ include 'voters_sidebar.php';
               $start = $election['start_datetime'];
               $end   = $election['end_datetime'];
               
-              // Handle both string and DateTime objects
-              if ($start instanceof DateTime) {
-                  $startDateTime = $start;
-              } else {
-                  $startDateTime = new DateTime($start);
-              }
+              $startDateTime = ($start instanceof DateTime) ? $start : new DateTime($start);
+              $endDateTime   = ($end   instanceof DateTime) ? $end   : new DateTime($end);
               
-              if ($end instanceof DateTime) {
-                  $endDateTime = $end;
-              } else {
-                  $endDateTime = new DateTime($end);
-              }
-              
-              // Calculate status
-              if ($now < $startDateTime) {
+              if ($nowDT < $startDateTime) {
                   $status = 'upcoming';
-              } elseif ($now >= $startDateTime && $now <= $endDateTime) {
+              } elseif ($nowDT >= $startDateTime && $nowDT <= $endDateTime) {
                   $status = 'ongoing';
               } else {
                   $status = 'completed';
               }
               
-              // Debug logging
               error_log("Election ID: {$election['election_id']}, Title: {$election['title']}, Start: {$startDateTime->format('Y-m-d H:i:s')}, End: {$endDateTime->format('Y-m-d H:i:s')}, Now: {$nowString}, Status: $status");
               
               // Check if user has voted
@@ -1011,119 +958,219 @@ include 'voters_sidebar.php';
               $stmt->execute([$_SESSION['user_id'], $election['election_id']]);
               $hasVoted = $stmt->fetch();
               
-              // Status colors
               $statusColors = [
-                'ongoing' => 'border-l-green-600 bg-green-50',
+                'ongoing'   => 'border-l-green-600 bg-green-50',
                 'completed' => 'border-l-gray-500 bg-gray-50',
-                'upcoming' => 'border-l-yellow-500 bg-yellow-50'
+                'upcoming'  => 'border-l-yellow-500 bg-yellow-50'
               ];
               
               $statusIcons = [
-                'ongoing' => '🟢',
+                'ongoing'   => '🟢',
                 'completed' => '⚫',
-                'upcoming' => '🟡'
+                'upcoming'  => '🟡'
               ];
               
-              // ===== VOTER TURNOUT CALCULATION =====
-              $conditions = ["role = 'voter'"];
-              $params     = [];
-
+              // ===== VOTER TURNOUT CALCULATION (seat-based via analytics_scopes) =====
               $targetPosTurnout = strtolower($election['target_position'] ?? 'all');
               $scopeTypeTurnout = $election['election_scope_type'] ?? null;
-              $scopeIdTurnout   = isset($election['owner_scope_id']) ? (int)$election['owner_scope_id'] : 0;
+              $scopeIdTurnout   = isset($election['owner_scope_id']) ? (int)$election['owner_scope_id'] : null;
 
-              if ($targetPosTurnout === 'coop') {
-                  // COOP elections - MIGS only
-                  $conditions[] = "is_coop_member = 1";
-                  $conditions[] = "migs_status = 1";
-              } else {
-                  // Position filter
-                  if ($targetPosTurnout !== 'all') {
-                      if ($targetPosTurnout === 'faculty') {
-                          $conditions[] = "position = 'academic'";
-                      } elseif ($targetPosTurnout === 'non-academic') {
-                          $conditions[] = "position = 'non-academic'";
-                      } elseif ($targetPosTurnout === 'others') {
-                          // "others" = employees: academic + non-academic
-                          $conditions[] = "(position = 'academic' OR position = 'non-academic')";
-                      } else {
-                          $conditions[] = "position = ?";
-                          $params[]     = $targetPosTurnout;
+              $allowed_colleges    = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_colleges']    ?? ''))));
+              $allowed_courses_raw = array_filter(array_map('trim',       explode(',', $election['allowed_courses']     ?? '')));
+              $allowed_status      = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status']      ?? ''))));
+              $allowed_departments = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_departments'] ?? ''))));
+
+              $restrictStatus = !empty($allowed_status) && !in_array('ALL', $allowed_status, true);
+
+              // array filters
+              $filterByStatus = function(array $rows) use ($allowed_status, $restrictStatus): array {
+                  if (!$restrictStatus) return $rows;
+                  $set = array_flip($allowed_status);
+                  $out = [];
+                  foreach ($rows as $r) {
+                      $s = strtoupper(trim($r['status'] ?? ''));
+                      if (isset($set[$s])) $out[] = $r;
+                  }
+                  return $out;
+              };
+
+              $filterByColleges = function(array $rows) use ($allowed_colleges): array {
+                  if (empty($allowed_colleges) || in_array('ALL', $allowed_colleges, true)) {
+                      return $rows;
+                  }
+                  $set = array_flip($allowed_colleges);
+                  $out = [];
+                  foreach ($rows as $r) {
+                      $c = strtoupper(trim($r['department'] ?? ''));
+                      if (isset($set[$c])) $out[] = $r;
+                  }
+                  return $out;
+              };
+
+              $filterByDepartmentsCodes = function(array $rows, array $allowed_codes): array {
+                  if (empty($allowed_codes) || in_array('ALL', $allowed_codes, true)) {
+                      return $rows;
+                  }
+                  $set = array_flip($allowed_codes);
+                  $out = [];
+                  foreach ($rows as $r) {
+                      $d = strtoupper(trim($r['department'] ?? ''));
+                      if (isset($set[$d])) $out[] = $r;
+                  }
+                  return $out;
+              };
+
+              $filterFacultyByDeptCodes = function(array $rows, array $allowed_codes, array $faculty_department_map) : array {
+                  if (empty($allowed_codes) || in_array('ALL', $allowed_codes, true)) {
+                      return $rows;
+                  }
+                  $set = array_flip($allowed_codes);
+                  $out = [];
+                  foreach ($rows as $r) {
+                      $full = strtolower(trim($r['department1'] ?? ''));
+                      $code = isset($faculty_department_map[$full]) ? strtoupper($faculty_department_map[$full]) : null;
+                      if ($code !== null && isset($set[$code])) {
+                          $out[] = $r;
                       }
                   }
+                  return $out;
+              };
 
-                  // Filters from election row
-                  $allowed_colleges    = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_colleges']    ?? ''))));
-                  $allowed_departments = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_departments'] ?? ''))));
-                  $allowed_courses     = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_courses']     ?? ''))));
-                  $allowed_status      = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status']      ?? ''))));
-
-                  // Dept vs college rules
-                  if (in_array($targetPosTurnout, ['non-academic', 'others'], true)) {
-                      // Non-academic & Others → departments
-                      if (!empty($allowed_departments) && !in_array('ALL', $allowed_departments, true)) {
-                          $placeholders = implode(',', array_fill(0, count($allowed_departments), '?'));
-                          $conditions[] = "UPPER(department) IN ($placeholders)";
-                          $params       = array_merge($params, $allowed_departments);
+              $filterByCoursesNorm = function(array $rows, array $allowed_courses_raw): array {
+                  if (empty($allowed_courses_raw)) return $rows;
+                  $allowedCodes = [];
+                  foreach ($allowed_courses_raw as $c) {
+                      if (strcasecmp($c, 'ALL') === 0) return $rows;
+                      $code = normalize_course_code($c);
+                      if ($code !== '' && $code !== 'UNSPECIFIED') {
+                          $allowedCodes[] = strtoupper($code);
                       }
+                  }
+                  $allowedCodes = array_unique($allowedCodes);
+                  if (empty($allowedCodes)) return $rows;
+                  $set = array_flip($allowedCodes);
+                  $out = [];
+                  foreach ($rows as $r) {
+                      $stuCode = strtoupper(normalize_course_code($r['course'] ?? ''));
+                      if (isset($set[$stuCode])) $out[] = $r;
+                  }
+                  return $out;
+              };
+
+              // compute eligible voters
+              $totalVoters = null;
+
+              if ($targetPosTurnout === 'coop') {
+                  $sqlTotal = "
+                      SELECT COUNT(*) AS total
+                      FROM users
+                      WHERE role = 'voter'
+                        AND is_coop_member = 1
+                        AND migs_status = 1
+                  ";
+                  $stmtTotal = $pdo->query($sqlTotal);
+                  $totalVoters = (int)($stmtTotal->fetch()['total'] ?? 0);
+              } else {
+                  $seatTypes = [
+                      SCOPE_ACAD_STUDENT,
+                      SCOPE_ACAD_FACULTY,
+                      SCOPE_NONACAD_STUDENT,
+                      SCOPE_NONACAD_EMPLOYEE,
+                      SCOPE_OTHERS_DEFAULT,
+                      SCOPE_SPECIAL_CSG,
+                  ];
+
+                  if ($scopeTypeTurnout && in_array($scopeTypeTurnout, $seatTypes, true)) {
+                      $scopeIdArg = ($scopeTypeTurnout === SCOPE_SPECIAL_CSG) ? null : $scopeIdTurnout;
+                      $yearEnd    = $election['end_datetime'] ?? null;
+
+                      $scoped = getScopedVoters(
+                          $pdo,
+                          $scopeTypeTurnout,
+                          $scopeIdArg,
+                          [
+                              'year_end'      => $yearEnd,
+                              'include_flags' => true,
+                          ]
+                      );
+
+                      $eligible = $scoped;
+                      $eligible = $filterByStatus($eligible);
+
+                      if (in_array($scopeTypeTurnout, [SCOPE_ACAD_STUDENT, SCOPE_ACAD_FACULTY], true)) {
+                          $eligible = $filterByColleges($eligible);
+                      }
+
+                      if ($scopeTypeTurnout === SCOPE_NONACAD_EMPLOYEE) {
+                          $eligible = $filterByDepartmentsCodes($eligible, $allowed_departments);
+                      }
+
+                      if ($scopeTypeTurnout === SCOPE_ACAD_FACULTY) {
+                          $eligible = $filterFacultyByDeptCodes($eligible, $allowed_departments, $faculty_department_map);
+                      }
+
+                      if (in_array($scopeTypeTurnout, [SCOPE_ACAD_STUDENT, SCOPE_NONACAD_STUDENT, SCOPE_SPECIAL_CSG], true)) {
+                          $eligible = $filterByCoursesNorm($eligible, $allowed_courses_raw);
+                      }
+
+                      $totalVoters = count($eligible);
+                  }
+              }
+
+              // Fallback generic count if seat logic not applicable
+              if ($totalVoters === null) {
+                  $conditions = ["role = 'voter'"];
+                  $params     = [];
+
+                  if ($targetPosTurnout === 'coop') {
+                      $conditions[] = "is_coop_member = 1";
+                      $conditions[] = "migs_status = 1";
                   } else {
-                      // Student / Faculty → colleges
+                      if ($targetPosTurnout !== 'all') {
+                          if ($targetPosTurnout === 'faculty') {
+                              $conditions[] = "position = 'academic'";
+                          } elseif ($targetPosTurnout === 'non-academic') {
+                              $conditions[] = "position = 'non-academic'";
+                          } elseif ($targetPosTurnout === 'others') {
+                              $conditions[] = "(position = 'academic' OR position = 'non-academic')";
+                          } else {
+                              $conditions[] = "position = ?";
+                              $params[]     = $targetPosTurnout;
+                          }
+                      }
+
                       if (!empty($allowed_colleges) && !in_array('ALL', $allowed_colleges, true)) {
                           $placeholders = implode(',', array_fill(0, count($allowed_colleges), '?'));
                           $conditions[] = "UPPER(department) IN ($placeholders)";
                           $params       = array_merge($params, $allowed_colleges);
                       }
-                  }
 
-                  // Courses (students)
-                  if (!empty($allowed_courses) && !in_array('ALL', $allowed_courses, true)) {
-                      $reverse_course_map = [];
-                      foreach ($course_map as $full_name => $short_code) {
-                          $reverse_course_map[strtoupper($short_code)][] = strtolower($full_name);
+                      if (!empty($allowed_departments) && !in_array('ALL', $allowed_departments, true)
+                          && in_array($targetPosTurnout, ['non-academic','others'], true)
+                      ) {
+                          $placeholders = implode(',', array_fill(0, count($allowed_departments), '?'));
+                          $conditions[] = "UPPER(department) IN ($placeholders)";
+                          $params       = array_merge($params, $allowed_departments);
                       }
 
-                      $course_list = [];
-                      foreach ($allowed_courses as $course) {
-                          if (isset($reverse_course_map[$course])) {
-                              $course_list = array_merge($course_list, $reverse_course_map[$course]);
-                          } else {
-                              $course_list[] = strtolower($course);
-                          }
-                      }
-
-                      if (!empty($course_list)) {
-                          $placeholders = implode(',', array_fill(0, count($course_list), '?'));
-                          $conditions[] = "LOWER(course) IN ($placeholders)";
-                          $params       = array_merge($params, $course_list);
+                      if ($restrictStatus) {
+                          $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
+                          $conditions[] = "UPPER(status) IN ($placeholders)";
+                          $params       = array_merge($params, $allowed_status);
                       }
                   }
 
-                  // Status (faculty & non-acad)
-                  if (!empty($allowed_status) && !in_array('ALL', $allowed_status, true)) {
-                      $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
-                      $conditions[] = "UPPER(status) IN ($placeholders)";
-                      $params       = array_merge($params, $allowed_status);
-                  }
-
-                  // Scope-based turnout for org elections
-                  if (in_array($scopeTypeTurnout, ['Non-Academic-Student', 'Others-Default'], true) && $scopeIdTurnout > 0) {
-                      $conditions[] = "owner_scope_id = ?";
-                      $params[]     = $scopeIdTurnout;
-                  }
+                  $sqlTotal = "SELECT COUNT(*) as total FROM users WHERE " . implode(' AND ', $conditions);
+                  $stmtTotal = $pdo->prepare($sqlTotal);
+                  $stmtTotal->execute($params);
+                  $totalVoters = (int)($stmtTotal->fetch()['total'] ?? 0);
               }
 
-              // Build and execute the query
-              $sqlTotal = "SELECT COUNT(*) as total FROM users WHERE " . implode(' AND ', $conditions);
-              $stmtTotal = $pdo->prepare($sqlTotal);
-              $stmtTotal->execute($params);
-              $totalVoters = (int)($stmtTotal->fetch()['total'] ?? 0);
-
-              // Get total votes cast - DISTINCT voter_id
+              // Get total votes cast (distinct voters)
               $stmtVotes = $pdo->prepare("SELECT COUNT(DISTINCT voter_id) as voted FROM votes WHERE election_id = ?");
               $stmtVotes->execute([$election['election_id']]);
               $votesCast = (int)($stmtVotes->fetch()['voted'] ?? 0);
 
-              // Calculate turnout percentage
               $turnout = $totalVoters > 0 ? round(($votesCast / $totalVoters) * 100, 1) : 0;
             ?>
             <div class="election-card bg-white rounded-lg shadow-md overflow-hidden border-l-4 <?= $statusColors[$status] ?> flex flex-col h-full transition-transform hover:scale-[1.02]" data-status="<?= $status ?>">
@@ -1182,8 +1229,7 @@ include 'voters_sidebar.php';
                   <!-- Countdown Timer for Ongoing Elections -->
                   <?php if ($status === 'ongoing'): ?>
                     <?php
-                      // Use the DateTime objects we already created
-                      $interval = $now->diff($endDateTime);
+                      $interval = $nowDT->diff($endDateTime);
                       
                       if ($interval->days > 0) {
                         $timeLeft = $interval->days . " day" . ($interval->days > 1 ? "s" : "") . " left";
@@ -1222,7 +1268,7 @@ include 'voters_sidebar.php';
                     </div>
                     <div class="flex items-center">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2z" />
                       </svg>
                       <span><strong class="text-gray-700">End:</strong> <?= $endDateTime->format("M d, Y h:i A") ?></span>
                     </div>
@@ -1233,7 +1279,7 @@ include 'voters_sidebar.php';
               <!-- Action Button -->
               <div class="mt-auto p-4 bg-gray-50 border-t">
                 <?php if ($status === 'ongoing' && !$hasVoted): ?>
-                  <a href="view_candidates.php?election_id=<?= $election['election_id'] ?>" 
+                  <a href="vote_candidates.php?election_id=<?= $election['election_id'] ?>" 
                      class="block w-full bg-[var(--cvsu-green)] hover:bg-[var(--cvsu-green-dark)] text-white py-2 px-4 rounded-lg font-semibold transition text-center flex items-center justify-center pulse-animation">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1303,23 +1349,19 @@ include 'voters_sidebar.php';
   <script>
     let targetUrl = '';
     
-    // Toggle mobile sidebar
     function toggleSidebar() {
       const sidebar = document.getElementById('votersSidebar');
       sidebar.classList.toggle('open');
     }
     
-    // Close notification banner
     function closeNotification() {
       document.getElementById('notificationBanner').classList.add('hidden');
     }
     
-    // Toggle dropdown menu
     function toggleMenu(menuId) {
       const menu = document.getElementById(menuId);
       menu.classList.toggle('hidden');
       
-      // Close other menus
       document.querySelectorAll('[id^="menu_"]').forEach(m => {
         if (m.id !== menuId) {
           m.classList.add('hidden');
@@ -1327,90 +1369,59 @@ include 'voters_sidebar.php';
       });
     }
     
-    // Show results (placeholder function)
     function showResults(electionId) {
       window.location.href = `election_results.php?election_id=${electionId}`;
     }
     
-    // Combined Search and Tab Filtering Function
     function filterElections() {
       const searchTerm = document.getElementById('searchElections').value.toLowerCase().trim();
       const activeTab = document.querySelector('.tab-btn.active').dataset.category;
       const electionCards = document.querySelectorAll('.election-card');
       
-      console.log('Search Term:', searchTerm);
-      console.log('Active Tab:', activeTab);
-      
       electionCards.forEach(card => {
-        // Get title using specific class
         const titleElement = card.querySelector('h2');
-        
-        // Skip if element doesn't exist
         if (!titleElement) {
           card.style.display = 'none';
           return;
         }
         
-        const title = titleElement.textContent.toLowerCase().trim();
+        const title      = titleElement.textContent.toLowerCase().trim();
         const cardStatus = card.dataset.status;
         
-        console.log('Card Title:', title);
-        console.log('Card Status:', cardStatus);
-        
-        // Check if card matches search term (title only)
         const matchesSearch = searchTerm === '' || title.includes(searchTerm);
+        const matchesTab    = activeTab === 'all' || cardStatus === activeTab;
         
-        // Check if card matches current tab filter
-        const matchesTab = activeTab === 'all' || cardStatus === activeTab;
-        
-        console.log('Matches Search:', matchesSearch);
-        console.log('Matches Tab:', matchesTab);
-        
-        // Show card only if it matches both search and tab
-        if (matchesSearch && matchesTab) {
-          card.style.display = 'block';
-        } else {
-          card.style.display = 'none';
-        }
+        card.style.display = (matchesSearch && matchesTab) ? 'block' : 'none';
       });
     }
 
-    // Add event listeners
     document.getElementById('searchElections').addEventListener('input', filterElections);
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', function() {
-        // Update active tab
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         this.classList.add('active');
-        
-        // Apply filters
         filterElections();
       });
     });
     
-    // Set default view to ongoing elections
     document.addEventListener('DOMContentLoaded', () => {
-      // Check if password change is required - FIXED: Only check forcePasswordChange value
       const forcePasswordChange = <?= $force_password_flag ?>;
       
       if (forcePasswordChange === 1) {
         document.getElementById('forcePasswordChangeModal').classList.remove('hidden');
-        // Prevent interaction with the rest of the page
         document.body.style.pointerEvents = 'none';
         document.getElementById('forcePasswordChangeModal').style.pointerEvents = 'auto';
       }
       
-      // Trigger click on ongoing tab to set it as default
       document.querySelector('[data-category="ongoing"]').click();
       
-      const voteLinks = document.querySelectorAll('a[href^="view_candidates.php"]');
+      const voteLinks = document.querySelectorAll('a[href^="vote_candidates.php"]');
       const modal = document.getElementById('privacyModal');
       const checkbox = document.getElementById('privacyCheck');
       const proceedBtn = document.getElementById('proceedVote');
       const cancelBtn = document.getElementById('cancelModal');
       
-      // Intercept vote link click
       voteLinks.forEach(link => {
         link.addEventListener('click', function (e) {
           e.preventDefault();
@@ -1419,26 +1430,22 @@ include 'voters_sidebar.php';
         });
       });
       
-      // Toggle Proceed button based on checkbox
       checkbox.addEventListener('change', () => {
         proceedBtn.disabled = !checkbox.checked;
       });
       
-      // Cancel: close modal and reset state
       cancelBtn.addEventListener('click', () => {
         modal.classList.add('hidden');
         checkbox.checked = false;
         proceedBtn.disabled = true;
       });
       
-      // Proceed: only allowed if checkbox is checked
       proceedBtn.addEventListener('click', () => {
         if (checkbox.checked) {
           window.location.href = targetUrl;
         }
       });
       
-      // Password visibility toggle
       const togglePassword = document.getElementById('togglePassword');
       const toggleConfirmPassword = document.getElementById('toggleConfirmPassword');
       const passwordInput = document.getElementById('newPassword');
@@ -1447,45 +1454,34 @@ include 'voters_sidebar.php';
       togglePassword.addEventListener('click', function() {
         const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
         passwordInput.setAttribute('type', type);
-        this.querySelector('svg').innerHTML = type === 'password' 
-          ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5,12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />'
-          : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />';
       });
       
       toggleConfirmPassword.addEventListener('click', function() {
         const type = confirmPasswordInput.getAttribute('type') === 'password' ? 'text' : 'password';
         confirmPasswordInput.setAttribute('type', type);
-        this.querySelector('svg').innerHTML = type === 'password' 
-          ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5,12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />'
-          : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />';
       });
       
-      // Password strength validation
       passwordInput.addEventListener('input', function() {
         const password = this.value;
         const strengthBar = document.getElementById('strengthBar');
         const strengthText = document.getElementById('passwordStrength');
         
-        // Check password requirements
         const length = password.length >= 8;
         const uppercase = /[A-Z]/.test(password);
         const number = /[0-9]/.test(password);
         const special = /[!@#$%^&*(),.?":{}|<>]/.test(password);
         
-        // Update check marks
         updateCheck('lengthCheck', length);
         updateCheck('uppercaseCheck', uppercase);
         updateCheck('numberCheck', number);
         updateCheck('specialCheck', special);
         
-        // Calculate strength
         let strength = 0;
         if (length) strength++;
         if (uppercase) strength++;
         if (number) strength++;
         if (special) strength++;
         
-        // Update strength bar
         const strengthPercentage = (strength / 4) * 100;
         strengthBar.style.width = strengthPercentage + '%';
         
@@ -1511,11 +1507,9 @@ include 'voters_sidebar.php';
           strengthText.className = 'font-medium text-green-500';
         }
         
-        // Check password match
         checkPasswordMatch();
       });
       
-      // Confirm password validation
       confirmPasswordInput.addEventListener('input', checkPasswordMatch);
       
       function updateCheck(id, isValid) {
@@ -1549,7 +1543,6 @@ include 'voters_sidebar.php';
         }
       }
       
-      // Handle password change form submission
       const forcePasswordChangeForm = document.getElementById('forcePasswordChangeForm');
       const passwordError = document.getElementById('passwordError');
       const passwordSuccess = document.getElementById('passwordSuccess');
@@ -1563,7 +1556,6 @@ include 'voters_sidebar.php';
         forcePasswordChangeForm.addEventListener('submit', function(e) {
           e.preventDefault();
           
-          // Hide all notifications
           passwordError.classList.add('hidden');
           passwordSuccess.classList.add('hidden');
           passwordLoading.classList.remove('hidden');
@@ -1571,20 +1563,17 @@ include 'voters_sidebar.php';
           const newPassword = passwordInput.value;
           const confirmPassword = confirmPasswordInput.value;
           
-          // Check password requirements
           const length = newPassword.length >= 8;
           const uppercase = /[A-Z]/.test(newPassword);
           const number = /[0-9]/.test(newPassword);
           const special = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
           
-          // Calculate strength (0-4)
           let strength = 0;
           if (length) strength++;
           if (uppercase) strength++;
           if (number) strength++;
           if (special) strength++;
           
-          // Check minimum requirements
           if (!length) {
             passwordLoading.classList.add('hidden');
             passwordErrorText.textContent = "Password must be at least 8 characters long.";
@@ -1606,41 +1595,29 @@ include 'voters_sidebar.php';
             return;
           }
           
-          // Show loading state
           submitBtn.disabled = true;
           submitBtnText.textContent = 'Updating...';
           submitLoader.classList.remove('hidden');
           
-          // Submit the form
           fetch('update_voters_password.php', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              new_password: newPassword
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ new_password: newPassword })
           })
           .then(response => response.json())
           .then(data => {
-            // Hide loading notification
             passwordLoading.classList.add('hidden');
             
             if (data.status === 'success') {
-              // Show success notification
               passwordSuccess.classList.remove('hidden');
-              
-              // Reset button state
               submitBtn.disabled = false;
               submitBtnText.textContent = 'Update Password';
               submitLoader.classList.add('hidden');
               
-              // Hide the modal after delay and redirect
               setTimeout(() => {
                 document.getElementById('forcePasswordChangeModal').classList.add('hidden');
                 document.body.style.pointerEvents = 'auto';
                 
-                // Show a brief loading overlay during redirect
                 const redirectOverlay = document.createElement('div');
                 redirectOverlay.className = 'fixed inset-0 bg-white bg-opacity-90 z-50 flex items-center justify-center';
                 redirectOverlay.innerHTML = `
@@ -1654,34 +1631,25 @@ include 'voters_sidebar.php';
                 `;
                 document.body.appendChild(redirectOverlay);
                 
-                // Reload the page after a short delay
                 setTimeout(() => {
                   window.location.reload();
                 }, 1500);
               }, 2000);
             } else {
-              // Reset button state
               submitBtn.disabled = false;
               submitBtnText.textContent = 'Update Password';
               submitLoader.classList.add('hidden');
               
-              // Show error
               passwordErrorText.textContent = data.message || "Failed to update password.";
               passwordError.classList.remove('hidden');
             }
           })
           .catch(error => {
             console.error('Error:', error);
-            
-            // Hide loading notification
             passwordLoading.classList.add('hidden');
-            
-            // Reset button state
             submitBtn.disabled = false;
             submitBtnText.textContent = 'Update Password';
             submitLoader.classList.add('hidden');
-            
-            // Show error
             passwordErrorText.textContent = "An error occurred. Please try again.";
             passwordError.classList.remove('hidden');
           });
@@ -1690,16 +1658,12 @@ include 'voters_sidebar.php';
     });
     
     function closePasswordModal() {
-      // Prevent closing if password change is required
       const forcePasswordChange = <?= $force_password_flag ?>;
-      if (forcePasswordChange === 1) {
-        return;
-      }
+      if (forcePasswordChange === 1) return;
       document.getElementById('forcePasswordChangeModal').classList.add('hidden');
       document.body.style.pointerEvents = 'auto';
     }
     
-    // Close dropdowns when clicking outside
     document.addEventListener('click', function(event) {
       if (!event.target.closest('.relative')) {
         document.querySelectorAll('[id^="menu_"]').forEach(menu => {

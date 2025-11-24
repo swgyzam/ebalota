@@ -1,19 +1,24 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 date_default_timezone_set('Asia/Manila');
 
-// --- DB Connection ---
- $host = 'localhost';
- $db   = 'evoting_system';
- $user = 'root';
- $pass = '';
+require_once __DIR__ . '/includes/analytics_scopes.php';
+require_once __DIR__ . '/includes/super_admin_helpers.php';
+requireSuperAdmin();
+
+// ===== DB Connection =====
+ $host    = 'localhost';
+ $db      = 'evoting_system';
+ $user    = 'root';
+ $pass    = '';
  $charset = 'utf8mb4';
 
  $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
  $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    PDO::ATTR_EMULATE_PREPARES   => false,
 ];
 
 try {
@@ -22,284 +27,444 @@ try {
     die("Database connection failed: " . $e->getMessage());
 }
 
-// --- Auth check ---
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
-    header('Location: login.php');
-    exit();
-}
-
- $userId = $_SESSION['user_id'];
-
-// --- Get available years for dropdown ---
- $stmt = $pdo->query("SELECT DISTINCT YEAR(created_at) as year FROM users WHERE role = 'voter' ORDER BY year DESC");
- $availableYears = $stmt->fetchAll(PDO::FETCH_COLUMN);
- $currentYear = date('Y');
- $selectedYear = isset($_GET['year']) ? $_GET['year'] : $currentYear;
- $previousYear = $selectedYear - 1;
-
-// --- Fetch dashboard stats ---
-
-// Total Students (across all colleges)
- $stmt = $pdo->prepare("SELECT COUNT(*) as total_students
-                     FROM users 
-                     WHERE role = 'voter' AND position = 'student'");
- $stmt->execute();
- $total_students = $stmt->fetch()['total_students'];
-
-// Total Academic Staff (across all colleges)
- $stmt = $pdo->prepare("SELECT COUNT(*) as total_academic
-                     FROM users 
-                     WHERE role = 'voter' AND position = 'academic'");
- $stmt->execute();
- $total_academic = $stmt->fetch()['total_academic'];
-
-// Total Non-Academic Staff
- $stmt = $pdo->prepare("SELECT COUNT(*) as total_non_academic
-                     FROM users 
-                     WHERE role = 'voter' AND position = 'non-academic'");
- $stmt->execute();
- $total_non_academic = $stmt->fetch()['total_non_academic'];
-
-// Total COOP Members
- $stmt = $pdo->prepare("SELECT COUNT(*) as total_coop
-                     FROM users 
-                     WHERE role = 'voter' AND is_coop_member = 1 AND migs_status = 1");
- $stmt->execute();
- $total_coop = $stmt->fetch()['total_coop'];
-
-// Total Voters (all categories)
- $total_voters = $total_students + $total_academic + $total_non_academic + $total_coop;
-
-// Total Elections (global)
- $stmt = $pdo->query("SELECT COUNT(*) as total_elections FROM elections");
- $total_elections = $stmt->fetch()['total_elections'];
-
-// Ongoing Elections
- $stmt = $pdo->query("SELECT COUNT(*) as ongoing_elections 
-                     FROM elections 
-                     WHERE status = 'ongoing'");
- $ongoing_elections = $stmt->fetch()['ongoing_elections'];
-
-// --- Fetch distribution data by category ---
- $categoryDistribution = [];
-
-// Students by College
- $stmt = $pdo->query("SELECT 
-                    department as college_name,
-                    COUNT(*) as count
-                 FROM users 
-                 WHERE role = 'voter' AND position = 'student'
-                 GROUP BY college_name
-                 ORDER BY count DESC");
- $studentsByCollege = $stmt->fetchAll();
-
-foreach ($studentsByCollege as $college) {
-    $categoryDistribution[] = [
-        'category' => 'Students',
-        'subcategory' => $college['college_name'],
-        'count' => $college['count']
-    ];
-}
-
-// Academic Staff by College
- $stmt = $pdo->query("SELECT 
-                    department as college_name,
-                    COUNT(*) as count
-                 FROM users 
-                     WHERE role = 'voter' AND position = 'academic'
-                 GROUP BY college_name
-                 ORDER BY count DESC");
- $academicByCollege = $stmt->fetchAll();
-
-foreach ($academicByCollege as $college) {
-    $categoryDistribution[] = [
-        'category' => 'Academic Staff',
-        'subcategory' => $college['college_name'],
-        'count' => $college['count']
-    ];
-}
-
-// Non-Academic by Department
- $stmt = $pdo->query("SELECT 
-                    department,
-                    COUNT(*) as count
-                 FROM users 
-                     WHERE role = 'voter' AND position = 'non-academic'
-                 GROUP BY department
-                 ORDER BY count DESC");
- $nonAcademicByDept = $stmt->fetchAll();
-
-foreach ($nonAcademicByDept as $dept) {
-    $categoryDistribution[] = [
-        'category' => 'Non-Academic Staff',
-        'subcategory' => $dept['department'],
-        'count' => $dept['count']
-    ];
-}
-
-// COOP by College
- $stmt = $pdo->query("SELECT 
-                    department as college_name,
-                    COUNT(*) as count
-                 FROM users 
-                     WHERE role = 'voter' AND is_coop_member = 1 AND migs_status = 1
-                 GROUP BY college_name
-                 ORDER BY count DESC");
- $coopByCollege = $stmt->fetchAll();
-
-foreach ($coopByCollege as $college) {
-    $categoryDistribution[] = [
-        'category' => 'COOP Members',
-        'subcategory' => $college['college_name'],
-        'count' => $college['count']
-    ];
-}
-
-// --- Fetch Voter Turnout Analytics Data ---
- $turnoutDataByYear = [];
-
-// Get all years that have elections
- $stmt = $pdo->query("SELECT DISTINCT YEAR(start_datetime) as year FROM elections ORDER BY year DESC");
- $turnoutYears = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-foreach ($turnoutYears as $year) {
-    // Student turnout
-    $stmt = $pdo->prepare("SELECT COUNT(DISTINCT v.voter_id) as total_voted 
-                           FROM votes v 
-                           JOIN elections e ON v.election_id = e.election_id 
-                           JOIN users u ON v.voter_id = u.user_id
-                           WHERE u.position = 'student' AND YEAR(e.start_datetime) = ?");
-    $stmt->execute([$year]);
-    $studentsVoted = $stmt->fetch()['total_voted'];
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total_eligible 
-                           FROM users 
-                           WHERE position = 'student' AND created_at <= ?");
-    $stmt->execute([$year . '-12-31 23:59:59']);
-    $studentsEligible = $stmt->fetch()['total_eligible'];
-    
-    $studentsTurnout = ($studentsEligible > 0) ? round(($studentsVoted / $studentsEligible) * 100, 1) : 0;
-    
-    // Academic staff turnout
-    $stmt = $pdo->prepare("SELECT COUNT(DISTINCT v.voter_id) as total_voted 
-                           FROM votes v 
-                           JOIN elections e ON v.election_id = e.election_id 
-                           JOIN users u ON v.voter_id = u.user_id
-                           WHERE u.position = 'academic' AND YEAR(e.start_datetime) = ?");
-    $stmt->execute([$year]);
-    $academicVoted = $stmt->fetch()['total_voted'];
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total_eligible 
-                           FROM users 
-                           WHERE position = 'academic' AND created_at <= ?");
-    $stmt->execute([$year . '-12-31 23:59:59']);
-    $academicEligible = $stmt->fetch()['total_eligible'];
-    
-    $academicTurnout = ($academicEligible > 0) ? round(($academicVoted / $academicEligible) * 100, 1) : 0;
-    
-    // Non-academic staff turnout
-    $stmt = $pdo->prepare("SELECT COUNT(DISTINCT v.voter_id) as total_voted 
-                           FROM votes v 
-                           JOIN elections e ON v.election_id = e.election_id 
-                           JOIN users u ON v.voter_id = u.user_id
-                           WHERE u.position = 'non-academic' AND YEAR(e.start_datetime) = ?");
-    $stmt->execute([$year]);
-    $nonAcademicVoted = $stmt->fetch()['total_voted'];
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total_eligible 
-                           FROM users 
-                           WHERE position = 'non-academic' AND created_at <= ?");
-    $stmt->execute([$year . '-12-31 23:59:59']);
-    $nonAcademicEligible = $stmt->fetch()['total_eligible'];
-    
-    $nonAcademicTurnout = ($nonAcademicEligible > 0) ? round(($nonAcademicVoted / $nonAcademicEligible) * 100, 1) : 0;
-    
-    // COOP turnout
-    $stmt = $pdo->prepare("SELECT COUNT(DISTINCT v.voter_id) as total_voted 
-                           FROM votes v 
-                           JOIN elections e ON v.election_id = e.election_id 
-                           JOIN users u ON v.voter_id = u.user_id
-                           WHERE u.is_coop_member = 1 AND u.migs_status = 1 AND YEAR(e.start_datetime) = ?");
-    $stmt->execute([$year]);
-    $coopVoted = $stmt->fetch()['total_voted'];
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total_eligible 
-                           FROM users 
-                           WHERE is_coop_member = 1 AND migs_status = 1 AND created_at <= ?");
-    $stmt->execute([$year . '-12-31 23:59:59']);
-    $coopEligible = $stmt->fetch()['total_eligible'];
-    
-    $coopTurnout = ($coopEligible > 0) ? round(($coopVoted / $coopEligible) * 100, 1) : 0;
-    
-    // Overall turnout
-    $totalVoted = $studentsVoted + $academicVoted + $nonAcademicVoted + $coopVoted;
-    $totalEligible = $studentsEligible + $academicEligible + $nonAcademicEligible + $coopEligible;
-    $overallTurnout = ($totalEligible > 0) ? round(($totalVoted / $totalEligible) * 100, 1) : 0;
-    
-    // Election count
-    $stmt = $pdo->prepare("SELECT COUNT(*) as election_count 
-                           FROM elections 
-                           WHERE YEAR(start_datetime) = ?");
-    $stmt->execute([$year]);
-    $electionCount = $stmt->fetch()['election_count'];
-    
-    $turnoutDataByYear[$year] = [
-        'year' => $year,
-        'students_turnout' => $studentsTurnout,
-        'academic_turnout' => $academicTurnout,
-        'non_academic_turnout' => $nonAcademicTurnout,
-        'coop_turnout' => $coopTurnout,
-        'overall_turnout' => $overallTurnout,
-        'election_count' => $electionCount
-    ];
-}
-
-// FIXED: Ensure selected year and previous year are in the data array
-if (!isset($turnoutDataByYear[$selectedYear])) {
-    $turnoutDataByYear[$selectedYear] = [
-        'year' => $selectedYear,
-        'students_turnout' => 0,
-        'academic_turnout' => 0,
-        'non_academic_turnout' => 0,
-        'coop_turnout' => 0,
-        'overall_turnout' => 0,
-        'election_count' => 0
-    ];
-}
-
-if (!isset($turnoutDataByYear[$previousYear])) {
-    $turnoutDataByYear[$previousYear] = [
-        'year' => $previousYear,
-        'students_turnout' => 0,
-        'academic_turnout' => 0,
-        'non_academic_turnout' => 0,
-        'coop_turnout' => 0,
-        'overall_turnout' => 0,
-        'election_count' => 0
-    ];
-}
-
-// Calculate year-over-year growth for overall turnout
- $years = array_keys($turnoutDataByYear);
-sort($years);
- $previousYearData = null;
-foreach ($years as $year) {
-    if ($previousYearData !== null) {
-        $prevTurnout = $previousYearData['overall_turnout'];
-        $currentTurnout = $turnoutDataByYear[$year]['overall_turnout'];
-        $growthRate = ($prevTurnout > 0) ? round((($currentTurnout - $prevTurnout) / $prevTurnout) * 100, 1) : 0;
-        $turnoutDataByYear[$year]['growth_rate'] = $growthRate;
-    } else {
-        $turnoutDataByYear[$year]['growth_rate'] = 0;
+// ------------------------------------------------------------------
+// Shared helper used by Scope Detail Panel
+// ------------------------------------------------------------------
+if (!function_exists('groupByField')) {
+    function groupByField(array $rows, string $field): array {
+        $agg = [];
+        foreach ($rows as $r) {
+            $key = $r[$field] ?? '';
+            if ($key === null) {
+                $key = '';
+            }
+            if (!isset($agg[$key])) {
+                $agg[$key] = 0;
+            }
+            $agg[$key]++;
+        }
+        arsort($agg);
+        return $agg;
     }
-    $previousYearData = $turnoutDataByYear[$year];
 }
 
-// Get current and previous year data for summary cards
- $currentYearTurnout = $turnoutDataByYear[$selectedYear] ?? null;
- $previousYearTurnout = $turnoutDataByYear[$selectedYear - 1] ?? null;
-?>
+// ------------------------------------------------------
+// 1. Global basic stats
+// ------------------------------------------------------
 
+// Total voters (all voter accounts)
+ $stmt = $pdo->query("SELECT COUNT(*) AS total_voters FROM users WHERE role = 'voter'");
+ $totalVoters = (int)($stmt->fetch()['total_voters'] ?? 0);
+
+// Total elections (all scope types)
+ $stmt = $pdo->query("SELECT COUNT(*) AS total_elections FROM elections");
+ $totalElections = (int)($stmt->fetch()['total_elections'] ?? 0);
+
+// Active admins (admin + super_admin)
+ $stmt = $pdo->query("
+    SELECT COUNT(*) AS active_admins
+    FROM users
+    WHERE role IN ('admin','super_admin')
+      AND admin_status = 'active'
+");
+ $activeAdmins = (int)($stmt->fetch()['active_admins'] ?? 0);
+
+// Elections per year (for simple chart)
+ $stmt = $pdo->query("
+    SELECT YEAR(start_datetime) AS year, COUNT(*) AS count
+    FROM elections
+    GROUP BY YEAR(start_datetime)
+    ORDER BY YEAR(start_datetime)
+");
+ $electionsPerYear = $stmt->fetchAll();
+ $yearsForChart    = array_column($electionsPerYear, 'year');
+ $countsForChart   = array_map('intval', array_column($electionsPerYear, 'count'));
+
+// ------------------------------------------------------
+// 2. Global voters by category (using helpers)
+// ------------------------------------------------------
+
+// Academic-Student (college-based students)
+ $acadStudentsGlobal = getScopedVoters(
+    $pdo,
+    SCOPE_ACAD_STUDENT,
+    null,
+    ['year_end' => null, 'include_flags' => false]
+);
+ $totalAcadStudents = count($acadStudentsGlobal);
+
+// Non-Academic-Student (org-based student groups)
+ $nonAcadStudentsGlobal = getScopedVoters(
+    $pdo,
+    SCOPE_NONACAD_STUDENT,
+    null,
+    ['year_end' => null, 'include_flags' => false]
+);
+ $totalNonAcadStudents = count($nonAcadStudentsGlobal);
+
+// Academic-Faculty
+ $acadFacultyGlobal = getScopedVoters(
+    $pdo,
+    SCOPE_ACAD_FACULTY,
+    null,
+    ['year_end' => null, 'include_flags' => false]
+);
+ $totalAcadFaculty = count($acadFacultyGlobal);
+
+// Non-Academic-Employee
+ $nonAcadEmployeeGlobal = getScopedVoters(
+    $pdo,
+    SCOPE_NONACAD_EMPLOYEE,
+    null,
+    ['year_end' => null, 'include_flags' => false]
+);
+ $totalNonAcadEmployee = count($nonAcadEmployeeGlobal);
+
+// COOP members (Others-COOP)
+ $coopGlobal = getScopedVoters(
+    $pdo,
+    SCOPE_OTHERS_COOP,
+    null,
+    ['year_end' => null, 'include_flags' => true]
+);
+ $totalCoop = count($coopGlobal);
+
+// Others-Default members
+ $othersDefaultGlobal = getScopedVoters(
+    $pdo,
+    SCOPE_OTHERS_DEFAULT,
+    null,
+    ['year_end' => null, 'include_flags' => false]
+);
+ $totalOthersDefault = count($othersDefaultGlobal);
+
+// ------------------------------------------------------
+// Global Voter Breakdown (with segment filter)
+// ------------------------------------------------------
+
+// Category breakdown (base totals)
+ $categoryLabels = [
+    'Academic Students',
+    'Non-Academic Students',
+    'Academic Faculty',
+    'Non-Academic Employees',
+    'Others-Default',
+    'COOP (MIGS)',
+];
+ $categoryCountsBase = [
+    $totalAcadStudents,
+    $totalNonAcadStudents,
+    $totalAcadFaculty,
+    $totalNonAcadEmployee,
+    $totalOthersDefault,
+    $totalCoop,
+];
+
+// Segment filter: all / students / faculty / employees
+ $allowedSegments = ['all', 'students', 'faculty', 'employees'];
+ $segment = $_GET['segment'] ?? 'all';
+if (!in_array($segment, $allowedSegments, true)) {
+    $segment = 'all';
+}
+
+// Apply segment to category counts (we keep labels fixed, just zero-out others)
+ $categoryCountsSegmented = $categoryCountsBase;
+
+switch ($segment) {
+    case 'students':
+        // Keep student-related categories, zero-out faculty & employees
+        // Index: 0=AcadStud,1=NonAcadStud,2=Faculty,3=Employees,4=Others-Default,5=COOP
+        $categoryCountsSegmented[2] = 0; // Academic Faculty
+        $categoryCountsSegmented[3] = 0; // Non-Academic Employees
+        break;
+
+    case 'faculty':
+        foreach ($categoryCountsSegmented as $i => $v) {
+            $categoryCountsSegmented[$i] = ($i === 2) ? $v : 0;
+        }
+        break;
+
+    case 'employees':
+        foreach ($categoryCountsSegmented as $i => $v) {
+            $categoryCountsSegmented[$i] = ($i === 3) ? $v : 0;
+        }
+        break;
+
+    case 'all':
+    default:
+        // no change
+        break;
+}
+
+// Global voters by position (student / academic / non-academic / etc.)
+ $whereSegment = "role = 'voter'";
+switch ($segment) {
+    case 'students':
+        $whereSegment .= " AND position = 'student'";
+        break;
+    case 'faculty':
+        $whereSegment .= " AND position = 'academic'";
+        break;
+    case 'employees':
+        $whereSegment .= " AND position = 'non-academic'";
+        break;
+    case 'all':
+    default:
+        // no extra condition
+        break;
+}
+
+ $sqlPositions = "
+    SELECT COALESCE(NULLIF(position,''),'Unspecified') AS position, COUNT(*) AS count
+    FROM users
+    WHERE $whereSegment
+    GROUP BY COALESCE(NULLIF(position,''),'Unspecified')
+    ORDER BY count DESC
+";
+ $stmt = $pdo->query($sqlPositions);
+ $positionRows   = $stmt->fetchAll();
+ $positionLabels = array_column($positionRows, 'position');
+ $positionCounts = array_map('intval', array_column($positionRows, 'count'));
+
+// Limit positions chart to top 10 for readability
+ $positionLabelsLimited = array_slice($positionLabels, 0, 10);
+ $positionCountsLimited = array_slice($positionCounts, 0, 10);
+
+// ------------------------------------------------------
+// 2b. Global turnout by year (all elections)
+// ------------------------------------------------------
+ $globalTurnoutByYear = getGlobalTurnoutByYear($pdo, null); // all years in DB
+ $turnoutYears        = array_keys($globalTurnoutByYear);
+ $turnoutRates        = array_column($globalTurnoutByYear, 'turnout_rate');
+
+// Year range filtering for turnout analytics
+ $allTurnoutYears = array_keys($globalTurnoutByYear);
+
+// Always include 2024 and current year (2025) in the available years
+ $currentYear = (int)date('Y');
+ $year2024 = 2024;
+
+if (!in_array($year2024, $allTurnoutYears)) {
+    $allTurnoutYears[] = $year2024;
+    sort($allTurnoutYears);
+}
+
+if (!in_array($currentYear, $allTurnoutYears)) {
+    $allTurnoutYears[] = $currentYear;
+    sort($allTurnoutYears);
+}
+
+ $minYear = !empty($allTurnoutYears) ? min($allTurnoutYears) : $year2024;
+ $maxYear = !empty($allTurnoutYears) ? max($allTurnoutYears) : $currentYear;
+
+// Set default year range to 2024-2025 if available
+ $fromYear = isset($_GET['from_year']) && ctype_digit((string)$_GET['from_year'])
+    ? (int)$_GET['from_year']
+    : $year2024;
+
+ $toYear = isset($_GET['to_year']) && ctype_digit((string)$_GET['to_year'])
+    ? (int)$_GET['to_year']
+    : $currentYear;
+
+// Clamp to bounds
+if ($fromYear < $minYear) $fromYear = $minYear;
+if ($toYear > $maxYear) $toYear = $maxYear;
+if ($toYear < $fromYear) $toYear = $fromYear;
+
+// Build filtered turnout data for [fromYear..toYear]
+ $filteredTurnoutByYear = [];
+for ($y = $fromYear; $y <= $toYear; $y++) {
+    if (isset($globalTurnoutByYear[$y])) {
+        // Ensure all required keys exist, set defaults if missing
+        $filteredTurnoutByYear[$y] = array_merge([
+            'year' => $y,
+            'total_voted' => 0,
+            'total_eligible' => 0,
+            'turnout_rate' => 0.0,
+            'election_count' => 0,
+            'growth_rate' => 0.0,
+        ], $globalTurnoutByYear[$y]);
+    } else {
+        $filteredTurnoutByYear[$y] = [
+            'year' => $y,
+            'total_voted' => 0,
+            'total_eligible' => 0,
+            'turnout_rate' => 0.0,
+            'election_count' => 0,
+            'growth_rate' => 0.0,
+        ];
+    }
+}
+
+// Update variables for chart and table
+ $turnoutYears = array_keys($filteredTurnoutByYear);
+ $turnoutRates = array_column($filteredTurnoutByYear, 'turnout_rate');
+
+ $currentYearTurnout = $globalTurnoutByYear[$currentYear]['turnout_rate'] ?? 0.0;
+
+// ------------------------------------------------------
+// 3. Scope seat summaries (for "Scopes & Admin Overview")
+// ------------------------------------------------------
+
+// All scope seats from admin_scopes
+ $scopeSeatsAll = getScopeSeats($pdo, null);
+
+ $scopeSummaries = [];
+
+foreach ($scopeSeatsAll as $seat) {
+    $scopeType = $seat['scope_type'];
+    $scopeId   = $seat['scope_id'];
+
+    // Decide how to call scoped helpers per scope type
+    $votersScopeId    = $scopeId;
+    $electionsScopeId = $scopeId;
+
+    // For COOP and CSG we treat them as *global* scopes (no per-owner filtering)
+    if ($scopeType === SCOPE_OTHERS_COOP || $scopeType === SCOPE_SPECIAL_CSG) {
+        $votersScopeId    = null;
+        $electionsScopeId = null;
+    }
+
+    // Voters in this scope
+    $scopedVoters = getScopedVoters($pdo, $scopeType, $votersScopeId, [
+        'year_end'      => null,
+        'include_flags' => false,
+    ]);
+
+    // Elections in this scope (by election_scope_type + owner_scope_id)
+    $scopedElections = getScopedElections($pdo, $scopeType, $electionsScopeId, [
+        'years_back' => 5,   // just to keep it bounded
+    ]);
+
+    // Last election (by start_datetime) if any
+    $lastElectionDate = null;
+    if (!empty($scopedElections)) {
+        $first = $scopedElections[0];
+        $lastElectionDate = $first['start_datetime'] ?? null;
+    }
+
+    $scopeSummaries[] = [
+        'scope_id'         => $scopeId,
+        'scope_type'       => $scopeType,
+        'label'            => $seat['label'],
+        'admin_name'       => $seat['admin_full_name'],
+        'admin_email'      => $seat['admin_email'],
+        'voters_count'     => count($scopedVoters),
+        'elections_count'  => count($scopedElections),
+        'last_election_at' => $lastElectionDate,
+    ];
+}
+
+// Scope Type filter for Scopes & Admin Overview
+ $scopeTypesAvailable = [];
+foreach ($scopeSummaries as $s) {
+    $scopeTypesAvailable[] = $s['scope_type'];
+}
+ $scopeTypesAvailable = array_values(array_unique($scopeTypesAvailable));
+sort($scopeTypesAvailable);
+
+ $scopeTypeFilter = isset($_GET['scope_type']) && $_GET['scope_type'] !== ''
+    ? $_GET['scope_type']
+    : 'all';
+
+// Filtered list used in the Scopes & Admin Overview table
+ $filteredScopeSummaries = array_values(array_filter(
+    $scopeSummaries,
+    function ($s) use ($scopeTypeFilter) {
+        if ($scopeTypeFilter === 'all') {
+            return true;
+        }
+        return $s['scope_type'] === $scopeTypeFilter;
+    }
+));
+
+// ------------------------------------------------------
+// 4. Scope Detail Panel (selection via ?scope_type&scope_id)
+// ------------------------------------------------------
+
+// Build detail view selection AFTER we already have $scopeSeatsAll
+ $selectedScopeId   = isset($_GET['scope_id']) && ctype_digit((string)$_GET['scope_id'])
+    ? (int)$_GET['scope_id']
+    : null;
+ $selectedScopeType = $_GET['scope_type'] ?? null;
+
+ $selectedSeat                 = null;
+ $selectedScopeVoters          = [];
+ $selectedScopeElections       = [];
+ $selectedScopeTurnout         = [];
+ $selectedScopeLatestYear      = null;
+ $selectedScopeLatestTurnout   = null;
+ $selectedScopeLatestElection  = null;
+ $selectedScopeBreakdown       = [];
+
+if ($selectedScopeId && $selectedScopeType) {
+    foreach ($scopeSeatsAll as $seat) {
+        if ((int)$seat['scope_id'] === $selectedScopeId && $seat['scope_type'] === $selectedScopeType) {
+            $selectedSeat = $seat;
+            break;
+        }
+    }
+}
+
+if ($selectedSeat !== null) {
+    // 1) VOTERS for this scope seat
+    $selectedScopeVoters = getScopedVoters(
+        $pdo,
+        $selectedSeat['scope_type'],
+        $selectedSeat['scope_id'],
+        [
+            'year_end'      => null,
+            'include_flags' => false,
+        ]
+    );
+
+    // 2) ELECTIONS for this scope seat (last 5 years)
+    $selectedScopeElections = getScopedElections(
+        $pdo,
+        $selectedSeat['scope_type'],
+        $selectedSeat['scope_id'],
+        [
+            'year_from' => date('Y') - 5,
+            'year_to'   => date('Y'),
+        ]
+    );
+
+    // 3) TURNOUT per year for this scope seat
+    $selectedScopeTurnout = computeTurnoutByYear(
+        $pdo,
+        $selectedSeat['scope_type'],
+        $selectedSeat['scope_id'],
+        $selectedScopeVoters,
+        [
+            'year_from' => null,
+            'year_to'   => null,
+        ]
+    );
+
+    if (!empty($selectedScopeTurnout)) {
+        $years = array_keys($selectedScopeTurnout);
+        sort($years);
+        $selectedScopeLatestYear    = end($years);
+        $selectedScopeLatestTurnout = $selectedScopeTurnout[$selectedScopeLatestYear]['turnout_rate'] ?? 0;
+    }
+
+    if (!empty($selectedScopeElections)) {
+        usort($selectedScopeElections, function ($a, $b) {
+            return strcmp($b['start_datetime'], $a['start_datetime']);
+        });
+        $selectedScopeLatestElection = $selectedScopeElections[0];
+    }
+
+    // 4) SIMPLE BREAKDOWN – depende sa scope type kung ano gagamitin
+    if (in_array($selectedSeat['scope_type'], [SCOPE_ACAD_STUDENT, SCOPE_ACAD_FACULTY, SCOPE_NONACAD_STUDENT, SCOPE_NONACAD_EMPLOYEE], true)) {
+        $selectedScopeBreakdown = groupByField($selectedScopeVoters, 'department');
+    } elseif (in_array($selectedSeat['scope_type'], [SCOPE_OTHERS_COOP, SCOPE_OTHERS_DEFAULT], true)) {
+        $selectedScopeBreakdown = groupByField($selectedScopeVoters, 'department');
+    } else {
+        $selectedScopeBreakdown = groupByField($selectedScopeVoters, 'position');
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
@@ -309,6 +474,7 @@ foreach ($years as $year) {
   <title>eBalota - Super Admin Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
       /* CVSU Colors */
@@ -319,492 +485,402 @@ foreach ($years as $year) {
       --cvsu-accent: #2D5F3F;
       --cvsu-light-accent: #4A7C59;
       
-      /* Additional Colors */
+      /* Additional Colors for Better Visual Hierarchy */
       --cvsu-blue: #3B82F6;
+      --cvsu-blue-light: #60A5FA;
       --cvsu-purple: #8B5CF6;
+      --cvsu-purple-light: #A78BFA;
       --cvsu-red: #EF4444;
       --cvsu-orange: #F97316;
       --cvsu-teal: #14B8A6;
+      --cvsu-indigo: #6366F1;
+      --cvsu-pink: #EC4899;
+      --cvsu-gray-light: #F3F4F6;
+      --cvsu-gray: #9CA3AF;
+      --cvsu-gray-dark: #4B5563;
     }
+    
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-thumb {
       background-color: var(--cvsu-green-light);
       border-radius: 3px;
     }
+    
     .analytics-card { transition: transform .2s, box-shadow .2s; }
     .analytics-card:hover { transform: translateY(-2px); }
+    
     .chart-container{position:relative;height:320px;width:100%;}
+    
     .cvsu-gradient{
       background:linear-gradient(135deg,var(--cvsu-green-dark)0%,var(--cvsu-green)100%);
     }
+    
     .cvsu-card{
       background-color:white;border-left:4px solid var(--cvsu-green);
       box-shadow:0 4px 6px rgba(0,0,0,.05);transition:all .3s;
     }
+    
     .cvsu-card:hover{box-shadow:0 10px 15px rgba(0,0,0,.1);transform:translateY(-2px);}
-    .modal {
-      display: none;
-      position: fixed;
-      z-index: 1000;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0,0,0,0.5);
-      overflow: auto;
+    
+    /* Color Classes */
+    .bg-cvsu-green { background-color: var(--cvsu-green); }
+    .bg-cvsu-green-dark { background-color: var(--cvsu-green-dark); }
+    .bg-cvsu-green-light { background-color: var(--cvsu-green-light); }
+    .bg-cvsu-yellow { background-color: var(--cvsu-yellow); }
+    .bg-cvsu-blue { background-color: var(--cvsu-blue); }
+    .bg-cvsu-blue-light { background-color: var(--cvsu-blue-light); }
+    .bg-cvsu-purple { background-color: var(--cvsu-purple); }
+    .bg-cvsu-purple-light { background-color: var(--cvsu-purple-light); }
+    .bg-cvsu-red { background-color: var(--cvsu-red); }
+    .bg-cvsu-orange { background-color: var(--cvsu-orange); }
+    .bg-cvsu-teal { background-color: var(--cvsu-teal); }
+    .bg-cvsu-indigo { background-color: var(--cvsu-indigo); }
+    .bg-cvsu-pink { background-color: var(--cvsu-pink); }
+    
+    .text-cvsu-green { color: var(--cvsu-green); }
+    .text-cvsu-green-dark { color: var(--cvsu-green-dark); }
+    .text-cvsu-green-light { color: var(--cvsu-green-light); }
+    .text-cvsu-yellow { color: var(--cvsu-yellow); }
+    .text-cvsu-blue { color: var(--cvsu-blue); }
+    .text-cvsu-blue-light { color: var(--cvsu-blue-light); }
+    .text-cvsu-purple { color: var(--cvsu-purple); }
+    .text-cvsu-purple-light { color: var(--cvsu-purple-light); }
+    .text-cvsu-red { color: var(--cvsu-red); }
+    .text-cvsu-orange { color: var(--cvsu-orange); }
+    .text-cvsu-teal { color: var(--cvsu-teal); }
+    .text-cvsu-indigo { color: var(--cvsu-indigo); }
+    .text-cvsu-pink { color: var(--cvsu-pink); }
+    
+    .border-cvsu-green { border-color: var(--cvsu-green); }
+    .border-cvsu-green-dark { border-color: var(--cvsu-green-dark); }
+    .border-cvsu-green-light { border-color: var(--cvsu-green-light); }
+    .border-cvsu-yellow { border-color: var(--cvsu-yellow); }
+    .border-cvsu-blue { border-color: var(--cvsu-blue); }
+    .border-cvsu-blue-light { border-color: var(--cvsu-blue-light); }
+    .border-cvsu-purple { border-color: var(--cvsu-purple); }
+    .border-cvsu-purple-light { border-color: var(--cvsu-purple-light); }
+    .border-cvsu-red { border-color: var(--cvsu-red); }
+    .border-cvsu-orange { border-color: var(--cvsu-orange); }
+    .border-cvsu-teal { border-color: var(--cvsu-teal); }
+    .border-cvsu-indigo { border-color: var(--cvsu-indigo); }
+    .border-cvsu-pink { border-color: var(--cvsu-pink); }
+    
+    select:disabled {
+      background-color: #f3f4f6;
+      color: #9ca3af;
+      cursor: not-allowed;
     }
-    .modal-content {
-      background-color: white;
-      margin: 10% auto;
-      padding: 20px;
-      border-radius: 10px;
-      width: 80%;
-      max-width: 800px;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }
-    .close {
-      color: #aaa;
-      float: right;
-      font-size: 28px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    .close:hover {
-      color: black;
-    }
-    .summary-card {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-    }
-    .summary-card-content {
-      display: flex;
-      align-items: center;
-      flex-grow: 1;
-    }
-    .summary-card-details {
-      flex-grow: 1;
-    }
-    .summary-card-icon {
-      flex-shrink: 0;
-    }
-    .summary-card-footer {
-      margin-top: 1rem;
+    
+    .label-disabled {
+      color: #9ca3af;
     }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
 <div class="flex min-h-screen">
+
 <?php include 'super_admin_sidebar.php'; ?>
+
 <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:var(--cvsu-green-dark);">
   <h1 class="text-2xl font-bold text-white">
     SUPER ADMIN DASHBOARD
   </h1>
-  <div class="text-white">
-    <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-    </svg>
+  <div class="text-white text-sm">
+    Logged in as:
+    <span class="font-semibold">
+      <?= htmlspecialchars($_SESSION['email'] ?? ($_SESSION['username'] ?? '')) ?>
+    </span>
   </div>
 </header>
+
 <main class="flex-1 pt-20 px-8 ml-64">
 
-  <!-- Statistics Cards -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-    <!-- Total Population -->
+  <!-- Global summary cards (4 cards: voters, elections, admins, turnout) -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <!-- Total Voters -->
     <div class="cvsu-card p-6 rounded-xl">
       <div class="flex items-center justify-between">
         <div>
-          <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Population</h2>
-          <p class="text-2xl md:text-4xl font-bold" style="color: var(--cvsu-green-dark);"><?= number_format($total_voters) ?></p>
+          <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Voters</h2>
+          <p class="text-2xl md:text-4xl font-bold" style="color: var(--cvsu-green-dark);">
+            <?= number_format($totalVoters) ?>
+          </p>
         </div>
         <div class="p-3 rounded-full" style="background-color: rgba(30, 111, 70, 0.1);">
           <i class="fas fa-users text-2xl" style="color: var(--cvsu-green);"></i>
         </div>
       </div>
-      <div class="mt-4">
-        <button onclick="showPopulationBreakdown()" class="text-sm font-medium" style="color: var(--cvsu-green);">
-          View Breakdown <i class="fas fa-chevron-right ml-1"></i>
-        </button>
-      </div>
     </div>
-    
+
     <!-- Total Elections -->
     <div class="cvsu-card p-6 rounded-xl" style="border-left-color: var(--cvsu-yellow);">
       <div class="flex items-center justify-between">
         <div>
           <h2 class="text-base md:text-lg font-semibold text-gray-700">Total Elections</h2>
-          <p class="text-2xl md:text-4xl font-bold" style="color: var(--cvsu-yellow);"><?= $total_elections ?></p>
+          <p class="text-2xl md:text-4xl font-bold" style="color: var(--cvsu-yellow);">
+            <?= number_format($totalElections) ?>
+          </p>
         </div>
         <div class="p-3 rounded-full" style="background-color: rgba(255, 209, 102, 0.1);">
           <i class="fas fa-vote-yea text-2xl" style="color: var(--cvsu-yellow);"></i>
         </div>
       </div>
-      <div class="mt-4">
-        <button onclick="showElectionBreakdown()" class="text-sm font-medium" style="color: var(--cvsu-yellow);">
-          View Breakdown <i class="fas fa-chevron-right ml-1"></i>
-        </button>
-      </div>
     </div>
-    
-    <!-- Ongoing Elections -->
+
+    <!-- Active Admins -->
     <div class="cvsu-card p-6 rounded-xl" style="border-left-color: var(--cvsu-blue);">
       <div class="flex items-center justify-between">
         <div>
-          <h2 class="text-base md:text-lg font-semibold text-gray-700">Ongoing Elections</h2>
-          <p class="text-2xl md:text-4xl font-bold text-blue-600"><?= $ongoing_elections ?></p>
+          <h2 class="text-base md:text-lg font-semibold text-gray-700">Active Admins</h2>
+          <p class="text-2xl md:text-4xl font-bold" style="color: var(--cvsu-blue);">
+            <?= number_format($activeAdmins) ?>
+          </p>
         </div>
-        <div class="p-3 rounded-full bg-blue-50">
-          <i class="fas fa-clock text-2xl text-blue-600"></i>
+        <div class="p-3 rounded-full" style="background-color: rgba(59, 130, 246, 0.1);">
+          <i class="fas fa-user-shield text-2xl" style="color: var(--cvsu-blue);"></i>
         </div>
       </div>
-      <div class="mt-4">
-        <button onclick="showOngoingElectionBreakdown()" class="text-sm font-medium text-blue-600">
-          View Details <i class="fas fa-chevron-right ml-1"></i>
-        </button>
+    </div>
+
+    <!-- Global Turnout (Current Year) -->
+    <div class="cvsu-card p-6 rounded-xl" style="border-left-color: var(--cvsu-indigo);">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base md:text-lg font-semibold text-gray-700">
+            Global Turnout (<?= htmlspecialchars($currentYear) ?>)
+          </h2>
+          <p class="text-2xl md:text-4xl font-bold" style="color: var(--cvsu-indigo);">
+            <?= number_format($currentYearTurnout, 1) ?>%
+          </p>
+        </div>
+        <div class="p-3 rounded-full" style="background-color: rgba(99, 102, 241, 0.1);">
+          <i class="fas fa-chart-line text-2xl" style="color: var(--cvsu-indigo);"></i>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Category Distribution -->
+  <!-- Global Voter Breakdown (same pattern as admin dashboards: doughnut + bar) -->
   <div class="analytics-section mb-8 bg-white rounded-xl shadow-lg overflow-hidden">
     <div class="cvsu-gradient p-6">
-      <div class="flex justify-between items-center">
-        <h2 class="text-2xl font-bold text-white">Population Distribution by Category</h2>
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h2 class="text-2xl font-bold text-white">Global Voter Breakdown</h2>
+          <p class="text-xs text-white/80">
+            All voters, broken down by category and position.
+          </p>
+        </div>
+
+        <!-- Segment filter -->
+        <form method="get" class="flex items-center gap-2 text-xs md:text-sm">
+          <label for="segmentFilter" class="text-white/80 font-medium">
+            Segment:
+          </label>
+          <select
+            id="segmentFilter"
+            name="segment"
+            class="px-3 py-1.5 border border-white/40 rounded-lg bg-white/10 text-white text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-white"
+            onchange="this.form.submit()"
+          >
+            <option value="all"      <?= $segment === 'all'      ? 'selected' : '' ?>>All voters</option>
+            <option value="students" <?= $segment === 'students' ? 'selected' : '' ?>>Students only</option>
+            <option value="faculty"  <?= $segment === 'faculty'  ? 'selected' : '' ?>>Faculty only</option>
+            <option value="employees"<?= $segment === 'employees'? 'selected' : '' ?>>Employees only</option>
+          </select>
+
+          <!-- Preserve scope type filter so overview table state remains -->
+          <input type="hidden" name="scope_type" value="<?= htmlspecialchars($scopeTypeFilter) ?>">
+          <?php if ($selectedScopeId && $selectedScopeType): ?>
+            <input type="hidden" name="scope_id" value="<?= (int)$selectedScopeId ?>">
+            <input type="hidden" name="scope_type_detail" value="<?= htmlspecialchars($selectedScopeType) ?>">
+          <?php endif; ?>
+          
+          <!-- Preserve year range filters -->
+          <input type="hidden" name="from_year" value="<?= htmlspecialchars($fromYear) ?>">
+          <input type="hidden" name="to_year" value="<?= htmlspecialchars($toYear) ?>">
+        </form>
       </div>
     </div>
-    
+
     <div class="p-6">
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <!-- Students -->
-        <div class="p-4 rounded-lg border" style="background-color: rgba(30,111,70,0.05); border-color: var(--cvsu-green-light);">
-          <div class="flex items-center">
-            <div class="p-3 rounded-lg mr-4" style="background-color: var(--cvsu-green-light);">
-              <i class="fas fa-user-graduate text-white text-xl"></i>
-            </div>
-            <div>
-              <p class="text-sm" style="color: var(--cvsu-green);">Students</p>
-              <p class="text-2xl font-bold" style="color: var(--cvsu-green-dark);"><?= number_format($total_students) ?></p>
-            </div>
+      <p class="text-[11px] text-gray-500 mb-2">
+        Current segment:
+        <span class="font-semibold">
+          <?php
+            switch ($segment) {
+              case 'students':  echo 'Students only'; break;
+              case 'faculty':   echo 'Faculty only';  break;
+              case 'employees': echo 'Employees only'; break;
+              default:          echo 'All voters';
+            }
+          ?>
+        </span>
+      </p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        <!-- Category doughnut -->
+        <div class="p-4 rounded-lg" style="background-color: rgba(30,111,70,0.05);">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">Voters by Category</h3>
+          <div class="chart-container" style="height: 260px;">
+            <canvas id="globalCategoryChart"></canvas>
           </div>
         </div>
 
-        <!-- Academic Staff -->
-        <div class="p-4 rounded-lg border" style="background-color: rgba(59,130,246,0.05); border-color: #3B82F6;">
-          <div class="flex items-center">
-            <div class="p-3 rounded-lg mr-4 bg-blue-500">
-              <i class="fas fa-chalkboard-teacher text-white text-xl"></i>
-            </div>
-            <div>
-              <p class="text-sm text-blue-600">Academic Staff</p>
-              <p class="text-2xl font-bold text-blue-800"><?= number_format($total_academic) ?></p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Non-Academic Staff -->
-        <div class="p-4 rounded-lg border" style="background-color: rgba(139,92,246,0.05); border-color: #8B5CF6;">
-          <div class="flex items-center">
-            <div class="p-3 rounded-lg mr-4 bg-purple-500">
-              <i class="fas fa-user-tie text-white text-xl"></i>
-            </div>
-            <div>
-              <p class="text-sm text-purple-600">Non-Academic Staff</p>
-              <p class="text-2xl font-bold text-purple-800"><?= number_format($total_non_academic) ?></p>
-            </div>
-          </div>
-        </div>
-
-        <!-- COOP Members -->
-        <div class="p-4 rounded-lg border" style="background-color: rgba(245,158,11,0.05); border-color: var(--cvsu-yellow);">
-          <div class="flex items-center">
-            <div class="p-3 rounded-lg mr-4" style="background-color: var(--cvsu-yellow);">
-              <i class="fas fa-handshake text-white text-xl"></i>
-            </div>
-            <div>
-              <p class="text-sm" style="color: var(--cvsu-yellow);">COOP Members</p>
-              <p class="text-2xl font-bold" style="color: #D97706;"><?= number_format($total_coop) ?></p>
-            </div>
+        <!-- Position bar chart -->
+        <div class="p-4 rounded-lg" style="background-color: rgba(30,111,70,0.05);">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">Voters by Position (Top 10)</h3>
+          <div class="chart-container" style="height: 260px;">
+            <canvas id="globalPositionChart"></canvas>
           </div>
         </div>
       </div>
-      
-      <!-- Distribution Chart -->
-      <div class="p-4 rounded-lg" style="background-color: rgba(30,111,70,0.05);">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">Population Distribution</h3>
-        <div class="chart-container">
-          <canvas id="distributionChart"></canvas>
+
+      <!-- Simple tables under charts -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Category table -->
+        <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div class="px-4 py-2 bg-gray-50 border-b text-xs font-semibold text-gray-700">
+            Categories
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-xs divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase">Category</th>
+                  <th class="px-4 py-2 text-right font-medium text-gray-500 uppercase">Voters</th>
+                  <th class="px-4 py-2 text-right font-medium text-gray-500 uppercase">Share</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-100">
+                <?php
+                $totalAll = max(1, array_sum($categoryCountsSegmented));
+                foreach ($categoryLabels as $idx => $label):
+                  $cnt   = $categoryCountsSegmented[$idx];
+                  $share = round($cnt / $totalAll * 100, 1);
+                ?>
+                  <tr>
+                    <td class="px-4 py-2"><?= htmlspecialchars($label) ?></td>
+                    <td class="px-4 py-2 text-right"><?= number_format($cnt) ?></td>
+                    <td class="px-4 py-2 text-right"><?= $share ?>%</td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Position table -->
+        <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div class="px-4 py-2 bg-gray-50 border-b text-xs font-semibold text-gray-700">
+            Positions (Top 10)
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-xs divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase">Position</th>
+                  <th class="px-4 py-2 text-right font-medium text-gray-500 uppercase">Voters</th>
+                  <th class="px-4 py-2 text-right font-medium text-gray-500 uppercase">Share</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-100">
+                <?php
+                $totPosAll = max(1, array_sum($positionCounts));
+                foreach ($positionLabelsLimited as $idx => $label):
+                  $cnt   = $positionCountsLimited[$idx] ?? 0;
+                  $share = round($cnt / $totPosAll * 100, 1);
+                ?>
+                  <tr>
+                    <td class="px-4 py-2"><?= htmlspecialchars($label) ?></td>
+                    <td class="px-4 py-2 text-right"><?= number_format($cnt) ?></td>
+                    <td class="px-4 py-2 text-right"><?= $share ?>%</td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
+
     </div>
   </div>
 
-  <!-- Voter Turnout Analytics Section -->
-  <div class="analytics-section mb-8 bg-white rounded-xl shadow-lg overflow-hidden">
-    <div class="cvsu-gradient p-6">
-      <div class="flex justify-between items-center">
-        <h2 class="text-2xl font-bold text-white">Voter Turnout Analytics</h2>
-        <div class="flex items-center">
-          <label for="turnoutYearSelector" class="mr-2 text-white font-medium">Select Year:</label>
-          <select id="turnoutYearSelector" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]">
-            <?php foreach ($turnoutYears as $year): ?>
-              <option value="<?= $year ?>" <?= $year == $selectedYear ? 'selected' : '' ?>><?= $year ?></option>
+  <!-- Global Elections per Year -->
+  <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+    <h2 class="text-xl font-bold text-gray-800 mb-4">Global Elections per Year</h2>
+    <div class="chart-container">
+      <canvas id="globalElectionsChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Global Turnout Rate by Year -->
+  <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+    <h2 class="text-xl font-bold text-gray-800 mb-4">Global Turnout Rate by Year</h2>
+    
+    <!-- Year Range Selector -->
+    <div class="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <h3 class="font-medium text-blue-800 mb-2">Turnout Analysis – Year Range</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label for="fromYear" class="block text-sm font-medium text-blue-800">From year</label>
+          <select id="fromYear" name="from_year" class="mt-1 p-2 border rounded w-full" onchange="submitYearRange()">
+            <?php foreach ($allTurnoutYears as $y): ?>
+              <option value="<?= $y ?>" <?= ($y == $fromYear) ? 'selected' : '' ?>><?= $y ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div>
+          <label for="toYear" class="block text-sm font-medium text-blue-800">To year</label>
+          <select id="toYear" name="to_year" class="mt-1 p-2 border rounded w-full" onchange="submitYearRange()">
+            <?php foreach ($allTurnoutYears as $y): ?>
+              <option value="<?= $y ?>" <?= ($y == $toYear) ? 'selected' : '' ?>><?= $y ?></option>
             <?php endforeach; ?>
           </select>
         </div>
       </div>
+      <p class="text-xs text-blue-700 mt-2">
+        Select a start and end year to compare turnout. Years with no elections in this range will appear with zero values.
+      </p>
     </div>
     
-    <div class="border-t p-6">
-      <!-- Summary Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-        <!-- Overall Turnout -->
-        <div class="summary-card p-4 rounded-lg border" style="background-color: rgba(99,102,241,0.05); border-color:var(--cvsu-blue);">
-          <div class="summary-card-content">
-            <div class="summary-card-details">
-              <p class="text-sm text-indigo-600">Overall Turnout</p>
-              <p class="text-2xl font-bold text-indigo-800"><?= $currentYearTurnout['overall_turnout'] ?? 0 ?>%</p>
-            </div>
-            <div class="summary-card-icon">
-              <div class="p-3 rounded-lg bg-indigo-500"><i class="fas fa-percentage text-white text-xl"></i></div>
-            </div>
-          </div>
-          <div class="summary-card-footer">
-            <p class="text-xs text-gray-500">
-              <?php if ($previousYearTurnout): ?>
-                <?= ($currentYearTurnout['overall_turnout'] > $previousYearTurnout['overall_turnout']) ? '↑' : '↓' ?> 
-                <?= abs(round(($currentYearTurnout['overall_turnout'] ?? 0) - ($previousYearTurnout['overall_turnout'] ?? 0), 1)) ?>% from last year
-              <?php else: ?>
-                No previous year data
-              <?php endif; ?>
-            </p>
-          </div>
-        </div>
-        
-        <!-- Students Turnout -->
-        <div class="summary-card p-4 rounded-lg border" style="background-color: rgba(30,111,70,0.05); border-color:var(--cvsu-green);">
-          <div class="summary-card-content">
-            <div class="summary-card-details">
-              <p class="text-sm" style="color: var(--cvsu-green);">Students Turnout</p>
-              <p class="text-2xl font-bold" style="color: var(--cvsu-green-dark);"><?= $currentYearTurnout['students_turnout'] ?? 0 ?>%</p>
-            </div>
-            <div class="summary-card-icon">
-              <div class="p-3 rounded-lg" style="background-color: var(--cvsu-green);"><i class="fas fa-user-graduate text-white text-xl"></i></div>
-            </div>
-          </div>
-          <div class="summary-card-footer">
-            <p class="text-xs text-gray-500">
-              <?php if ($previousYearTurnout): ?>
-                <?= ($currentYearTurnout['students_turnout'] > $previousYearTurnout['students_turnout']) ? '↑' : '↓' ?> 
-                <?= abs(round(($currentYearTurnout['students_turnout'] ?? 0) - ($previousYearTurnout['students_turnout'] ?? 0), 1)) ?>% from last year
-              <?php else: ?>
-                No previous year data
-              <?php endif; ?>
-            </p>
-          </div>
-        </div>
-        
-        <!-- Academic Turnout -->
-        <div class="summary-card p-4 rounded-lg border" style="background-color: rgba(59,130,246,0.05); border-color:#3B82F6;">
-          <div class="summary-card-content">
-            <div class="summary-card-details">
-              <p class="text-sm text-blue-600">Academic Turnout</p>
-              <p class="text-2xl font-bold text-blue-800"><?= $currentYearTurnout['academic_turnout'] ?? 0 ?>%</p>
-            </div>
-            <div class="summary-card-icon">
-              <div class="p-3 rounded-lg bg-blue-500"><i class="fas fa-chalkboard-teacher text-white text-xl"></i></div>
-            </div>
-          </div>
-          <div class="summary-card-footer">
-            <p class="text-xs text-gray-500">
-              <?php if ($previousYearTurnout): ?>
-                <?= ($currentYearTurnout['academic_turnout'] > $previousYearTurnout['academic_turnout']) ? '↑' : '↓' ?> 
-                <?= abs(round(($currentYearTurnout['academic_turnout'] ?? 0) - ($previousYearTurnout['academic_turnout'] ?? 0), 1)) ?>% from last year
-              <?php else: ?>
-                No previous year data
-              <?php endif; ?>
-            </p>
-          </div>
-        </div>
-        
-        <!-- Non-Academic Turnout -->
-        <div class="summary-card p-4 rounded-lg border" style="background-color: rgba(139,92,246,0.05); border-color:#8B5CF6;">
-          <div class="summary-card-content">
-            <div class="summary-card-details">
-              <p class="text-sm text-purple-600">Non-Academic Turnout</p>
-              <p class="text-2xl font-bold text-purple-800"><?= $currentYearTurnout['non_academic_turnout'] ?? 0 ?>%</p>
-            </div>
-            <div class="summary-card-icon">
-              <div class="p-3 rounded-lg bg-purple-500"><i class="fas fa-user-tie text-white text-xl"></i></div>
-            </div>
-          </div>
-          <div class="summary-card-footer">
-            <p class="text-xs text-gray-500">
-              <?php if ($previousYearTurnout): ?>
-                <?= ($currentYearTurnout['non_academic_turnout'] > $previousYearTurnout['non_academic_turnout']) ? '↑' : '↓' ?> 
-                <?= abs(round(($currentYearTurnout['non_academic_turnout'] ?? 0) - ($previousYearTurnout['non_academic_turnout'] ?? 0), 1)) ?>% from last year
-              <?php else: ?>
-                No previous year data
-              <?php endif; ?>
-            </p>
-          </div>
-        </div>
-        
-        <!-- COOP Turnout -->
-        <div class="summary-card p-4 rounded-lg border" style="background-color: rgba(245,158,11,0.05); border-color:var(--cvsu-yellow);">
-          <div class="summary-card-content">
-            <div class="summary-card-details">
-              <p class="text-sm" style="color: var(--cvsu-yellow);">COOP Turnout</p>
-              <p class="text-2xl font-bold" style="color: #D97706;"><?= $currentYearTurnout['coop_turnout'] ?? 0 ?>%</p>
-            </div>
-            <div class="summary-card-icon">
-              <div class="p-3 rounded-lg" style="background-color: var(--cvsu-yellow);"><i class="fas fa-handshake text-white text-xl"></i></div>
-            </div>
-          </div>
-          <div class="summary-card-footer">
-            <p class="text-xs text-gray-500">
-              <?php if ($previousYearTurnout): ?>
-                <?= ($currentYearTurnout['coop_turnout'] > $previousYearTurnout['coop_turnout']) ? '↑' : '↓' ?> 
-                <?= abs(round(($currentYearTurnout['coop_turnout'] ?? 0) - ($previousYearTurnout['coop_turnout'] ?? 0), 1)) ?>% from last year
-              <?php else: ?>
-                No previous year data
-              <?php endif; ?>
-            </p>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Turnout Trend Chart -->
-      <div class="p-4 rounded-lg mb-8" style="background-color: rgba(30,111,70,0.05);">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">Turnout Rate Trend</h3>
-        <div class="chart-container" style="height: 400px;">
-          <canvas id="turnoutTrendChart"></canvas>
-        </div>
-      </div>
-      
-      <!-- Year-over-Year Comparison Section -->
-      <div class="mt-4 p-4 rounded-lg" style="background-color: rgba(30,111,70,0.05);">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">Year-over-Year Comparison</h3>
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <!-- Overall Comparison -->
-          <div class="text-center">
-            <p class="text-sm text-gray-600">Overall Turnout</p>
-            <div class="flex justify-center items-center mt-1">
-              <span class="text-lg font-semibold"><?= $previousYearTurnout['overall_turnout'] ?? 0 ?>%</span>
-              <i class="fas fa-arrow-right mx-2 text-gray-400"></i>
-              <span class="text-lg font-semibold" style="color: var(--cvsu-green-dark);"><?= $currentYearTurnout['overall_turnout'] ?? 0 ?>%</span>
-            </div>
-            <p class="text-sm mt-1 <?= ($currentYearTurnout['overall_turnout'] ?? 0) > ($previousYearTurnout['overall_turnout'] ?? 0) ? 'text-green-600' : 'text-red-600' ?>">
-              <?= ($currentYearTurnout['overall_turnout'] ?? 0) > ($previousYearTurnout['overall_turnout'] ?? 0) ? '+' : '' ?>
-              <?= round(($currentYearTurnout['overall_turnout'] ?? 0) - ($previousYearTurnout['overall_turnout'] ?? 0), 1) ?>%
-            </p>
-          </div>
-          
-          <!-- Students Comparison -->
-          <div class="text-center">
-            <p class="text-sm text-gray-600">Students</p>
-            <div class="flex justify-center items-center mt-1">
-              <span class="text-lg font-semibold"><?= $previousYearTurnout['students_turnout'] ?? 0 ?>%</span>
-              <i class="fas fa-arrow-right mx-2 text-gray-400"></i>
-              <span class="text-lg font-semibold" style="color: var(--cvsu-green-dark);"><?= $currentYearTurnout['students_turnout'] ?? 0 ?>%</span>
-            </div>
-            <p class="text-sm mt-1 <?= ($currentYearTurnout['students_turnout'] ?? 0) > ($previousYearTurnout['students_turnout'] ?? 0) ? 'text-green-600' : 'text-red-600' ?>">
-              <?= ($currentYearTurnout['students_turnout'] ?? 0) > ($previousYearTurnout['students_turnout'] ?? 0) ? '+' : '' ?>
-              <?= round(($currentYearTurnout['students_turnout'] ?? 0) - ($previousYearTurnout['students_turnout'] ?? 0), 1) ?>%
-            </p>
-          </div>
-          
-          <!-- Academic Comparison -->
-          <div class="text-center">
-            <p class="text-sm text-gray-600">Academic Staff</p>
-            <div class="flex justify-center items-center mt-1">
-              <span class="text-lg font-semibold"><?= $previousYearTurnout['academic_turnout'] ?? 0 ?>%</span>
-              <i class="fas fa-arrow-right mx-2 text-gray-400"></i>
-              <span class="text-lg font-semibold" style="color: var(--cvsu-green-dark);"><?= $currentYearTurnout['academic_turnout'] ?? 0 ?>%</span>
-            </div>
-            <p class="text-sm mt-1 <?= ($currentYearTurnout['academic_turnout'] ?? 0) > ($previousYearTurnout['academic_turnout'] ?? 0) ? 'text-green-600' : 'text-red-600' ?>">
-              <?= ($currentYearTurnout['academic_turnout'] ?? 0) > ($previousYearTurnout['academic_turnout'] ?? 0) ? '+' : '' ?>
-              <?= round(($currentYearTurnout['academic_turnout'] ?? 0) - ($previousYearTurnout['academic_turnout'] ?? 0), 1) ?>%
-            </p>
-          </div>
-          
-          <!-- Non-Academic Comparison -->
-          <div class="text-center">
-            <p class="text-sm text-gray-600">Non-Academic Staff</p>
-            <div class="flex justify-center items-center mt-1">
-              <span class="text-lg font-semibold"><?= $previousYearTurnout['non_academic_turnout'] ?? 0 ?>%</span>
-              <i class="fas fa-arrow-right mx-2 text-gray-400"></i>
-              <span class="text-lg font-semibold" style="color: var(--cvsu-green-dark);"><?= $currentYearTurnout['non_academic_turnout'] ?? 0 ?>%</span>
-            </div>
-            <p class="text-sm mt-1 <?= ($currentYearTurnout['non_academic_turnout'] ?? 0) > ($previousYearTurnout['non_academic_turnout'] ?? 0) ? 'text-green-600' : 'text-red-600' ?>">
-              <?= ($currentYearTurnout['non_academic_turnout'] ?? 0) > ($previousYearTurnout['non_academic_turnout'] ?? 0) ? '+' : '' ?>
-              <?= round(($currentYearTurnout['non_academic_turnout'] ?? 0) - ($previousYearTurnout['non_academic_turnout'] ?? 0), 1) ?>%
-            </p>
-          </div>
-          
-          <!-- COOP Comparison -->
-          <div class="text-center">
-            <p class="text-sm text-gray-600">COOP Members</p>
-            <div class="flex justify-center items-center mt-1">
-              <span class="text-lg font-semibold"><?= $previousYearTurnout['coop_turnout'] ?? 0 ?>%</span>
-              <i class="fas fa-arrow-right mx-2 text-gray-400"></i>
-              <span class="text-lg font-semibold" style="color: var(--cvsu-green-dark);"><?= $currentYearTurnout['coop_turnout'] ?? 0 ?>%</span>
-            </div>
-            <p class="text-sm mt-1 <?= ($currentYearTurnout['coop_turnout'] ?? 0) > ($previousYearTurnout['coop_turnout'] ?? 0) ? 'text-green-600' : 'text-red-600' ?>">
-              <?= ($currentYearTurnout['coop_turnout'] ?? 0) > ($previousYearTurnout['coop_turnout'] ?? 0) ? '+' : '' ?>
-              <?= round(($currentYearTurnout['coop_turnout'] ?? 0) - ($previousYearTurnout['coop_turnout'] ?? 0), 1) ?>%
-            </p>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Yearly Turnout Table -->
-      <div class="bg-white border border-gray-200 rounded-lg overflow-hidden mt-6">
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-              <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Year</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Elections</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Overall Turnout</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Students Turnout</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Academic Turnout</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Non-Academic Turnout</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">COOP Turnout</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Growth</th>
-              </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-              <?php foreach ($turnoutDataByYear as $year => $data):
-                $isPositive = ($data['growth_rate'] ?? 0) > 0;
-                $trendIcon = $isPositive ? 'fa-arrow-up' : (($data['growth_rate'] ?? 0) < 0 ? 'fa-arrow-down' : 'fa-minus');
-                $trendColor = $isPositive ? 'text-green-600' : (($data['growth_rate'] ?? 0) < 0 ? 'text-red-600' : 'text-gray-600');
-              ?>
+    <div class="chart-container">
+      <canvas id="globalTurnoutChart"></canvas>
+    </div>
+    <p class="mt-3 text-xs text-gray-500">
+      Turnout = distinct voters who participated in any election in that year ÷ all voters existing by December 31 of that year.
+    </p>
+    
+    <!-- Turnout Table -->
+    <div class="mt-6 bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Year</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Elections</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Eligible Students</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Students Participated</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Turnout Rate</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Growth</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <?php 
+            // Calculate growth rates for the filtered range
+            $prevYear = null;
+            foreach ($filteredTurnoutByYear as $year => $data):
+              $isPositive = ($data['growth_rate'] ?? 0) > 0;
+              $trendIcon = $isPositive ? 'fa-arrow-up' : (($data['growth_rate'] ?? 0) < 0 ? 'fa-arrow-down' : 'fa-minus');
+              $trendColor = $isPositive ? 'text-green-600' : (($data['growth_rate'] ?? 0) < 0 ? 'text-red-600' : 'text-gray-600');
+            ?>
               <tr>
                 <td class="px-6 py-4 whitespace-nowrap font-medium"><?= $year ?></td>
-                <td class="px-6 py-4 whitespace-nowrap"><?= $data['election_count'] ?></td>
+                <td class="px-6 py-4 whitespace-nowrap"><?= $data['election_count'] ?? 0 ?></td>
+                <td class="px-6 py-4 whitespace-nowrap"><?= number_format($data['total_eligible'] ?? 0) ?></td>
+                <td class="px-6 py-4 whitespace-nowrap"><?= number_format($data['total_voted'] ?? 0) ?></td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <span class="<?= $data['overall_turnout'] >= 70 ? 'text-green-600' : ($data['overall_turnout'] >= 40 ? 'text-yellow-600' : 'text-red-600') ?>">
-                    <?= $data['overall_turnout'] ?>%
-                  </span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <span class="<?= $data['students_turnout'] >= 70 ? 'text-green-600' : ($data['students_turnout'] >= 40 ? 'text-yellow-600' : 'text-red-600') ?>">
-                    <?= $data['students_turnout'] ?>%
-                  </span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <span class="<?= $data['academic_turnout'] >= 70 ? 'text-green-600' : ($data['academic_turnout'] >= 40 ? 'text-yellow-600' : 'text-red-600') ?>">
-                    <?= $data['academic_turnout'] ?>%
-                  </span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <span class="<?= $data['non_academic_turnout'] >= 70 ? 'text-green-600' : ($data['non_academic_turnout'] >= 40 ? 'text-yellow-600' : 'text-red-600') ?>">
-                    <?= $data['non_academic_turnout'] ?>%
-                  </span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <span class="<?= $data['coop_turnout'] >= 70 ? 'text-green-600' : ($data['coop_turnout'] >= 40 ? 'text-yellow-600' : 'text-red-600') ?>">
-                    <?= $data['coop_turnout'] ?>%
+                  <span class="<?= $data['turnout_rate'] >= 70 ? 'text-green-600' : ($data['turnout_rate'] >= 40 ? 'text-yellow-600' : 'text-red-600') ?>">
+                    <?= $data['turnout_rate'] ?? 0 ?>%
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
@@ -812,308 +888,360 @@ foreach ($years as $year) {
                   <i class="fas <?= $trendIcon ?> <?= $trendColor ?> ml-1"></i>
                 </td>
               </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
+
+  <!-- Scopes & Admin Overview (no more "view scope dashboard" button) -->
+  <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-3">
+      <h2 class="text-2xl font-bold text-gray-800">Scopes &amp; Admin Overview</h2>
+      <div class="flex items-center gap-2 text-sm">
+        <span class="text-xs text-gray-500">
+          Filter by scope type:
+        </span>
+        <form method="get" class="flex items-center gap-2 text-sm">
+          <select
+            id="scopeTypeFilterChart"
+            name="scope_type"
+            class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cvsu-green)] focus:border-[var(--cvsu-green)]"
+            onchange="this.form.submit()"
+          >
+            <option value="all" <?= $scopeTypeFilter === 'all' ? 'selected' : '' ?>>All</option>
+            <?php foreach ($scopeTypesAvailable as $type): ?>
+              <option value="<?= htmlspecialchars($type) ?>" <?= $scopeTypeFilter === $type ? 'selected' : '' ?>>
+                <?= htmlspecialchars($type) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+          
+          <!-- Preserve segment filter -->
+          <input type="hidden" name="segment" value="<?= htmlspecialchars($segment) ?>">
+          
+          <!-- Preserve year range filters -->
+          <input type="hidden" name="from_year" value="<?= htmlspecialchars($fromYear) ?>">
+          <input type="hidden" name="to_year" value="<?= htmlspecialchars($toYear) ?>">
+          
+          <?php if ($selectedScopeId && $selectedScopeType): ?>
+            <input type="hidden" name="scope_id" value="<?= (int)$selectedScopeId ?>">
+            <input type="hidden" name="scope_type_detail" value="<?= htmlspecialchars($selectedScopeType) ?>">
+          <?php endif; ?>
+        </form>
+      </div>
+    </div>
+
+    <?php if (empty($filteredScopeSummaries)): ?>
+      <p class="text-sm text-gray-600">
+        No scope seats found for the selected filter.
+      </p>
+    <?php else: ?>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Scope Type</th>
+              <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Scope Label</th>
+              <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Admin</th>
+              <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Email</th>
+              <th class="px-4 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">Voters</th>
+              <th class="px-4 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">Elections</th>
+              <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Last Election</th>
+              <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <?php foreach ($filteredScopeSummaries as $s): ?>
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-2 whitespace-nowrap text-xs font-semibold">
+                  <span class="inline-flex items-center px-2 py-1 rounded-full bg-gray-100 text-gray-700">
+                    <?= htmlspecialchars($s['scope_type']) ?>
+                  </span>
+                </td>
+                <td class="px-4 py-2 whitespace-normal">
+                  <div class="text-xs text-gray-900 font-medium">
+                    <?= htmlspecialchars($s['label']) ?>
+                  </div>
+                  <div class="text-[11px] text-gray-500">
+                    Scope ID: <?= (int)$s['scope_id'] ?>
+                  </div>
+                </td>
+                <td class="px-4 py-2 whitespace-nowrap text-xs text-gray-800">
+                  <?= htmlspecialchars($s['admin_name']) ?>
+                </td>
+                <td class="px-4 py-2 whitespace-nowrap text-xs text-blue-700">
+                  <?php if (!empty($s['admin_email'])): ?>
+                    <a href="mailto:<?= htmlspecialchars($s['admin_email']) ?>" class="underline">
+                      <?= htmlspecialchars($s['admin_email']) ?>
+                    </a>
+                  <?php endif; ?>
+                </td>
+                <td class="px-4 py-2 whitespace-nowrap text-right text-xs text-gray-900">
+                  <?= number_format($s['voters_count']) ?>
+                </td>
+                <td class="px-4 py-2 whitespace-nowrap text-right text-xs text-gray-900">
+                  <?= number_format($s['elections_count']) ?>
+                </td>
+                <td class="px-4 py-2 whitespace-nowrap text-xs text-gray-700">
+                  <?php if ($s['last_election_at']): ?>
+                    <?= date('Y-m-d H:i', strtotime($s['last_election_at'])) ?>
+                  <?php else: ?>
+                    <span class="text-gray-400 italic">None</span>
+                  <?php endif; ?>
+                </td>
+                <?php
+                // Decide which admin dashboard file to use for "view as seat admin"
+                $viewAsUrl = null;
+                switch ($s['scope_type']) {
+                    case SCOPE_ACAD_STUDENT:
+                        $viewAsUrl = "admin_dashboard_college.php?scope_id=" . (int)$s['scope_id'];
+                        break;
+                    case SCOPE_ACAD_FACULTY:
+                        $viewAsUrl = "admin_dashboard_faculty.php?scope_id=" . (int)$s['scope_id'];
+                        break;
+                    case SCOPE_NONACAD_STUDENT:
+                        $viewAsUrl = "admin_dashboard_non_acad_students.php?scope_id=" . (int)$s['scope_id'];
+                        break;
+                    case SCOPE_NONACAD_EMPLOYEE:
+                        $viewAsUrl = "admin_dashboard_nonacademic.php?scope_id=" . (int)$s['scope_id'];
+                        break;
+                    case SCOPE_OTHERS_COOP:
+                        $viewAsUrl = "admin_dashboard_coop.php?scope_id=" . (int)$s['scope_id'];
+                        break;
+                    case SCOPE_OTHERS_DEFAULT:
+                        $viewAsUrl = "admin_dashboard_default.php?scope_id=" . (int)$s['scope_id'];
+                        break;
+                    case SCOPE_SPECIAL_CSG:
+                        $viewAsUrl = "admin_dashboard_csg.php?scope_id=" . (int)$s['scope_id'];
+                        break;
+                }
+                ?>
+                <td class="px-4 py-2 whitespace-nowrap text-xs">
+                  <div class="flex flex-col gap-1">
+                    <?php if ($viewAsUrl): ?>
+                      <a href="<?= htmlspecialchars($viewAsUrl) ?>"
+                         class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-full border border-gray-400 text-gray-700 hover:bg-gray-100">
+                        View as seat admin
+                      </a>
+                    <?php endif; ?>
+                  </div>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    <?php endif; ?>
+  </div>
+
+  <!-- Scope Details Panel (unchanged logic, just moved) -->
+  <?php if ($selectedSeat !== null): ?>
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-800">Scope Details</h2>
+          <p class="text-sm text-gray-600">
+            <?= htmlspecialchars($selectedSeat['label']) ?><br>
+            <span class="text-xs text-gray-500">
+              Admin: <?= htmlspecialchars($selectedSeat['admin_full_name']) ?>
+              (<?= htmlspecialchars($selectedSeat['admin_email'] ?? '') ?>)
+            </span>
+          </p>
+        </div>
+        <div class="flex items-center gap-3">
+          <a href="super_admin_dashboard.php?segment=<?= htmlspecialchars($segment) ?>&scope_type=<?= htmlspecialchars($scopeTypeFilter) ?>&from_year=<?= htmlspecialchars($fromYear) ?>&to_year=<?= htmlspecialchars($toYear) ?>" class="text-xs px-3 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-100">
+            Clear selection
+          </a>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="p-4 rounded-lg border" style="background-color: rgba(59, 130, 246, 0.05); border-color: var(--cvsu-blue);">
+          <div class="text-xs" style="color: var(--cvsu-blue);">Voters in this scope</div>
+          <div class="text-2xl font-bold" style="color: var(--cvsu-blue-dark);">
+            <?= number_format(count($selectedScopeVoters)) ?>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-lg border" style="background-color: rgba(30, 111, 70, 0.05); border-color: var(--cvsu-green);">
+          <div class="text-xs" style="color: var(--cvsu-green);">Elections in this scope</div>
+          <div class="text-2xl font-bold" style="color: var(--cvsu-green-dark);">
+            <?= number_format(count($selectedScopeElections)) ?>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-lg border" style="background-color: rgba(99, 102, 241, 0.05); border-color: var(--cvsu-indigo);">
+          <div class="text-xs" style="color: var(--cvsu-indigo);">
+            Latest turnout<?= $selectedScopeLatestYear ? ' ('.$selectedScopeLatestYear.')' : '' ?>
+          </div>
+          <div class="text-2xl font-bold" style="color: var(--cvsu-indigo);">
+            <?= $selectedScopeLatestTurnout !== null ? $selectedScopeLatestTurnout.'%' : '0%' ?>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-lg border" style="background-color: rgba(255, 209, 102, 0.05); border-color: var(--cvsu-yellow);">
+          <div class="text-xs" style="color: var(--cvsu-yellow);">Last election</div>
+          <div class="text-sm" style="color: var(--cvsu-yellow-dark); font-weight: 600;">
+            <?= $selectedScopeLatestElection ? htmlspecialchars($selectedScopeLatestElection['title']) : '—' ?>
+          </div>
+          <?php if ($selectedScopeLatestElection): ?>
+            <div class="text-xs text-gray-600 mt-1">
+              <?= date('M d, Y', strtotime($selectedScopeLatestElection['start_datetime'])) ?>
+              – <?= date('M d, Y', strtotime($selectedScopeLatestElection['end_datetime'])) ?>
+            </div>
+          <?php endif; ?>
+        </div>
+      </div>
+
+      <?php if (!empty($selectedScopeBreakdown)): ?>
+        <div class="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+          <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-800">
+              Breakdown by
+              <?php if (in_array($selectedSeat['scope_type'], [SCOPE_ACAD_STUDENT, SCOPE_ACAD_FACULTY, SCOPE_NONACAD_STUDENT, SCOPE_NONACAD_EMPLOYEE], true)): ?>
+                Department / College
+              <?php elseif (in_array($selectedSeat['scope_type'], [SCOPE_OTHERS_COOP, SCOPE_OTHERS_DEFAULT], true)): ?>
+                Department
+              <?php else: ?>
+                Position
+              <?php endif; ?>
+            </h3>
+            <span class="text-xs text-gray-500">
+              Top <?= min(10, count($selectedScopeBreakdown)) ?> rows
+            </span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm divide-y divide-gray-200">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="px-4 py-2 text-left font-medium text-gray-600">Label</th>
+                  <th class="px-4 py-2 text-left font-medium text-gray-600">Voters</th>
+                  <th class="px-4 py-2 text-left font-medium text-gray-600">Share</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-100">
+                <?php
+                $totalVotersScope = max(1, count($selectedScopeVoters));
+                $i = 0;
+                foreach ($selectedScopeBreakdown as $label => $cnt) {
+                    if ($i++ >= 10) break;
+                    $percent = round($cnt / $totalVotersScope * 100, 1);
+                ?>
+                <tr>
+                  <td class="px-4 py-2 whitespace-nowrap font-medium text-gray-800">
+                    <?= htmlspecialchars($label === '' ? 'Unspecified' : $label) ?>
+                  </td>
+                  <td class="px-4 py-2 whitespace-nowrap text-gray-700">
+                    <?= number_format($cnt) ?>
+                  </td>
+                  <td class="px-4 py-2 whitespace-nowrap text-gray-700">
+                    <?= $percent ?>%
+                  </td>
+                </tr>
+                <?php } ?>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      <?php else: ?>
+        <p class="text-sm text-gray-500">No detailed breakdown available for this scope.</p>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
 
 </main>
 </div>
 
-<!-- Modals for Breakdowns -->
-<!-- Population Breakdown Modal -->
-<div id="populationModal" class="modal">
-  <div class="modal-content">
-    <span class="close" onclick="closeModal('populationModal')">&times;</span>
-    <h2 class="text-2xl font-bold mb-4" style="color: var(--cvsu-green-dark);">Population Breakdown</h2>
-    <div class="grid grid-cols-2 gap-4">
-      <div class="p-4 rounded-lg" style="background-color: rgba(30,111,70,0.05);">
-        <h3 class="font-semibold mb-2" style="color: var(--cvsu-green);">Students</h3>
-        <p class="text-2xl font-bold"><?= number_format($total_students) ?></p>
-        <p class="text-sm text-gray-600"><?= round(($total_students / $total_voters) * 100, 1) ?>% of total</p>
-      </div>
-      <div class="p-4 rounded-lg bg-blue-50">
-        <h3 class="font-semibold mb-2 text-blue-600">Academic Staff</h3>
-        <p class="text-2xl font-bold text-blue-800"><?= number_format($total_academic) ?></p>
-        <p class="text-sm text-gray-600"><?= round(($total_academic / $total_voters) * 100, 1) ?>% of total</p>
-      </div>
-      <div class="p-4 rounded-lg bg-purple-50">
-        <h3 class="font-semibold mb-2 text-purple-600">Non-Academic Staff</h3>
-        <p class="text-2xl font-bold text-purple-800"><?= number_format($total_non_academic) ?></p>
-        <p class="text-sm text-gray-600"><?= round(($total_non_academic / $total_voters) * 100, 1) ?>% of total</p>
-      </div>
-      <div class="p-4 rounded-lg" style="background-color: rgba(245,158,11,0.05);">
-        <h3 class="font-semibold mb-2" style="color: var(--cvsu-yellow);">COOP Members</h3>
-        <p class="text-2xl font-bold" style="color: #D97706;"><?= number_format($total_coop) ?></p>
-        <p class="text-sm text-gray-600"><?= round(($total_coop / $total_voters) * 100, 1) ?>% of total</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Election Breakdown Modal -->
-<div id="electionModal" class="modal">
-  <div class="modal-content">
-    <span class="close" onclick="closeModal('electionModal')">&times;</span>
-    <h2 class="text-2xl font-bold mb-4" style="color: var(--cvsu-yellow);">Election Breakdown</h2>
-    <div class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-          <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Election ID</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Date</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">End Date</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-          <?php
-          $stmt = $pdo->query("SELECT election_id, title, start_datetime, end_datetime, status FROM elections ORDER BY start_datetime DESC");
-          $elections = $stmt->fetchAll();
-          foreach ($elections as $election):
-            $statusColor = $election['status'] == 'ongoing' ? 'text-green-600' : ($election['status'] == 'completed' ? 'text-blue-600' : 'text-gray-600');
-          ?>
-          <tr>
-            <td class="px-6 py-4 whitespace-nowrap"><?= $election['election_id'] ?></td>
-            <td class="px-6 py-4 whitespace-nowrap"><?= $election['title'] ?></td>
-            <td class="px-6 py-4 whitespace-nowrap"><?= date('M d, Y', strtotime($election['start_datetime'])) ?></td>
-            <td class="px-6 py-4 whitespace-nowrap"><?= date('M d, Y', strtotime($election['end_datetime'])) ?></td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <span class="<?= $statusColor ?>"><?= ucfirst($election['status']) ?></span>
-            </td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- Ongoing Election Breakdown Modal -->
-<div id="ongoingModal" class="modal">
-  <div class="modal-content">
-    <span class="close" onclick="closeModal('ongoingModal')">&times;</span>
-    <h2 class="text-2xl font-bold mb-4 text-blue-600">Ongoing Elections Details</h2>
-    <?php
-    $stmt = $pdo->query("SELECT election_id, title, start_datetime, end_datetime FROM elections WHERE status = 'ongoing'");
-    $ongoing = $stmt->fetchAll();
-    if (count($ongoing) > 0):
-      foreach ($ongoing as $election):
-        $startDate = new DateTime($election['start_datetime']);
-        $endDate = new DateTime($election['end_datetime']);
-        $now = new DateTime();
-        $interval = $now->diff($endDate);
-        $daysLeft = $interval->days;
-    ?>
-    <div class="p-4 rounded-lg border border-blue-200 mb-4">
-      <h3 class="text-lg font-semibold text-blue-800"><?= $election['title'] ?></h3>
-      <p class="text-sm text-gray-600 mb-2">Election ID: <?= $election['election_id'] ?></p>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <p class="text-sm text-gray-500">Start Date</p>
-          <p class="font-medium"><?= $startDate->format('M d, Y h:i A') ?></p>
-        </div>
-        <div>
-          <p class="text-sm text-gray-500">End Date</p>
-          <p class="font-medium"><?= $endDate->format('M d, Y h:i A') ?></p>
-        </div>
-      </div>
-      <div class="mt-3">
-        <p class="text-sm text-gray-500">Time Remaining</p>
-        <p class="font-medium text-blue-600"><?= $daysLeft ?> day(s) left</p>
-      </div>
-    </div>
-    <?php 
-      endforeach;
-    else:
-    ?>
-    <p class="text-gray-500">No ongoing elections at the moment.</p>
-    <?php endif; ?>
-  </div>
-</div>
-
-<!-- Include Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Year selector
-  document.getElementById('turnoutYearSelector')?.addEventListener('change', function() {
-    window.location.href = window.location.pathname + '?year=' + this.value;
-  });
-  
-  // Distribution Chart
-  const distributionCtx = document.getElementById('distributionChart');
-  if (distributionCtx) {
-    const distributionData = <?= json_encode($categoryDistribution) ?>;
-    
-    // Group by category
-    const categories = {};
-    distributionData.forEach(item => {
-      if (!categories[item.category]) {
-        categories[item.category] = 0;
-      }
-      categories[item.category] += item.count;
-    });
-    
-    new Chart(distributionCtx, {
-      type: 'doughnut',
+document.addEventListener('DOMContentLoaded', function () {
+  // Global elections per year
+  const electionsCtx = document.getElementById('globalElectionsChart');
+  if (electionsCtx) {
+    const years  = <?= json_encode(array_map('intval', $yearsForChart)) ?>;
+    const counts = <?= json_encode(array_map('intval', $countsForChart)) ?>;
+
+    new Chart(electionsCtx, {
+      type: 'line',
       data: {
-        labels: Object.keys(categories),
+        labels: years,
         datasets: [{
-          data: Object.values(categories),
-          backgroundColor: [
-            '#1E6F46', // Students - green
-            '#3B82F6', // Academic - blue
-            '#8B5CF6', // Non-Academic - purple
-            '#F59E0B'  // COOP - yellow
-          ],
-          borderWidth: 1
+          label: 'Number of Elections',
+          data: counts,
+          borderColor: '#1E6F46',
+          backgroundColor: 'rgba(30,111,70,0.1)',
+          borderWidth: 3,
+          pointBackgroundColor: '#1E6F46',
+          pointRadius: 4,
+          tension: 0.3,
+          fill: true
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: {
-            position: 'right',
-            labels: {
-              font: { size: 12 },
-              padding: 15
-            }
-          },
+          legend: { display: false },
           tooltip: {
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            titleFont: { size: 14 },
+            bodyFont: { size: 13 },
+            padding: 10,
             callbacks: {
-              label: function(context) {
-                const label = context.label || '';
-                const value = context.raw || 0;
-                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                const percentage = Math.round((value / total) * 100);
-                return `${label}: ${value} (${percentage}%)`;
-              }
+              label: (ctx) => `Elections: ${ctx.raw}`
             }
           }
         },
-        cutout: '50%'
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { precision: 0 },
+            title: { display: true, text: 'Number of Elections' }
+          },
+          x: {
+            title: { display: true, text: 'Year' },
+            grid: { display: false }
+          }
+        }
       }
     });
   }
-  
-  // Turnout Trend Chart
-  const turnoutTrendCtx = document.getElementById('turnoutTrendChart');
-  if (turnoutTrendCtx) {
-    // Get the sorted years and data
-    const turnoutData = <?= json_encode($turnoutDataByYear) ?>;
-    
-    // Sort by year
-    const sortedYears = Object.keys(turnoutData).sort();
-    const overallTurnout = sortedYears.map(year => turnoutData[year].overall_turnout);
-    const studentsTurnout = sortedYears.map(year => turnoutData[year].students_turnout);
-    const academicTurnout = sortedYears.map(year => turnoutData[year].academic_turnout);
-    const nonAcademicTurnout = sortedYears.map(year => turnoutData[year].non_academic_turnout);
-    const coopTurnout = sortedYears.map(year => turnoutData[year].coop_turnout);
-    
-    new Chart(turnoutTrendCtx, {
+
+  // Global turnout rate per year
+  const turnoutCtx = document.getElementById('globalTurnoutChart');
+  if (turnoutCtx) {
+    const tYears  = <?= json_encode(array_map('intval', $turnoutYears)) ?>;
+    const tRates  = <?= json_encode(array_map('floatval', $turnoutRates)) ?>;
+
+    new Chart(turnoutCtx, {
       type: 'line',
       data: {
-        labels: sortedYears,
-        datasets: [
-          {
-            label: 'Overall Turnout',
-            data: overallTurnout,
-            borderColor: '#1E6F46',
-            backgroundColor: 'rgba(30, 111, 70, 0.1)',
-            borderWidth: 3,
-            pointBackgroundColor: '#1E6F46',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 5,
-            pointHoverRadius: 7,
-            fill: false,
-            tension: 0.4
-          },
-          {
-            label: 'Students',
-            data: studentsTurnout,
-            borderColor: '#3B82F6',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            borderWidth: 2,
-            pointBackgroundColor: '#3B82F6',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            fill: false,
-            tension: 0.4
-          },
-          {
-            label: 'Academic Staff',
-            data: academicTurnout,
-            borderColor: '#8B5CF6',
-            backgroundColor: 'rgba(139, 92, 246, 0.1)',
-            borderWidth: 2,
-            pointBackgroundColor: '#8B5CF6',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            fill: false,
-            tension: 0.4
-          },
-          {
-            label: 'Non-Academic Staff',
-            data: nonAcademicTurnout,
-            borderColor: '#A78BFA',
-            backgroundColor: 'rgba(167, 139, 250, 0.1)',
-            borderWidth: 2,
-            pointBackgroundColor: '#A78BFA',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            fill: false,
-            tension: 0.4
-          },
-          {
-            label: 'COOP Members',
-            data: coopTurnout,
-            borderColor: '#F59E0B',
-            backgroundColor: 'rgba(245, 158, 11, 0.1)',
-            borderWidth: 2,
-            pointBackgroundColor: '#F59E0B',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            fill: false,
-            tension: 0.4
-          }
-        ]
+        labels: tYears,
+        datasets: [{
+          label: 'Turnout Rate (%)',
+          data: tRates,
+          borderColor: '#8B5CF6',
+          backgroundColor: 'rgba(139,92,246,0.12)',
+          borderWidth: 3,
+          pointBackgroundColor: '#8B5CF6',
+          pointRadius: 4,
+          tension: 0.3,
+          fill: true
+        }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: {
-            position: 'top',
-            labels: {
-              font: { size: 12 },
-              padding: 15
-            }
-          },
+          legend: { display: false },
           tooltip: {
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backgroundColor: 'rgba(0,0,0,0.8)',
             titleFont: { size: 14 },
             bodyFont: { size: 13 },
-            padding: 12,
+            padding: 10,
             callbacks: {
-              label: function(context) {
-                return `${context.dataset.label}: ${context.raw}%`;
-              }
+              label: (ctx) => `Turnout: ${ctx.raw}%`
             }
           }
         },
@@ -1122,47 +1250,144 @@ document.addEventListener('DOMContentLoaded', function() {
             beginAtZero: true,
             max: 100,
             ticks: {
-              callback: function(value) {
-                return value + '%';
-              }
+              callback: (v) => v + '%'
             },
-            grid: { color: 'rgba(0, 0, 0, 0.05)' }
+            title: { display: true, text: 'Turnout Rate (%)' }
           },
           x: {
+            title: { display: true, text: 'Year' },
             grid: { display: false }
           }
         }
       }
     });
   }
-});
 
-// Modal functions
-function showPopulationBreakdown() {
-  document.getElementById('populationModal').style.display = 'block';
-}
-
-function showElectionBreakdown() {
-  document.getElementById('electionModal').style.display = 'block';
-}
-
-function showOngoingElectionBreakdown() {
-  document.getElementById('ongoingModal').style.display = 'block';
-}
-
-function closeModal(modalId) {
-  document.getElementById(modalId).style.display = 'none';
-}
-
-// Close modal when clicking outside
-window.onclick = function(event) {
-  const modals = document.getElementsByClassName('modal');
-  for (let i = 0; i < modals.length; i++) {
-    if (event.target == modals[i]) {
-      modals[i].style.display = 'none';
-    }
+  // Global category breakdown chart (doughnut)
+  const catCtx = document.getElementById('globalCategoryChart');
+  if (catCtx) {
+    const catLabels = <?= json_encode($categoryLabels) ?>;
+    const catCounts = <?= json_encode($categoryCountsSegmented) ?>;
+    new Chart(catCtx, {
+      type: 'doughnut',
+      data: {
+        labels: catLabels,
+        datasets: [{
+          data: catCounts,
+          backgroundColor: [
+            '#1E6F46', // Academic Students
+            '#37A66B', // Non-Academic Students
+            '#FFD166', // Academic Faculty
+            '#154734', // Non-Academic Employees
+            '#2D5F3F', // Others-Default
+            '#4A7C59'  // COOP (MIGS)
+          ],
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '55%',
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: {
+              boxWidth: 12,
+              padding: 15,
+              font: { size: 11 }
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            titleFont: { size: 13 },
+            bodyFont: { size: 12 },
+            padding: 10,
+            callbacks: {
+              label: (ctx) => {
+                const label = ctx.label || '';
+                const value = ctx.raw || 0;
+                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                const percentage = Math.round((value / total) * 100);
+                return `${label}: ${value.toLocaleString()} (${percentage}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
   }
-}
+
+  // Global position breakdown chart
+  const posCtx = document.getElementById('globalPositionChart');
+  if (posCtx) {
+    const posLabels = <?= json_encode($positionLabelsLimited) ?>;
+    const posCounts = <?= json_encode($positionCountsLimited) ?>;
+    new Chart(posCtx, {
+      type: 'bar',
+      data: {
+        labels: posLabels,
+        datasets: [{
+          label: 'Voters',
+          data: posCounts,
+          backgroundColor: '#1E6F46',
+          borderColor: '#154734',
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            titleFont: { size: 13 },
+            bodyFont: { size: 12 },
+            padding: 10,
+            callbacks: {
+              label: (ctx) => `Voters: ${ctx.raw.toLocaleString()}`
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: (v) => v.toLocaleString()
+            },
+            title: { display: true, text: 'Number of Voters' }
+          },
+          x: {
+            ticks: { 
+              maxRotation: 0, // Changed from 45 to 0 for horizontal labels
+              minRotation: 0, // Changed from 45 to 0 for horizontal labels
+              autoSkip: false,
+              font: { size: 10 }
+            },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+  }
+  
+  // Function to handle year range submission
+  function submitYearRange() {
+    const fromYear = document.getElementById('fromYear').value;
+    const toYear = document.getElementById('toYear').value;
+    
+    // Get current URL parameters
+    const url = new URL(window.location.href);
+    url.searchParams.set('from_year', fromYear);
+    url.searchParams.set('to_year', toYear);
+    
+    // Navigate to the new URL
+    window.location.href = url.toString();
+  }
+});
 </script>
 
 </body>

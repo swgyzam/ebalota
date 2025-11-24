@@ -668,8 +668,6 @@ else if ($scopeCategory === 'Academic-Faculty' && in_array($assignedScope, [
 ])) {
 
     $conditions[] = "position = 'academic'";
-    // HIDE users owned by Others-Default admin
-    $conditions[] = "is_other_member = 0";
     
     // For college, we use the code directly (as stored in department field)
     $conditions[] = "UPPER(TRIM(department)) = :college";
@@ -693,7 +691,6 @@ else if ($scopeCategory === 'Academic-Faculty' && in_array($assignedScope, [
         WHERE role = 'voter'
           AND position = 'academic'
           AND UPPER(TRIM(department)) = :college
-          AND is_other_member = 0
         ORDER BY status ASC
     ");
     $stmtStatus->execute([':college' => $assignedScope]);
@@ -709,7 +706,6 @@ else if ($scopeCategory === 'Academic-Faculty' && in_array($assignedScope, [
           AND UPPER(TRIM(department)) = :college
           AND department1 IS NOT NULL
           AND department1 != ''
-          AND is_other_member = 0
     ";
 
     if (!empty($assignedScope1) && strcasecmp($assignedScope1, 'All') !== 0) {
@@ -737,11 +733,8 @@ else if ($scopeCategory === 'Academic-Student' && in_array($assignedScope, [
 ])) {
 
     $conditions[] = "position = 'student'";
-    
-    // Map college code to full name
-    $collegeFullName = getMappedValue($mappingSystem['colleges'], $assignedScope);
     $conditions[] = "UPPER(TRIM(department)) = :scope";
-    $params[':scope'] = $collegeFullName;
+    $params[':scope'] = $assignedScope;  // <-- COLLEGE CODE, hindi full name
 
     $columns = ['Photo', 'Name', 'Student Number', 'College', 'Department', 'Course', 'Actions'];
 
@@ -756,7 +749,7 @@ else if ($scopeCategory === 'Academic-Student' && in_array($assignedScope, [
           AND course != '' 
         ORDER BY course ASC
     ");
-    $stmtCourses->execute([':scope' => $collegeFullName]);
+    $stmtCourses->execute([':scope' => $assignedScope]);
     $filterOptions['courses'] = $stmtCourses->fetchAll(PDO::FETCH_COLUMN);
 
     $stmtDepts = $pdo->prepare("
@@ -769,7 +762,7 @@ else if ($scopeCategory === 'Academic-Student' && in_array($assignedScope, [
           AND department1 != '' 
         ORDER BY department1 ASC
     ");
-    $stmtDepts->execute([':scope' => $collegeFullName]);
+    $stmtDepts->execute([':scope' => $assignedScope]);
     $filterOptions['departments'] = $stmtDepts->fetchAll(PDO::FETCH_COLUMN);
     
     $filterOptions['departments'] = array_map(function($dept) use ($mappingSystem) {
@@ -804,7 +797,6 @@ else if ($scopeCategory === 'Academic-Student' && in_array($assignedScope, [
 else if ($assignedScope === 'FACULTY ASSOCIATION') {
 
     $conditions[] = "position = 'academic'";
-    $conditions[] = "is_other_member = 0";  // hide Others-Default users
     $columns = ['Photo', 'Name', 'Employee Number', 'Status', 'College', 'Department', 'Actions'];
 
     $filterOptions['statuses'] = $pdo->query("
@@ -812,7 +804,6 @@ else if ($assignedScope === 'FACULTY ASSOCIATION') {
         FROM users 
         WHERE role = 'voter' 
           AND position = 'academic'
-          AND is_other_member = 0
         ORDER BY status ASC
     ")->fetchAll(PDO::FETCH_COLUMN);
 
@@ -821,7 +812,6 @@ else if ($assignedScope === 'FACULTY ASSOCIATION') {
         FROM users 
         WHERE role = 'voter' 
           AND position = 'academic' 
-          AND is_other_member = 0
           AND department1 IS NOT NULL 
           AND department1 != '' 
         ORDER BY department1 ASC
@@ -837,7 +827,6 @@ else if ($assignedScope === 'FACULTY ASSOCIATION') {
 else if ($scopeCategory === 'Non-Academic-Employee' || $assignedScope === 'NON-ACADEMIC') {
 
     $conditions[] = "position = 'non-academic'";
-    $conditions[] = "is_other_member = 0";  // hide Others-Default users
     $columns = ['Photo', 'Name', 'Employee Number', 'Status', 'Department', 'Actions'];
 
     // --- apply department scope for Non-Academic-Employee using scope_details ---
@@ -871,14 +860,12 @@ else if ($scopeCategory === 'Non-Academic-Employee' || $assignedScope === 'NON-A
         FROM users 
         WHERE role = 'voter' 
           AND position = 'non-academic'
-          AND is_other_member = 0
     ";
     $sqlDept = "
         SELECT DISTINCT department 
         FROM users 
         WHERE role = 'voter' 
           AND position = 'non-academic'
-          AND is_other_member = 0
           AND department IS NOT NULL 
           AND department != ''
     ";
@@ -920,7 +907,6 @@ else if ($scopeCategory === 'Non-Academic-Employee' || $assignedScope === 'NON-A
 else if ($scopeCategory === 'Others-COOP' || $assignedScope === 'COOP') {
 
     $conditions[] = "is_coop_member = 1";
-    $conditions[] = "is_other_member = 0";  // DO NOT include Others-Default pool
 
     $columns = ['Photo', 'Name', 'Employee Number', 'Status', 'College', 'Department', 'MIGS Status', 'Actions'];
 
@@ -929,7 +915,6 @@ else if ($scopeCategory === 'Others-COOP' || $assignedScope === 'COOP') {
         FROM users 
         WHERE role = 'voter' 
           AND is_coop_member = 1
-          AND is_other_member = 0
         ORDER BY status ASC
     ")->fetchAll(PDO::FETCH_COLUMN);
 
@@ -938,7 +923,6 @@ else if ($scopeCategory === 'Others-COOP' || $assignedScope === 'COOP') {
         FROM users 
         WHERE role = 'voter' 
           AND is_coop_member = 1
-          AND is_other_member = 0
           AND department IS NOT NULL 
           AND department != '' 
         ORDER BY department ASC
@@ -955,7 +939,6 @@ else if ($scopeCategory === 'Others-COOP' || $assignedScope === 'COOP') {
         FROM users 
         WHERE role = 'voter' 
           AND is_coop_member = 1
-          AND is_other_member = 0
           AND (department IS NOT NULL OR department1 IS NOT NULL) 
         ORDER BY dept ASC
     ")->fetchAll(PDO::FETCH_COLUMN);
@@ -969,8 +952,6 @@ else if ($scopeCategory === 'Others-COOP' || $assignedScope === 'COOP') {
 else if ($scopeCategory === 'Special-Scope' || $assignedScope === 'CSG ADMIN') {
 
     $conditions[] = "position = 'student'";
-    // EXCLUDE org-owned student voters (Non-Academic-Student CSV uploads)
-    $conditions[] = "owner_scope_id IS NULL";
 
     $columns = ['Photo', 'Name', 'Student Number', 'College', 'Department', 'Course', 'Actions'];
 
@@ -980,7 +961,6 @@ else if ($scopeCategory === 'Special-Scope' || $assignedScope === 'CSG ADMIN') {
         FROM users 
         WHERE role = 'voter' 
           AND position = 'student'
-          AND owner_scope_id IS NULL
           AND department IS NOT NULL 
           AND department != '' 
         ORDER BY department ASC
@@ -997,7 +977,6 @@ else if ($scopeCategory === 'Special-Scope' || $assignedScope === 'CSG ADMIN') {
         FROM users 
         WHERE role = 'voter' 
           AND position = 'student'
-          AND owner_scope_id IS NULL
           AND department1 IS NOT NULL 
           AND department1 != '' 
         ORDER BY department1 ASC
@@ -1013,7 +992,6 @@ else if ($scopeCategory === 'Special-Scope' || $assignedScope === 'CSG ADMIN') {
         FROM users 
         WHERE role = 'voter' 
           AND position = 'student'
-          AND owner_scope_id IS NULL
           AND course IS NOT NULL 
           AND course != '' 
         ORDER BY course ASC
