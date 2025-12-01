@@ -84,11 +84,6 @@ if ($role === 'super_admin') {
             $redirectUrl = "admin_analytics_csg.php?id={$electionId}";
             break;
 
-        case 'Others-COOP':
-            // COOP Admin – COOP + MIGS employees
-            $redirectUrl = "admin_analytics_coop.php?id={$electionId}";
-            break;
-
         case 'Academic-Student':
             // College / program-based student elections
             $redirectUrl = "admin_analytics_college.php?id={$electionId}";
@@ -109,8 +104,8 @@ if ($role === 'super_admin') {
             $redirectUrl = "admin_analytics_non_acad_students.php?id={$electionId}";
             break;
 
-        case 'Others-Default':
-            // Default admin – all faculty + all non-academic employees
+        case 'Others':
+            // Unified Others scope – faculty/non-ac/external members under an Others seat
             $redirectUrl = "admin_analytics_default.php?id={$electionId}";
             break;
 

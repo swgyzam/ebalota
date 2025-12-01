@@ -92,8 +92,9 @@ if ($scopeCategory === 'Non-Academic-Student') {
     // Org-based student admins: student CSV format
     $adminType = 'admin_students';
 
-} elseif ($scopeCategory === 'Others-Default') {
-    // Others-Default admins: employee CSV, but with owner_scope_id + is_other_member = 1
+} elseif ($scopeCategory === 'Others') {
+    // Unified Others admins: flexible employee/other-group CSV,
+    // but still treated as "non-academic style" in process_users_csv (role=voter, is_other_member=1).
     $adminType = 'admin_non_academic';
 
 } elseif ($scopeCategory === 'Academic-Faculty') {
@@ -103,10 +104,6 @@ if ($scopeCategory === 'Non-Academic-Student') {
 } elseif ($scopeCategory === 'Non-Academic-Employee') {
     // Non-Academic-Employee admins: non-academic CSV
     $adminType = 'admin_non_academic';
-
-} elseif ($scopeCategory === 'Others-COOP') {
-    // COOP admin using new scope system
-    $adminType = 'admin_coop';
 
 } elseif ($scopeCategory === 'Special-Scope') {
     // CSG Admin (global students)
@@ -234,36 +231,21 @@ if ($adminRole === 'super_admin') {
             </div>
         ';
 
-    } elseif ($scopeCategory === 'Others-Default') {
+    } elseif ($scopeCategory === 'Others') {
         $scopeSummaryHtml = '
             <div class="mt-2 bg-blue-100 text-blue-900 p-3 rounded text-sm">
-                <p><strong>Your upload scope:</strong></p>
+                <p><strong>Your upload scope (Others):</strong></p>
                 <ul class="list-disc pl-5">
-                    <li>Allowed positions: <code>academic</code> (faculty) and <code>non-academic</code> staff.</li>
-                    <li>All uploaded rows will be tagged as <code>Others-Default</code> members under your scope and will set <code>is_other_member = 1</code>.</li>
-                    <li>Students are not allowed in this upload.</li>
+                    <li>All uploaded rows will be tagged as <code>Others</code> members under your scope and stored with <code>is_other_member = 1</code> and your <code>owner_scope_id</code>.</li>
+                    <li>You may upload <strong>employees</strong> (with full credentials) or <strong>external members</strong> (alumni, retirees, org members) using only name + email.</li>
+                    <li>Students are generally not recommended here; student voters usually go under student/CSG/org admins.</li>
                 </ul>
                 <p class="mt-2 text-xs text-blue-900/80">
-                    For academic rows, use department codes (e.g., <code>DIT</code>, <code>DCEE</code>); for non-academic rows, use department codes like <code>ADMIN</code>, <code>LIBRARY</code>.
-                    The system converts academic department codes to full names.
+                    For rows where you <strong>do</strong> have employee data, you can fill in <code>position</code>, <code>employee_number</code>, <code>college</code>, <code>department</code>, and <code>status</code>.
+                    For alumni or external groups that only have name and email, you may leave those fields blank – the system will still store them as valid Others voters.
                 </p>
             </div>
-        ';
-
-    } elseif ($scopeCategory === 'Others-COOP') {
-        $scopeSummaryHtml = '
-            <div class="mt-2 bg-blue-100 text-blue-900 p-3 rounded text-sm">
-                <p><strong>Your upload scope:</strong></p>
-                <ul class="list-disc pl-5">
-                    <li>Allowed positions: <code>academic</code> and <code>non-academic</code>.</li>
-                    <li>All uploaded rows must be COOP members (<code>is_coop_member = 1</code>).</li>
-                    <li>Rows with other positions or non-COOP members will be rejected during processing.</li>
-                </ul>
-                <p class="mt-2 text-xs text-blue-900/80">
-                    For academic COOP members, use department codes (e.g., <code>DIT</code>, <code>DBS</code>) in the CSV; the system will store full department names.
-                </p>
-            </div>
-        ';
+        ';    
 
     } elseif ($scopeCategory === 'Special-Scope') {
         // CSG Admin
@@ -389,40 +371,32 @@ Jane,Smith,jane.smith@example.com,academic,1002,CAS,DBS,Part-time,1</pre>
         break;
 
     case 'admin_non_academic':
-        if ($scopeCategory === 'Others-Default') {
-            // Others-Default: faculty + non-ac employees under association-like scope
+        if ($scopeCategory === 'Others') {
+            // Unified Others admin: flexible rows (employees or external members)
             $instructions  = '
-                <h3 class="font-semibold text-blue-800 mb-2">Instructions for Others - Default Admin (Faculty & Non-Academic Employees):</h3>
+                <h3 class="font-semibold text-blue-800 mb-2">Instructions for Others Admin (Flexible Members):</h3>
                 <ul class="list-disc pl-5 text-blue-700 space-y-1">
-                    <li>Upload a CSV file containing <strong>faculty and/or non-academic employees</strong> who belong to your scope.</li>
-                    <li>The CSV must have these columns in order:
-                        <code>first_name, last_name, email, position, employee_number, college, department, status, is_other_member</code>
+                    <li>Upload a CSV file containing <strong>members of your Others group</strong> (e.g., faculty/non-ac staff in an association, COOP members, alumni, retirees, or other custom groups).</li>
+                    <li>The recommended CSV columns (in this order) are:
+                        <code>first_name, last_name, email, position, employee_number, college, department, status</code>
                     </li>
-                    <li><strong>position</strong> should be <code>academic</code> for faculty and <code>non-academic</code> for staff.</li>
-                    <li>For <strong>academic</strong> rows:
-                        <ul class="list-disc pl-6">
-                            <li><code>college</code> = college code (e.g., <code>CEIT</code>, <code>CAS</code>).</li>
-                            <li><code>department</code> = academic department code (e.g., <code>DIT</code>, <code>DCEE</code>, <code>DMS</code>).</li>
-                        </ul>
-                    </li>
-                    <li>For <strong>non-academic</strong> rows:
-                        <ul class="list-disc pl-6">
-                            <li><code>college</code> may be left blank.</li>
-                            <li><code>department</code> = non-ac department code (e.g., <code>ADMIN</code>, <code>LIBRARY</code>, <code>FINANCE</code>, <code>NAEA</code>).</li>
-                        </ul>
-                    </li>
-                    <li><strong>status</strong> can be <code>Regular</code>, <code>Part-time</code>, or <code>Contractual</code> (variants normalized).</li>
-                    <li><strong>is_other_member</strong> may be 0/1 in the CSV; the system will treat all uploaded rows as Others-Default members and set it to 1 internally.</li>
-                    <li>Password and verification are handled automatically; all users are added as role <code>voter</code>.</li>
+                    <li><strong>Required:</strong> <code>first_name</code>, <code>last_name</code>, and <code>email</code>.</li>
+                    <li><strong>Optional:</strong> <code>position</code>, <code>employee_number</code>, <code>college</code>, <code>department</code>, and <code>status</code>. You may leave them blank for external members who only have name and email.</li>
+                    <li>Common <code>position</code> values: <code>academic</code>, <code>non-academic</code>. For alumni/retirees/external groups, you may leave it blank.</li>
+                    <li><code>college</code> (if used) should be the college code (e.g., <code>CEIT</code>, <code>CAS</code>).</li>
+                    <li><code>department</code> (if used) can be either an academic department code (e.g., <code>DIT</code>, <code>DMS</code>) or a non-ac department code (e.g., <code>ADMIN</code>, <code>LIBRARY</code>).</li>
+                    <li><code>status</code> (if used) can be any descriptive employment status such as <code>Regular</code>, <code>Part-time</code>, <code>Contractual</code>, etc.</li>
+                    <li>All uploaded rows will be stored as role <code>voter</code> with <strong>is_other_member = 1</strong> and tied to your Others scope via <code>owner_scope_id</code>.</li>
                 </ul>
             ';
             $instructions .= $scopeSummaryHtml;
 
             $csvExample = '
-                <h3 class="font-semibold text-yellow-800 mb-2">Others - Default Employee CSV Format Example (using codes):</h3>
-                <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">first_name,last_name,email,position,employee_number,college,department,status,is_other_member
-Juan,DelaCruz,juan.dc@example.com,academic,2001,CEIT,DIT,Regular,1
-Maria,Santos,maria.santos@example.com,non-academic,2002,,LIBRARY,Contractual,1</pre>
+                <h3 class="font-semibold text-yellow-800 mb-2">Others Admin CSV Format Example:</h3>
+                <pre class="text-sm text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">first_name,last_name,email,position,employee_number,college,department,status
+Juan,Dela Cruz,juan.dc@example.com,academic,2001,CEIT,DIT,Regular
+Maria,Santos,maria.santos@example.com,non-academic,2002,,LIBRARY,Contractual
+Ana,Reyes,ana.reyes@example.com,,,,,   <!-- Alumni with name + email only --></pre>
             ';
         } else {
             // Non-Academic-Employee & legacy NON-ACADEMIC: department-scoped non-ac staff
@@ -562,8 +536,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['admin_type']             = $adminType;
                 $_SESSION['scope_category_for_csv'] = $scopeCategory;
 
-                // Only Non-Academic-Student and Others-Default use owner_scope_id to "own" their uploaded users
-                if (in_array($scopeCategory, ['Non-Academic-Student', 'Others-Default'], true) && $myScopeId !== null) {
+                // Non-Academic-Student and Others use owner_scope_id to "own" their uploaded users
+                if (in_array($scopeCategory, ['Non-Academic-Student', 'Others'], true) && $myScopeId !== null) {
                     $_SESSION['owner_scope_id_for_csv'] = $myScopeId;
                 } else {
                     $_SESSION['owner_scope_id_for_csv'] = null;

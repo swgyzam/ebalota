@@ -2,11 +2,11 @@
 session_start();
 date_default_timezone_set('Asia/Manila');
 
- $host = 'localhost';
- $db = 'evoting_system';
- $user = 'root';
- $pass = '';
- $charset = 'utf8mb4';
+$host = 'localhost';
+$db = 'evoting_system';
+$user = 'root';
+$pass = '';
+$charset = 'utf8mb4';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -15,8 +15,8 @@ require 'phpmailer/src/PHPMailer.php';
 require 'phpmailer/src/SMTP.php';
 require 'phpmailer/src/Exception.php';
 
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
@@ -26,6 +26,24 @@ try {
 } catch (\PDOException $e) {
     die("Database connection failed: " . $e->getMessage());
 }
+
+// Simple activity logger
+function logActivity(PDO $pdo, int $userId, string $action): void {
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO activity_logs (user_id, action, timestamp)
+            VALUES (:uid, :action, NOW())
+        ");
+        $stmt->execute([
+            ':uid'    => $userId,
+            ':action' => $action,
+        ]);
+    } catch (PDOException $e) {
+        // Huwag i-echo sa user, log lang
+        error_log('Activity log insert failed: ' . $e->getMessage());
+    }
+}
+
 
 // Function to send super admin verification email
 function sendSuperAdminVerificationEmail($email, $first_name, $last_name, $token) {
@@ -142,11 +160,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     try {
-        // Updated query - removed scope_details (doesn't exist in users table)
-        $stmt = $pdo->prepare("SELECT user_id, first_name, last_name, email, password, role, 
-            position, is_coop_member, department, course, status, assigned_scope, 
-            scope_category, assigned_scope_1, admin_status 
-            FROM users WHERE email = ?");
+        // Updated query - added owner_scope_id, is_other_member
+        $stmt = $pdo->prepare("SELECT 
+                user_id, first_name, last_name, email, password, role, 
+                position, is_coop_member, department, course, status, 
+                assigned_scope, scope_category, assigned_scope_1, admin_status,
+                owner_scope_id, is_other_member
+            FROM users 
+            WHERE email = ?");
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
@@ -216,17 +237,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Normal user login
-        $_SESSION['user_id'] = $user['user_id'];
+        $_SESSION['user_id']  = $user['user_id'];
         $_SESSION['first_name'] = $user['first_name'];
         $_SESSION['last_name']  = $user['last_name'];
-        $_SESSION['email'] = $user['email'];
-        $_SESSION['role']  = $user['role'];
+        $_SESSION['email']    = $user['email'];
+        $_SESSION['role']     = $user['role'];
 
-        $_SESSION['position'] = $user['position'];
-        $_SESSION['is_coop_member'] = (bool)$user['is_coop_member'];
-        $_SESSION['department'] = $user['department'] ?? '';
-        $_SESSION['course'] = $user['course'] ?? '';
-        $_SESSION['status'] = $user['status'] ?? '';
+        $_SESSION['position']       = $user['position'];
+        $_SESSION['is_coop_member'] = (bool)$user['is_coop_member']; // legacy / can be unused later
+        $_SESSION['department']     = $user['department'] ?? '';
+        $_SESSION['course']         = $user['course'] ?? '';
+        $_SESSION['status']         = $user['status'] ?? '';
+
+        // 🔹 NEW: Others-related flags
+        $_SESSION['is_other_member'] = (bool)$user['is_other_member'];
+        $_SESSION['owner_scope_id']  = $user['owner_scope_id'];
+
+        logActivity(
+            $pdo,
+            (int)$user['user_id'],
+            'User logged in (role: ' . $user['role'] . ')'
+        );
 
         // Remember me
         if ($remember) {
@@ -235,25 +266,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$token, $user['user_id']]);
 
             setcookie('remember_me', $token, [
-                'expires' => time() + (86400 * 30),
-                'path' => '/',
+                'expires'  => time() + (86400 * 30),
+                'path'     => '/',
                 'httponly' => true,
                 'samesite' => 'Strict'
             ]);
         }
 
-        // Redirect by role
+        // Determine redirect URL based on role
+        $redirectUrl = '';
         switch ($_SESSION['role']) {
             case 'super_admin':
-                header("Location: super_admin/dashboard.php");
+                $redirectUrl = 'super_admin/dashboard.php';
                 break;
             case 'admin':
-                // Redirect to admin dashboard redirect instead of specific dashboard
-                header("Location: admin_dashboard_redirect.php");
+                $redirectUrl = 'admin_dashboard_redirect.php';
                 break;
             default:
-                header("Location: voters_dashboard.php");
+                $redirectUrl = 'voters_dashboard.php';
         }
+
+        // Redirect to login page with success parameter and redirect URL
+        header("Location: login.html?success=true&redirect=" . urlencode($redirectUrl));
         exit;
 
     } catch (PDOException $e) {

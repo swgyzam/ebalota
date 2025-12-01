@@ -263,17 +263,13 @@ function formatScopeDetails($scope_type, $scope_details) {
             return implode(', ', $dept_codes);
         }
 
-        case 'Non-Academic-Student': {
-            // For now, global scope for all non-academic orgs;
-            // later we can add org-specific details.
+        case 'Non-Academic-Student':
+            // For now, global scope for all non-academic orgs
             return 'All non-academic student organizations';
-        }
 
-        case 'Others-COOP':
-            return 'COOP Admin (COOP + MIGS members only)';
-
-        case 'Others-Default':
-            return 'Default Admin (All faculty and non-academic employees)';
+        case 'Others':
+            // Unified Others: COOP, Alumni, Retired, etc. – all managed via uploaded voters.
+            return 'Others Admin (custom election via uploaded voters)';
 
         case 'Special-Scope':
             return 'CSG Admin';
@@ -289,8 +285,7 @@ function getScopeCategoryLabel($scope_category) {
         'Non-Academic-Student'  => 'Non-Academic - Student',
         'Academic-Faculty'      => 'Academic - Faculty',
         'Non-Academic-Employee' => 'Non-Academic - Employee',
-        'Others-COOP'           => 'Others - COOP',
-        'Others-Default'        => 'Others - Default',
+        'Others'                => 'Others',
         'Special-Scope'         => 'CSG Admin',
     ];
 
@@ -324,13 +319,9 @@ function getScopeDetailsMapping() {
         'Non-Academic-Employee' => [
             'departments' => getNonAcademicDepartments(),
         ],
-        'Others-COOP' => [
-            'description' => 'COOP Admin (COOP + MIGS members only)',
-            'scope'       => 'Faculty and Non-Academic Employees with COOP and MIGS membership',
-        ],
-        'Others-Default' => [
-            'description' => 'Default Admin (All faculty and non-academic employees)',
-            'scope'       => 'All Faculty and Non-Academic Employees',
+        'Others' => [
+            'description' => 'Others Admin',
+            'scope'       => 'Special elections with custom uploaded voters (e.g. COOP, Alumni, Retired)',
         ],
         'Special-Scope' => [
             'description' => 'CSG Admin',
@@ -343,15 +334,13 @@ function getScopeDetailsMapping() {
     ];
 }
 
-// Function to get all scope categories with their labels
 function getAllScopeCategories() {
     return [
         'Academic-Student'      => 'Academic - Student',
         'Non-Academic-Student'  => 'Non-Academic - Student',
         'Academic-Faculty'      => 'Academic - Faculty',
         'Non-Academic-Employee' => 'Non-Academic - Employee',
-        'Others-COOP'           => 'Others - COOP',
-        'Others-Default'        => 'Others - Default',
+        'Others'                => 'Others',
         'Special-Scope'         => 'CSG Admin',
     ];
 }

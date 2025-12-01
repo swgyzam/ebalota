@@ -34,6 +34,23 @@ try {
     exit();
 }
 
+// Simple activity logger
+function logActivity(PDO $pdo, int $userId, string $action): void {
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO activity_logs (user_id, action, timestamp)
+            VALUES (:uid, :action, NOW())
+        ");
+        $stmt->execute([
+            ':uid'    => $userId,
+            ':action' => $action,
+        ]);
+    } catch (PDOException $e) {
+        // Huwag ipakita sa user; log lang sa server
+        error_log('Activity log insert failed: ' . $e->getMessage());
+    }
+}
+
 // Get JSON data from request
  $data = json_decode(file_get_contents('php://input'), true);
 
@@ -89,6 +106,8 @@ try {
     
     // Check if update was successful
     if ($stmt->rowCount() > 0) {
+        logActivity($pdo, (int)$userId, 'Changed password while logged in');
+
         echo json_encode([
             'status' => 'success',
             'message' => 'Password updated successfully'

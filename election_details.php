@@ -233,7 +233,7 @@ include 'voters_sidebar.php';
 <body class="bg-gray-50 text-gray-900 font-sans">
   <div class="flex">
     <!-- Main Content -->
-    <main class="flex-1 p-4 md:p-8 md:ml-64">
+    <main class="flex-1 p-4 md:p-8 md:ml-64 pb-24">
       <!-- Header -->
       <header class="bg-[var(--cvsu-green-dark)] text-white p-3 md:p-4 flex justify-between items-center shadow-lg rounded-xl mb-8">
         <div class="flex items-center">

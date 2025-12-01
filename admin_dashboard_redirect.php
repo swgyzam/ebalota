@@ -34,13 +34,8 @@ if ($_SESSION['role'] === 'admin') {
             $redirectUrl = "admin_dashboard_csg.php";
             break;
 
-        case 'Others-COOP':
-            // COOP Admin – COOP + MIGS employees
-            $redirectUrl = "admin_dashboard_coop.php";
-            break;
-
         case 'Academic-Student':
-            // Academic - Student: by college + department + course (students only)
+            // Academic - Student: by college + course (students only)
             $redirectUrl = "admin_dashboard_college.php";
             break;
 
@@ -54,14 +49,15 @@ if ($_SESSION['role'] === 'admin') {
             $redirectUrl = "admin_dashboard_nonacademic.php";
             break;
 
-        case 'Others-Default':
-            // Default Admin – all faculty + non-academic employees
-            $redirectUrl = "admin_dashboard_default.php";
-            break;
-
         case 'Non-Academic-Student':
             // Non-Academic Student Admin – org-based student admins
             $redirectUrl = "admin_dashboard_non_acad_students.php";
+            break;
+
+        case 'Others':
+            // Unified Others: COOP, Alumni, Retired, org-based, etc. via uploaded voters
+            // For now, use the generic / default Others dashboard
+            $redirectUrl = "admin_dashboard_default.php";
             break;
 
         default:

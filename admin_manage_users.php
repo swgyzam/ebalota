@@ -589,75 +589,79 @@ else if ($scopeCategory === 'Non-Academic-Student' && $myScopeId !== null) {
     }, $filterOptions['courses']);
 }
 
-// 3) OTHERS - DEFAULT ADMIN (scope_category = Others-Default)
-//    Manages ONLY its own "Others" members (faculty + non-academic) via owner_scope_id + is_other_member.
-else if ($scopeCategory === 'Others-Default' && $myScopeId !== null) {
+// 3) OTHERS ADMIN (scope_category = Others)
+//    Manages ONLY its own "Others" members via owner_scope_id + is_other_member.
+//    NOTE: Voters here can be academic, non-academic, or name+email only (no position/department/status).
+else if ($scopeCategory === 'Others' && $myScopeId !== null) {
 
-    $conditions[]            = "(position = 'academic' OR position = 'non-academic')";
-    $conditions[]            = "owner_scope_id = :ownerScopeId";
-    $conditions[]            = "is_other_member = 1";   // NEW: only rows explicitly marked as Others members
-    $params[':ownerScopeId'] = $myScopeId;
+  // Huwag nang i-restrict sa position; pwedeng may position o wala.
+  $conditions[]            = "owner_scope_id = :ownerScopeId";
+  $conditions[]            = "is_other_member = 1";
+  $params[':ownerScopeId'] = $myScopeId;
 
-    // Show both College (for academic) and Department (for non-ac)
-    $columns = ['Photo', 'Name', 'Employee Number', 'Position', 'Status', 'College', 'Department', 'Actions'];
+  // Keep the same table design: Employee Number, Position, Status, College, Department
+  // Kung wala ang data sa row (NULL / empty), magdi-display na lang ng "Not set" / "N/A" sa HTML.
+  $columns = ['Photo', 'Name', 'Employee Number', 'Position', 'Status', 'College', 'Department', 'Actions'];
 
-    // Colleges filter (academic staff only under this scope)
-    $stmtCollege = $pdo->prepare("
-        SELECT DISTINCT department
-        FROM users
-        WHERE role = 'voter'
-          AND position = 'academic'
-          AND owner_scope_id = :sid
-          AND is_other_member = 1
-          AND department IS NOT NULL
-          AND department != ''
-        ORDER BY department ASC
-    ");
-    $stmtCollege->execute([':sid' => $myScopeId]);
-    $filterOptions['colleges'] = $stmtCollege->fetchAll(PDO::FETCH_COLUMN);
-    
-    // Keep colleges as codes
-    $filterOptions['colleges'] = array_map(function($college) use ($mappingSystem) {
-        return getMappedCode($mappingSystem['colleges'], $college, $college);
-    }, $filterOptions['colleges']);
+  // Colleges filter (academic staff only under this scope).
+  // Kung wala talagang academic rows, magiging empty lang ang dropdown – OK lang.
+  $stmtCollege = $pdo->prepare("
+      SELECT DISTINCT department
+      FROM users
+      WHERE role = 'voter'
+        AND position = 'academic'
+        AND owner_scope_id = :sid
+        AND is_other_member = 1
+        AND department IS NOT NULL
+        AND department != ''
+      ORDER BY department ASC
+  ");
+  $stmtCollege->execute([':sid' => $myScopeId]);
+  $filterOptions['colleges'] = $stmtCollege->fetchAll(PDO::FETCH_COLUMN);
+  
+  // Keep colleges as codes
+  $filterOptions['colleges'] = array_map(function($college) use ($mappingSystem) {
+      return getMappedCode($mappingSystem['colleges'], $college, $college);
+  }, $filterOptions['colleges']);
 
-    // Filter options limited to this scope's members
-    $stmtStatus = $pdo->prepare("
-        SELECT DISTINCT status 
-        FROM users 
-        WHERE role = 'voter' 
-          AND (position = 'academic' OR position = 'non-academic')
-          AND owner_scope_id = :sid
-          AND is_other_member = 1
-        ORDER BY status ASC
-    ");
-    $stmtStatus->execute([':sid' => $myScopeId]);
-    $filterOptions['statuses'] = $stmtStatus->fetchAll(PDO::FETCH_COLUMN);
+  // Filter options limited to this scope's members (kung may status values)
+  $stmtStatus = $pdo->prepare("
+      SELECT DISTINCT status 
+      FROM users 
+      WHERE role = 'voter' 
+        AND owner_scope_id = :sid
+        AND is_other_member = 1
+        AND status IS NOT NULL
+        AND status != ''
+      ORDER BY status ASC
+  ");
+  $stmtStatus->execute([':sid' => $myScopeId]);
+  $filterOptions['statuses'] = $stmtStatus->fetchAll(PDO::FETCH_COLUMN);
 
-    // DEPARTMENTS filter:
-    //  - academic staff   → department1 (full department name)
-    //  - non-ac staff     → department (code, e.g. LIBRARY)
-    $stmtDept = $pdo->prepare("
-        SELECT DISTINCT 
-            CASE 
-                WHEN position = 'academic'     THEN department1
-                WHEN position = 'non-academic' THEN department
-                ELSE NULL
-            END AS dept
-        FROM users 
-        WHERE role = 'voter' 
-          AND (position = 'academic' OR position = 'non-academic')
-          AND owner_scope_id = :sid
-          AND is_other_member = 1
-          AND (
-               (position = 'academic'     AND department1 IS NOT NULL AND department1 != '')
-            OR (position = 'non-academic' AND department  IS NOT NULL AND department  != '')
-          )
-        ORDER BY dept ASC
-    ");
-    $stmtDept->execute([':sid' => $myScopeId]);
-    $filterOptions['departments'] = $stmtDept->fetchAll(PDO::FETCH_COLUMN);
-    // For Others-Default, we keep raw values (full dept name or code)
+  // DEPARTMENTS filter:
+  //  - academic staff   → department1 (full department name)
+  //  - non-ac staff     → department (code, e.g. LIBRARY)
+  //  - others with no dept → hindi papasok dito
+  $stmtDept = $pdo->prepare("
+      SELECT DISTINCT 
+          CASE 
+              WHEN position = 'academic'     THEN department1
+              WHEN position = 'non-academic' THEN department
+              ELSE NULL
+          END AS dept
+      FROM users 
+      WHERE role = 'voter' 
+        AND owner_scope_id = :sid
+        AND is_other_member = 1
+        AND (
+             (position = 'academic'     AND department1 IS NOT NULL AND department1 != '')
+          OR (position = 'non-academic' AND department  IS NOT NULL AND department  != '')
+        )
+      ORDER BY dept ASC
+  ");
+  $stmtDept->execute([':sid' => $myScopeId]);
+  $filterOptions['departments'] = $stmtDept->fetchAll(PDO::FETCH_COLUMN);
+  // For Others, we keep raw values (full dept name or code)
 }
 
 // 3b) COLLEGE FACULTY ADMINS (Academic-Faculty) – CEIT, CAS, etc.
@@ -902,52 +906,6 @@ else if ($scopeCategory === 'Non-Academic-Employee' || $assignedScope === 'NON-A
     }, $filterOptions['departments']);
 }
 
-// 7) COOP Admin - COOP members
-//    NOTE: hide Others-Default members
-else if ($scopeCategory === 'Others-COOP' || $assignedScope === 'COOP') {
-
-    $conditions[] = "is_coop_member = 1";
-
-    $columns = ['Photo', 'Name', 'Employee Number', 'Status', 'College', 'Department', 'MIGS Status', 'Actions'];
-
-    $filterOptions['statuses'] = $pdo->query("
-        SELECT DISTINCT status 
-        FROM users 
-        WHERE role = 'voter' 
-          AND is_coop_member = 1
-        ORDER BY status ASC
-    ")->fetchAll(PDO::FETCH_COLUMN);
-
-    $filterOptions['colleges'] = $pdo->query("
-        SELECT DISTINCT department 
-        FROM users 
-        WHERE role = 'voter' 
-          AND is_coop_member = 1
-          AND department IS NOT NULL 
-          AND department != '' 
-        ORDER BY department ASC
-    ")->fetchAll(PDO::FETCH_COLUMN);
-    
-    // Keep colleges as codes
-    $filterOptions['colleges'] = array_map(function($college) use ($mappingSystem) {
-        return getMappedCode($mappingSystem['colleges'], $college, $college);
-    }, $filterOptions['colleges']);
-
-    $filterOptions['departments'] = $pdo->query("
-        SELECT DISTINCT 
-            IF(position = 'academic', department1, department) as dept 
-        FROM users 
-        WHERE role = 'voter' 
-          AND is_coop_member = 1
-          AND (department IS NOT NULL OR department1 IS NOT NULL) 
-        ORDER BY dept ASC
-    ")->fetchAll(PDO::FETCH_COLUMN);
-    
-    $filterOptions['departments'] = array_map(function($dept) use ($mappingSystem) {
-        return getMappedValue($mappingSystem['departments'], $dept, $dept);
-    }, $filterOptions['departments']);
-}
-
 // 8) CSG Admin - all students (GLOBAL ONLY: exclude org-specific Non-Academic-Student uploads)
 else if ($scopeCategory === 'Special-Scope' || $assignedScope === 'CSG ADMIN') {
 
@@ -1041,31 +999,36 @@ if (!empty($filterCollege) && isset($filterOptions['colleges']) && in_array($fil
 }
 
 // Department filter
-if (!empty($filterDepartment) && isset($filterOptions['departments']) && in_array($filterDepartment, $filterOptions['departments'])) {
+if (
+  !empty($filterDepartment) &&
+  isset($filterOptions['departments']) &&
+  in_array($filterDepartment, $filterOptions['departments'], true)
+) {
 
-    // SPECIAL CASE: Others-Default admin
-    // - academic staff   → department1 = full dept name
-    // - non-ac staff     → department  = dept code
-    if ($scopeCategory === 'Others-Default') {
-        $conditions[] = "(
-            (position = 'academic'     AND department1 = :department)
-         OR (position = 'non-academic' AND department  = :department)
-        )";
-        // Use the exact value selected in dropdown (e.g. "Department of IT" or "LIBRARY")
-        $params[':department'] = $filterDepartment;
+  // SPECIAL CASE: Others admin
+  // - academic staff   → department1 = full dept name
+  // - non-ac staff     → department  = dept code
+  // Ginagamit natin mismo yung value sa dropdown (walang mapping).
+  if ($scopeCategory === 'Others') {
+      $conditions[] = "(
+          (position = 'academic'     AND department1 = :department)
+       OR (position = 'non-academic' AND department  = :department)
+      )";
+      $params[':department'] = $filterDepartment;
 
-    } else {
-        // Generic behavior for other admin types
-        // Map department full name to code for database query
-        $deptCode = getMappedCode($mappingSystem['departments'], $filterDepartment, $filterDepartment);
-        
-        if ($assignedScope === 'NON-ACADEMIC' || $scopeCategory === 'Non-Academic-Employee') {
-            $conditions[] = "department = :department";
-        } else {
-            $conditions[] = "department1 = :department";
-        }
-        $params[':department'] = $deptCode;
-    }
+  } else {
+      // Generic behavior for other admin types
+      // Map department full name to code for database query kung kaya,
+      // fallback sa original value kung wala sa mapping.
+      $deptCode = getMappedCode($mappingSystem['departments'], $filterDepartment, $filterDepartment);
+      
+      if ($assignedScope === 'NON-ACADEMIC' || $scopeCategory === 'Non-Academic-Employee') {
+          $conditions[] = "department = :department";
+      } else {
+          $conditions[] = "department1 = :department";
+      }
+      $params[':department'] = $deptCode;
+  }
 }
 
 // Course filter (only within what's allowed)
@@ -1220,8 +1183,8 @@ if (
                 echo "All registered users in the system";
               } else if ($scopeCategory === 'Non-Academic-Student') {
                 echo "Organization members under your scope";
-              } else if ($scopeCategory === 'Others-Default') {
-                echo "Faculty and Non-Academic employees under your scope";
+              } else if ($scopeCategory === 'Others') {
+                echo "Others group members under your scope";        
               } else if ($assignedScope === 'FACULTY ASSOCIATION') {
                 echo "Faculty Association members";
               } else if ($scopeCategory === 'Non-Academic-Employee' || $assignedScope === 'NON-ACADEMIC') {
@@ -1241,8 +1204,6 @@ if (
                 } else {
                     echo "Non-Academic staff";
                 }
-              } else if ($scopeCategory === 'Others-COOP' || $assignedScope === 'COOP') {
-                echo "COOP members";
               } else if ($scopeCategory === 'Special-Scope' || $assignedScope === 'CSG ADMIN') {
                 echo "All student voters (Global only)";
               } else {
@@ -1286,11 +1247,6 @@ if (
           <a href="admin_restrict_users.php" class="btn-danger text-white px-4 py-2 rounded font-semibold transition">
             <i class="fas fa-user-slash mr-2"></i>Restrict Users
           </a>
-          <?php if ($scopeCategory === 'Others-COOP' || $assignedScope === 'COOP'): ?>
-            <a href="admin_migs_status.php" class="btn-info text-white px-4 py-2 rounded font-semibold transition">
-              <i class="fas fa-id-card mr-2"></i>MIGS Status
-            </a>
-          <?php endif; ?>
         </div>
       </header>
       
@@ -1546,14 +1502,6 @@ if (
                           aria-label="Edit user">
                           <i class="fas fa-edit mr-1"></i>Edit
                         </button>
-                      <?php endif; ?>
-                      
-                      <?php if ($scopeCategory === 'Others-COOP' || $assignedScope === 'COOP'): ?>
-                        <a href="admin_toggle_migs.php?user_id=<?= $user['user_id'] ?>" 
-                           class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-sm font-medium inline-flex items-center justify-center w-full"
-                           onclick="return confirm('Are you sure you want to toggle MIGS status for this user?');">
-                          <i class="fas fa-sync-alt mr-1"></i>Toggle MIGS
-                        </a>
                       <?php endif; ?>
                       
                       <a href="admin_delete_users.php?user_id=<?= $user['user_id'] ?>" 

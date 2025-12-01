@@ -159,6 +159,9 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
             $status = ($now < $start) ? 'upcoming'
                      : (($now >= $start && $now <= $end) ? 'ongoing' : 'completed');
 
+            // Check if results already released
+            $resultsReleased = !empty($election['results_released']);
+
             $statusColors = [
               'ongoing'   => 'border-l-green-600 bg-green-50',
               'completed' => 'border-l-gray-500 bg-gray-50',
@@ -194,8 +197,8 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
               </div>
 
               <!-- Info -->
-              <div class="flex-1">
-                <h2 class="election-title text-lg font-bold text-[var(--cvsu-green-dark)] mb-2 truncate">
+              <div class="flex-1 min-w-0">
+                <h2 class="election-title text-lg font-bold text-[var(--cvsu-green-dark)] mb-2 line-clamp-2 break-words">
                   <?= htmlspecialchars($election['title']) ?>
                 </h2>
                 
@@ -204,13 +207,15 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
                 </p>
                 
                 <div class="space-y-2 text-sm">
-                  <div class="flex items-center">
+                  <!-- Start -->
+                  <div class="flex items-center text-xs">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2z" />
                     </svg>
                     <span><strong class="text-gray-700">Start:</strong> <?= date("M d, Y h:i A", strtotime($start)) ?></span>
                   </div>
-                  <div class="flex items-center">
+                  <!-- End -->
+                  <div class="flex items-center text-xs">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2z" />
                     </svg>
@@ -229,6 +234,19 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
                       <?php endif; ?>
                     </span>
                   </div>
+
+                  <?php if ($status === 'completed' && $resultsReleased): ?>
+                    <!-- Results released indicator -->
+                    <div class="flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span class="text-green-600 font-semibold text-xs">
+                        Results Released
+                      </span>
+                    </div>
+                  <?php endif; ?>
+
                 </div>
               </div>
             </div>
@@ -275,13 +293,25 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
                 <?php endif; ?>
 
                 <?php if ($status === 'completed'): ?>
-                  <a href="release_results.php?id=<?= $election['election_id'] ?>" 
-                    class="flex-1 bg-[var(--cvsu-green)] hover:bg-[var(--cvsu-green-dark)] text-white py-2 px-4 rounded-lg font-semibold transition text-center flex items-center justify-center">
+                  <!-- View Vote Counts (available after completion) -->
+                  <a href="view_vote_counts.php?id=<?= $election['election_id'] ?>" 
+                    class="flex-1 bg-[var(--cvsu-yellow)] hover:bg-yellow-600 text-white py-2 px-4 rounded-lg font-semibold transition text-center flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2z" />
                     </svg>
-                    Release Results
+                    View Vote Counts
                   </a>
+
+                  <?php if (!$resultsReleased): ?>
+                    <!-- Release Results (only show if NOT yet released) -->
+                    <a href="release_results.php?id=<?= $election['election_id'] ?>" 
+                      class="flex-1 bg-[var(--cvsu-green)] hover:bg-[var(--cvsu-green-dark)] text-white py-2 px-4 rounded-lg font-semibold transition text-center flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2z" />
+                      </svg>
+                      Release Results
+                    </a>
+                  <?php endif; ?>
                 <?php endif; ?>
               </div>
             </div>

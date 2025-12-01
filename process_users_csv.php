@@ -45,11 +45,9 @@ if (!$adminType && $scopeCategoryForCsv) {
         case 'Non-Academic-Employee':
             $adminType = 'admin_non_academic';
             break;
-        case 'Others-Default':
+        case 'Others':
+            // Unified Others → treat as non-academic style CSV
             $adminType = 'admin_non_academic';
-            break;
-        case 'Others-COOP':
-            $adminType = 'admin_coop';
             break;
         case 'Special-Scope': // CSG Admin
             $adminType = 'admin_students';
@@ -205,14 +203,10 @@ switch ($adminType) {
         $expectedColumns = 9; // first_name, last_name, email, position, employee_number, college, department, status, is_coop_member
         break;
     case 'admin_non_academic':
-        if ($scopeCategoryForCsv === 'Others-Default') {
-            // first_name,last_name,email,position,employee_number,college,department,status,is_other_member
-            $expectedColumns = 9;
-        } else {
-            // Non-Academic-Employee / NON-ACADEMIC (old format)
-            // first_name,last_name,email,position,employee_number,department,status,is_coop_member
-            $expectedColumns = 8;
-        }
+        // For both Others and Non-Academic-Employee, we expect 8 CSV columns.
+        // Others: first_name,last_name,email,position,employee_number,college,department,status
+        // Non-Academic-Employee: first_name,last_name,email,position,employee_number,department,status,is_coop_member
+        $expectedColumns = 8;
         break;
     case 'admin_coop':
         $expectedColumns = 9; // first_name, last_name, email, position, employee_number, college, department, status, is_coop_member
@@ -883,97 +877,94 @@ while (($row = fgetcsv($file)) !== FALSE) {
             
         case 'admin_non_academic':
 
-            if ($scopeCategoryForCsv === 'Others-Default') {
-                // Others-Default: faculty + non-ac employees
+            if ($scopeCategoryForCsv === 'Others') {
+                // Unified Others admin: flexible members (employees or external)
+                // CSV columns (8):
+                // 0 first_name, 1 last_name, 2 email, 3 position, 4 employee_number, 5 college, 6 department, 7 status
                 $first_name      = trim($row[0] ?? '');
                 $last_name       = trim($row[1] ?? '');
                 $email           = trim($row[2] ?? '');
-                $position        = trim($row[3] ?? '');
+                $position        = trim($row[3] ?? '');  // may be '', 'academic', 'non-academic'
                 $employee_number = trim($row[4] ?? '');
-                $college         = trim($row[5] ?? ''); // may be blank for non-ac
+                $college         = trim($row[5] ?? '');
                 $department      = trim($row[6] ?? '');
                 $status          = trim($row[7] ?? '');
-                // CSV may contain 1 or be blank; system will treat all as 1
-                $is_other_member = 1;
 
-                // Position must be academic or non-academic
+                $student_number  = null;
+                $course          = null;
+                $is_coop_member  = 0;
+                $is_other_member = 1;  // mark as Others member
+                $owner_scope_id  = ($ownerScopeIdForCsv !== null) ? (int)$ownerScopeIdForCsv : null;
+
+                // Position validation: allow blank, 'academic', or 'non-academic'
                 $posLower = strtolower($position);
-                if (!in_array($posLower, ['academic', 'non-academic'], true)) {
+                if ($position !== '' && !in_array($posLower, ['academic', 'non-academic'], true)) {
                     $restrictedRows++;
-                    $errorMessages[] = "Row $totalRows: Invalid position '$position' for Others-Default. Only 'academic' or 'non-academic' allowed.";
+                    $errorMessages[] = "Row $totalRows: Invalid position '$position' for Others. Use 'academic', 'non-academic', or leave blank.";
                     continue 2;
                 }
 
-                if ($posLower === 'academic') {
-                    // MAP COLLEGE (optional but recommended)
-                    if ($college !== '') {
-                        $college_lower = strtolower($college);
-                        if (isset($collegeMapping[$college_lower])) {
-                            $college = $collegeMapping[$college_lower];
-                        } elseif (!in_array($college, $allowedColleges)) {
-                            $errors++;
-                            $errorMessages[] = "Row $totalRows: Invalid college '$college'. Must be one of: " . implode(', ', $allowedColleges);
-                            continue 2;
-                        }
-                    } else {
-                        // optional: try infer from department using $departmentToCollegeMapping
-                        $college = $departmentToCollegeMapping[$department] ?? null;
-                        if (empty($college)) {
-                            $errors++;
-                            $errorMessages[] = "Row $totalRows: Missing/invalid college for academic staff with department '$department'.";
-                            continue 2;
-                        }
-                    }
-
-                    // MAP DEPARTMENT (academic)
-                    $department_lower = strtolower($department);
-                    if (isset($academicDepartmentMapping[$department_lower])) {
-                        $department = $academicDepartmentMapping[$department_lower];
-                    }
-
-                    $department_db = $college;    // college code (e.g. CEIT)
-                    $department1   = $department; // full dept name
-
-                } else {
-                    // non-academic staff for Others-Default
-                    // MAP DEPARTMENT as non-ac
-                    $department_lower = strtolower($department);
-                    if (isset($nonAcademicDepartmentMapping[$department_lower])) {
-                        $department = $nonAcademicDepartmentMapping[$department_lower];
-                    } elseif (!in_array($department, $allowedNonAcademicDepts)) {
+                // College mapping (optional)
+                if ($college !== '') {
+                    $college_lower = strtolower($college);
+                    if (isset($collegeMapping[$college_lower])) {
+                        $college = $collegeMapping[$college_lower];
+                    } elseif (!in_array($college, $allowedColleges, true)) {
                         $errors++;
-                        $errorMessages[] = "Row $totalRows: Invalid department '$department'. Must be one of: " . implode(', ', $allowedNonAcademicDepts);
+                        $errorMessages[] = "Row $totalRows: Invalid college '$college'. College must be one of: " . implode(', ', $allowedColleges);
                         continue 2;
                     }
+                } else {
+                    $college = null;
+                }
 
-                    $department_db = $department; // e.g. ADMIN, LIBRARY
+                // Department mapping (optional, tolerant)
+                if ($department !== '') {
+                    $department_lower = strtolower($department);
+
+                    if (isset($academicDepartmentMapping[$department_lower])) {
+                        // Academic department – store in department1, and college (if any) in department
+                        $departmentFull = $academicDepartmentMapping[$department_lower];
+                        $department1    = $departmentFull;
+
+                        // If no college yet, try inferring from mapping (best-effort)
+                        if ($college === null && isset($departmentToCollegeMapping[$departmentFull])) {
+                            $college = $departmentToCollegeMapping[$departmentFull];
+                        }
+
+                        $department_db = $college; // may be null if college unknown
+
+                    } elseif (isset($nonAcademicDepartmentMapping[$department_lower])) {
+                        // Non-academic department – store code in department
+                        $departmentCode = $nonAcademicDepartmentMapping[$department_lower];
+                        $department_db  = $departmentCode;
+                        $department1    = null;
+
+                    } else {
+                        // Unknown / custom – just store raw into department
+                        $department_db = $department;
+                        $department1   = null;
+                    }
+                } else {
+                    $department_db = null;
                     $department1   = null;
                 }
 
-                // VALIDATE & MAP STATUS
-                $status_lower = strtolower($status);
-                if (isset($statusMapping[$status_lower])) {
-                    $status = $statusMapping[$status_lower];
-                } elseif (!in_array($status, $allowedStatuses)) {
-                    $errors++;
-                    $errorMessages[] = "Row $totalRows: Invalid status '$status'. Only Regular, Part-time, or Contractual are allowed.";
-                    continue 2;
-                }
-
-                $student_number = null;
-                $course         = null;
-                // We ignore is_other_member here; it will be enforced later when moving from pending_users → users.
-
-                // For compatibility, we can reuse is_coop_member field in pending_users as 0 here
-                $is_coop_member = 0;
-
-                // Tie these users to the Others-Default scope if available
-                if ($ownerScopeIdForCsv !== null) {
-                    $owner_scope_id = (int)$ownerScopeIdForCsv;
+                // Status mapping (optional)
+                if ($status !== '') {
+                    $status_lower = strtolower($status);
+                    if (isset($statusMapping[$status_lower])) {
+                        $status = $statusMapping[$status_lower];
+                    }
+                    // else: keep raw status, no hard error
+                } else {
+                    $status = null;
                 }
 
             } else {
                 // Non-Academic-Employee & legacy NON-ACADEMIC behaviour (old path)
+                // CSV columns (8):
+                // 0 first_name, 1 last_name, 2 email, 3 position, 4 employee_number, 5 department, 6 status, 7 is_coop_member
                 $first_name      = trim($row[0] ?? '');
                 $last_name       = trim($row[1] ?? '');
                 $email           = trim($row[2] ?? '');
@@ -1019,10 +1010,12 @@ while (($row = fgetcsv($file)) !== FALSE) {
                     continue 2;
                 }
 
-                $department_db = $department;
-                $department1   = null;
-                $student_number = null;
-                $course         = null;
+                $department_db   = $department;
+                $department1     = null;
+                $student_number  = null;
+                $course          = null;
+                $is_other_member = 0;
+                // Non-Academic-Employee rows are not Others members by default
             }
             break;
             
@@ -1226,8 +1219,8 @@ while (($row = fgetcsv($file)) !== FALSE) {
          * Others-Default admin wants to "claim" existing employees
          * instead of treating them purely as duplicates.
          */
-        if ($existingUserId && $scopeCategoryForCsv === 'Others-Default' && !empty($ownerScopeIdForCsv)) {
-            // Update existing user: mark as Others-Default member and tie to this scope seat
+        if ($existingUserId && $scopeCategoryForCsv === 'Others' && !empty($ownerScopeIdForCsv)) {
+            // Update existing user: mark as Others member and tie to this scope seat
             $updateUserStmt = $pdo->prepare("
                 UPDATE users
                 SET is_other_member = 1,
@@ -1238,14 +1231,12 @@ while (($row = fgetcsv($file)) !== FALSE) {
                 ':ownerScopeId' => (int)$ownerScopeIdForCsv,
                 ':uid'          => (int)$existingUserId,
             ]);
-
+        
             $claimedExisting++;
-            // Optional note para lang makita sa error list kung ano nangyari
-            $errorMessages[] = "Row $totalRows: Existing user '$email' linked to your Others-Default scope.";
-
-            // Skip pending_users insert + email send for this row
+            $errorMessages[] = "Row $totalRows: Existing user '$email' linked to your Others scope.";
+        
             continue;
-        }
+        }        
 
         // For all other cases (or if only pending_users exists), treat as duplicate
         if ($existingUserId || $existingPendingId) {
@@ -1491,7 +1482,7 @@ unlink($csvFilePath);
                     <div class="ml-3">
                         <h3 class="text-sm font-medium text-indigo-800">Existing Users Claimed</h3>
                         <div class="mt-2 text-sm text-indigo-700">
-                            <p><?= $claimedExisting ?> existing user(s) have been linked to your Others-Default scope. These users will now appear in your user management list.</p>
+                            <p><?= $claimedExisting ?> existing user(s) have been linked to your Others scope. These users will now appear in your user management list.</p>
                         </div>
                     </div>
                 </div>
@@ -1582,8 +1573,8 @@ unlink($csvFilePath);
                     echo '<code>first_name, last_name, email, position, employee_number, college, department, status, is_coop_member</code>';
                     break;
                 case 'admin_non_academic':
-                    if ($scopeCategoryForCsv === 'Others-Default') {
-                        echo '<code>first_name, last_name, email, position, employee_number, college, department, status, is_other_member</code>';
+                    if ($scopeCategoryForCsv === 'Others') {
+                        echo '<code>first_name, last_name, email, position, employee_number, college, department, status</code>';
                     } else {
                         echo '<code>first_name, last_name, email, position, employee_number, department, status, is_coop_member</code>';
                     }
@@ -1640,10 +1631,10 @@ unlink($csvFilePath);
                     break;
 
                 case 'admin_non_academic':
-                    if ($scopeCategoryForCsv === 'Others-Default') {
-                        echo "As an <strong>Others-Default Admin</strong>, you can upload users with positions <code>academic</code> or <code>non-academic</code>.<br>";
-                        echo "All uploaded rows will be tagged as Others-Default members (<code>is_other_member = 1</code>) and tied to your <strong>scope seat</strong> via <code>owner_scope_id</code>.";
-                        echo " Students are not allowed in this upload.";
+                    if ($scopeCategoryForCsv === 'Others') {
+                        echo "As an <strong>Others Admin</strong>, you can upload a mixture of <code>academic</code>/<code>non-academic</code> staff and external group members (e.g., alumni, retirees).<br>";
+                        echo "All uploaded rows will be stored as <strong>Others members</strong> (<code>is_other_member = 1</code>) and tied to your <strong>scope seat</strong> via <code>owner_scope_id</code>.";
+                        echo " Only <code>first_name</code>, <code>last_name</code>, and <code>email</code> are strictly required; other fields are optional.";
                     } elseif ($scopeCategoryForCsv === 'Non-Academic-Employee') {
                         echo "As a <strong>Non-Academic-Employee Admin</strong>, you can only upload users with position <code>non-academic</code>.<br>";
                         if (!empty($allowedDeptScopeNonAcad)) {

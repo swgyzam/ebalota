@@ -60,14 +60,6 @@
                 </svg>
                 View Analytics
             </a>
-            <!-- Analytics Scope Test (DEV ONLY) -->
-            <a href="admin_test_scopes.php" class="flex items-center gap-3 py-3 px-8 hover:bg-[var(--cvsu-green-light)] transition duration-300 rounded-r-lg mt-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--cvsu-yellow)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h8m-8 6h8m-8 6h8" />
-                </svg>
-                Scope Analytics Test
-            </a>
 
             <!-- Logout -->
             <a href="logout.php" class="flex items-center gap-3 py-3 px-8 mt-10 bg-red-600 hover:bg-red-700 rounded-lg font-semibold transition duration-300">

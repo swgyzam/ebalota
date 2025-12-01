@@ -7,7 +7,7 @@
  *  - Implement getScopeSeats()
  *  - Implement getScopedVoters() for:
  *      * Academic-Student
- *      * Others-COOP
+ *      * Others
  *  - Stubs for other scope types (to be filled in future patches)
  */
 
@@ -18,8 +18,7 @@ if (!defined('SCOPE_ACAD_STUDENT')) {
     define('SCOPE_NONACAD_STUDENT',     'Non-Academic-Student');
     define('SCOPE_NONACAD_EMPLOYEE',    'Non-Academic-Employee');
     define('SCOPE_SPECIAL_CSG',         'Special-Scope');          // CSG global
-    define('SCOPE_OTHERS_COOP',         'Others-COOP');
-    define('SCOPE_OTHERS_DEFAULT',      'Others-Default');
+    define('SCOPE_OTHERS',              'Others');
 }
 
 /**
@@ -162,11 +161,10 @@ function buildScopeLabel(string $scopeType, ?string $assignedScope, array $detai
         case SCOPE_SPECIAL_CSG:
             return sprintf('CSG (Special-Scope) – %s (Admin: %s)', $scopePart ?: 'Global Students', $adminName);
 
-        case SCOPE_OTHERS_COOP:
-            return sprintf('COOP – Global COOP Members (Admin: %s)', $adminName);
-
-        case SCOPE_OTHERS_DEFAULT:
-            return sprintf('Others-Default – %s (Admin: %s)', $scopePart ?: 'Custom Group', $adminName);
+        case SCOPE_OTHERS:
+            // $assignedScope is usually just 'Others' or a short tag; details may hold description
+            $desc = $scopePart ?: 'Custom group (uploaded voters)';
+            return sprintf('Others – %s (Admin: %s)', $desc, $adminName);
 
         default:
             return sprintf('%s – %s (Admin: %s)', $scopeType, $scopePart, $adminName);
@@ -179,7 +177,7 @@ function buildScopeLabel(string $scopeType, ?string $assignedScope, array $detai
  * Phase 1 – Patch 1.2:
  *  - Implemented:
  *      * Academic-Student
- *      * Others-COOP
+ *      * Others
  *  - Other scope types return empty arrays for now (to be filled later).
  *
  * @param PDO    $pdo
@@ -229,11 +227,8 @@ function getScopedVoters(PDO $pdo, string $scopeType, ?int $scopeId = null, arra
         case SCOPE_SPECIAL_CSG:
             return getVotersSpecialCSGGlobal($pdo, $yearEnd, $includeFlags);
 
-        case SCOPE_OTHERS_COOP:
-            return getVotersCoopGlobal($pdo, $yearEnd, $includeFlags);
-
-        case SCOPE_OTHERS_DEFAULT:
-            return getVotersOthersDefault($pdo, $scopeId, $yearEnd, $includeFlags);
+        case SCOPE_OTHERS:
+            return getVotersOthers($pdo, $scopeId, $yearEnd, $includeFlags);
 
         default:
             // Unknown / not yet implemented scope type
@@ -961,87 +956,6 @@ function getVotersSpecialCSGGlobal(PDO $pdo, ?string $yearEnd, bool $includeFlag
 }
 
 /**
- * Internal: Get COOP voters (global).
- *
- * Scope behaviour:
- *  - Scope seat (scopeId) does NOT restrict voters for now.
- *  - We return all users with is_coop_member = 1 and migs_status = 1.
- *
- * @param PDO        $pdo
- * @param string|null $yearEnd
- * @param bool       $includeFlags
- * @return array
- */
-function getVotersCoopGlobal(PDO $pdo, ?string $yearEnd, bool $includeFlags): array
-{
-    $params = [];
-    $where  = [
-        "u.role = 'voter'",
-        "u.is_coop_member = 1",
-        "u.migs_status = 1",
-    ];
-
-    if ($yearEnd !== null) {
-        $where[]             = '(u.created_at IS NULL OR u.created_at <= :year_end)';
-        $params[':year_end'] = $yearEnd;
-    }
-
-    $sql = "
-        SELECT
-            u.user_id,
-            u.email,
-            u.first_name,
-            u.last_name,
-            u.role,
-            u.position,
-            u.department,
-            u.department1,
-            u.course,
-            u.status,
-            u.created_at,
-            u.owner_scope_id,
-            u.is_coop_member,
-            u.migs_status,
-            u.is_other_member
-        FROM users u
-        WHERE " . implode(' AND ', $where) . "
-        ORDER BY u.department, u.last_name, u.first_name
-    ";
-
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $rows = $stmt->fetchAll();
-
-    $out = [];
-    foreach ($rows as $r) {
-        $row = [
-            'user_id'        => (int)$r['user_id'],
-            'email'          => $r['email'],
-            'first_name'     => $r['first_name'],
-            'last_name'      => $r['last_name'],
-            'role'           => $r['role'],
-            'position'       => $r['position'],
-            'department'     => $r['department'],
-            'department1'    => $r['department1'],
-            'course'         => $r['course'],
-            'status'         => $r['status'],
-            'created_at'     => $r['created_at'],
-            'owner_scope_id' => $r['owner_scope_id'] !== null ? (int)$r['owner_scope_id'] : null,
-        ];
-
-        if ($includeFlags) {
-            $row['is_coop_member']  = isset($r['is_coop_member'])  ? (int)$r['is_coop_member']  : null;
-            $row['migs_status']     = isset($r['migs_status'])     ? (int)$r['migs_status']     : null;
-            $row['is_other_member'] = isset($r['is_other_member']) ? (int)$r['is_other_member'] : null;
-        }
-
-        $out[] = $row;
-    }
-
-    return $out;
-}
-
-/**
  * Internal: Get Non-Academic-Student voters.
  *
  * Rules:
@@ -1156,7 +1070,7 @@ function getVotersNonAcademicStudent(PDO $pdo, ?int $scopeId, ?string $yearEnd, 
 }
 
 /**
- * Internal: Get Others-Default voters.
+ * Internal: Get Others voters.
  *
  * Rules:
  *  - Per scope seat:
@@ -1167,13 +1081,19 @@ function getVotersNonAcademicStudent(PDO $pdo, ?int $scopeId, ?string $yearEnd, 
  *      role = 'voter'
  *      is_other_member = 1
  *
+ * NOTE:
+ *  We intentionally IGNORE $yearEnd for Others. Eligibility is based on
+ *  current scope membership, not historical created_at cutoffs. This lets
+ *  admins create an election first, then upload voters later, and still see
+ *  them in per-election analytics.
+ *
  * @param PDO         $pdo
  * @param int|null    $scopeId
- * @param string|null $yearEnd
+ * @param string|null $yearEnd   (ignored for Others)
  * @param bool        $includeFlags
  * @return array
  */
-function getVotersOthersDefault(PDO $pdo, ?int $scopeId, ?string $yearEnd, bool $includeFlags): array
+function getVotersOthers(PDO $pdo, ?int $scopeId, ?string $yearEnd, bool $includeFlags): array
 {
     $params = [];
     $where  = [
@@ -1182,13 +1102,8 @@ function getVotersOthersDefault(PDO $pdo, ?int $scopeId, ?string $yearEnd, bool 
     ];
 
     if ($scopeId !== null) {
-        $where[]           = 'u.owner_scope_id = :sid';
-        $params[':sid']    = $scopeId;
-    }
-
-    if ($yearEnd !== null) {
-        $where[]             = '(u.created_at IS NULL OR u.created_at <= :year_end)';
-        $params[':year_end'] = $yearEnd;
+        $where[]        = 'u.owner_scope_id = :sid';
+        $params[':sid'] = $scopeId;
     }
 
     $sql = "
@@ -1255,8 +1170,7 @@ function getVotersOthersDefault(PDO $pdo, ?int $scopeId, ?string $yearEnd, bool 
  *   SCOPE_ACAD_FACULTY      => 'Academic-Faculty'
  *   SCOPE_NONACAD_STUDENT   => 'Non-Academic-Student'
  *   SCOPE_NONACAD_EMPLOYEE  => 'Non-Academic-Employee'
- *   SCOPE_OTHERS_COOP       => 'Others-COOP'
- *   SCOPE_OTHERS_DEFAULT    => 'Others-Default'
+ *   SCOPE_OTHERS            => 'Others'
  *   SCOPE_SPECIAL_CSG       => 'Special-Scope'
  *
  * $scopeId:
@@ -1295,11 +1209,8 @@ function getScopedElections(PDO $pdo, string $scopeType, ?int $scopeId = null, a
         case SCOPE_NONACAD_EMPLOYEE:
             $scopeName = 'Non-Academic-Employee';
             break;
-        case SCOPE_OTHERS_COOP:
-            $scopeName = 'Others-COOP';
-            break;
-        case SCOPE_OTHERS_DEFAULT:
-            $scopeName = 'Others-Default';
+        case SCOPE_OTHERS:
+            $scopeName = 'Others'; // matches elections.election_scope_type for create_election.php
             break;
         case SCOPE_SPECIAL_CSG:
             $scopeName = 'Special-Scope';
@@ -1723,11 +1634,8 @@ function computePerElectionStatsWithAbstain(
         case SCOPE_NONACAD_EMPLOYEE:
             $scopeName = 'Non-Academic-Employee';
             break;
-        case SCOPE_OTHERS_COOP:
-            $scopeName = 'Others-COOP';
-            break;
-        case SCOPE_OTHERS_DEFAULT:
-            $scopeName = 'Others-Default';
+        case SCOPE_OTHERS:
+            $scopeName = 'Others';
             break;
         case SCOPE_SPECIAL_CSG:
             $scopeName = 'Special-Scope';
@@ -1976,11 +1884,8 @@ function computeAbstainByYear(
         case SCOPE_NONACAD_EMPLOYEE:
             $scopeName = 'Non-Academic-Employee';
             break;
-        case SCOPE_OTHERS_COOP:
-            $scopeName = 'Others-COOP';
-            break;
-        case SCOPE_OTHERS_DEFAULT:
-            $scopeName = 'Others-Default';
+        case SCOPE_OTHERS:
+            $scopeName = 'Others';
             break;
         case SCOPE_SPECIAL_CSG:
             $scopeName = 'Special-Scope';

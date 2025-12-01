@@ -4,15 +4,25 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" href="assets/img/weblogo.png" type="image/png">
-  <title>eBalota - register</title>
+  <title>eBalota - Register</title>
+
+  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Custom CSS -->
   <link href="assets/styles/index.css" rel="stylesheet"/>
+
+  <!-- Fonts & Icons -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
   <script>
     tailwind.config = {
       theme: {
         extend: {
+          fontFamily: {
+            sans: ['Poppins', 'system-ui', 'sans-serif'],
+          },
           colors: {
             cvsu: {
               primary: '#0a5f2d',
@@ -24,10 +34,16 @@
       }
     }
   </script>
+
   <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+    }
+    
     .nav-link {
       position: relative;
     }
+    
     .nav-link:after {
       content: '';
       position: absolute;
@@ -38,618 +54,816 @@
       background-color: rgb(6, 81, 16);
       transition: width 0.3s ease;
     }
+    
     .nav-link:hover:after {
       width: 100%;
     }
+    
+    /* Hero gradient background - lighter version */
+    .hero-gradient {
+      background: radial-gradient(circle at top left, #4ade80 0, #166534 45%, #052e16 100%);
+    }
+    
+    /* Lighter background for the page */
+    .page-background {
+      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 50%, #bbf7d0 100%);
+    }
+    
+    /* Form animation */
+    .form-container {
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeInUp 0.6s ease-out forwards;
+    }
+    
+    @keyframes fadeInUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    /* Input focus effect */
+    .form-input {
+      transition: all 0.3s ease;
+    }
+    
+    .form-input:focus {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(10, 95, 45, 0.15);
+    }
+    
+    /* Button hover effect */
+    .btn-primary {
+      transition: all 0.3s ease;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 7px 14px rgba(10, 95, 45, 0.2);
+    }
+    
+    /* Step indicator */
+    .step-indicator {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+    }
+    
+    .step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      position: relative;
+    }
+    
+    .step:not(:last-child):after {
+      content: '';
+      position: absolute;
+      top: 15px;
+      left: 50%;
+      width: 100%;
+      height: 2px;
+      background-color: #e5e7eb;
+      z-index: -1;
+    }
+    
+    .step.active:not(:last-child):after {
+      background-color: #0a5f2d;
+    }
+    
+    .step-circle {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background-color: #e5e7eb;
+      color: #9ca3af;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      transition: all 0.3s ease;
+    }
+    
+    .step.active .step-circle {
+      background-color: #0a5f2d;
+      color: white;
+    }
+    
+    .step-label {
+      font-size: 0.75rem;
+      color: #6b7280;
+      text-align: center;
+    }
+    
+    .step.active .step-label {
+      color: #0a5f2d;
+      font-weight: 600;
+    }
+    
+    /* Form section styling */
+    .form-section {
+      background-color: #f9fafb;
+      border-radius: 1rem;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+      border: 1px solid #e5e7eb;
+    }
+    
+    .form-section-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #0a5f2d;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    /* Modal styling for Terms/Privacy */
+    .modal-content {
+      border-radius: 1rem;
+      overflow: hidden;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      background-color: #ffffff;
+    }
+    
+    .modal-header {
+      background: linear-gradient(to right, #0a5f2d, #1e8449);
+      color: white;
+      padding: 1.25rem;
+      position: relative;
+    }
+    
+    .modal-header h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 0;
+    }
+    
+    .modal-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .modal-close:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .modal-body {
+      padding: 1.5rem;
+      max-height: 60vh;
+      overflow-y: auto;
+      background-color: #ffffff;
+      color: #1f2937;
+    }
+    
+    .modal-body h4 {
+      color: #0a5f2d;
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-top: 1.25rem;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .modal-body h4:first-child {
+      margin-top: 0;
+    }
+    
+    .modal-body p {
+      margin-bottom: 0.75rem;
+      line-height: 1.6;
+      color: #4b5563;
+    }
+    
+    .modal-body ul {
+      margin-left: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+    
+    .modal-body li {
+      margin-bottom: 0.5rem;
+      color: #4b5563;
+    }
+    
+    .modal-body a {
+      color: #0a5f2d;
+      text-decoration: underline;
+    }
+    
+    .modal-footer {
+      padding: 1rem 1.5rem;
+      background-color: #f9fafb;
+      border-top: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: flex-end;
+    }
+    
+    .modal-footer button {
+      background-color: #0a5f2d;
+      color: white;
+      border: none;
+      padding: 0.5rem 1.25rem;
+      border-radius: 0.5rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .modal-footer button:hover {
+      background-color: #166534;
+    }
+    
+    /* Global background */
+    body {
+      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 25%, #bbf7d0 50%, #86efac 75%, #4ade80 100%);
+      background-attachment: fixed;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.2) 0%, transparent 25%),
+        radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.15) 0%, transparent 20%),
+        radial-gradient(circle at 40% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 15%);
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .form-container {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+    }
+
+    /* Success / error modals – same base as login.html */
+    .modal-backdrop {
+      background-color: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+    }
+    
+    .success-modal {
+      animation: modalFadeIn 0.3s ease-out forwards;
+    }
+    
+    @keyframes modalFadeIn {
+      from {
+        opacity: 0;
+        transform: scale(0.9);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    /* Password strength */
+    .password-strength-bar {
+      transition: width 0.3s ease;
+    }
   </style>
 </head>
-<body class="min-h-screen flex flex-col bg-cvsu-light font-sans">
+
+<body class="min-h-screen flex flex-col page-background text-slate-900">
+  
   <!-- Navigation -->
-  <nav class="sticky top-0 z-50 text-black shadow-lg bg-white">
-    <div class="container mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
-      <div class="ebalotalogo flex-shrink-0">
+  <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-emerald-900/10 text-black">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
+      <div class="flex-shrink-0">
         <a href="index.html" class="block">
           <img 
             src="assets/img/ebalota_logo.png" 
-            alt="logo" 
-            class="w-32 sm:w-30 md:w-42 lg:w-56 xl:w-60 h-auto"
-            style="max-width:100%; height:auto;">
+            alt="eBalota logo" 
+            class="w-32 sm:w-36 md:w-48 lg:w-56 h-auto"
+          >
         </a>
       </div>
-      <div class="hidden md:flex space-x-8 items-center">
-        <a href="register.html" class="nav-link font-medium">REGISTER</a>
-        <a href="login.html" class="nav-link font-medium">LOGIN</a>
+      <div class="hidden md:flex space-x-8 items-center text-sm font-medium">
+        <a href="register.html" class="nav-link text-cvsu-primary">REGISTER</a>
+        <a href="login.html" class="nav-link">LOGIN</a>
       </div>
       <!-- Hamburger Dropdown -->
       <div class="md:hidden relative">
-        <button id="menuBtn" class="text-2xl focus:outline-none">
+        <button id="menuBtn" class="text-2xl focus:outline-none" aria-label="Open menu">
           ☰
         </button>
-        <div id="mobileMenu" class="absolute right-0 mt-2 w-40 bg-white rounded shadow-lg py-2 border hidden z-50">
-          <a href="register.html" class="block px-4 py-2 text-gray-800 hover:bg-green-100">REGISTER</a>
-          <a href="login.html" class="block px-4 py-2 text-gray-800 hover:bg-green-100">LOGIN</a>
+        <div id="mobileMenu" class="absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-lg py-2 border border-slate-100 hidden z-50">
+          <a href="register.html" class="block px-4 py-2 text-gray-800 hover:bg-emerald-50">REGISTER</a>
+          <a href="login.html" class="block px-4 py-2 text-gray-800 hover:bg-emerald-50">LOGIN</a>
         </div>
       </div>
     </div>
   </nav>
+
   <!-- Registration Form -->
-  <main class="flex-1">
-    <div class="max-w-lg mx-auto my-10 bg-white p-8 rounded-xl shadow-md">
-      <div class="text-center mb-6">
-        <img src="assets/img/weblogo.png" alt="CvSU Logo" class="h-16 mx-auto mb-4">
-        <h2 class="text-2xl md:text-3xl font-bold text-gray-800">Create Your eBalota Account</h2>
-        <p class="text-gray-600">Fill in your information to register</p>
+  <main class="flex-1 flex items-center justify-center px-4 py-10">
+    <div class="w-full max-w-2xl">
+      <div class="form-container bg-white/95 text-slate-800 p-8 sm:p-9 rounded-3xl shadow-xl border border-emerald-900/10">
+
+        <div class="text-center mb-6">
+          <div class="mx-auto bg-emerald-100 w-16 h-16 rounded-full flex items-center justify-center mb-3">
+            <img src="assets/img/weblogo.png" alt="CvSU Logo" class="h-10 w-10">
+          </div>
+          <h2 class="text-2xl md:text-3xl font-bold text-gray-800">
+            Create Your <span class="text-cvsu-primary">eBalota</span> Account
+          </h2>
+          <p class="text-gray-600 text-sm mt-1">Fill in your information to register</p>
+        </div>
+
+        <!-- Step indicator -->
+        <div class="step-indicator">
+          <div class="step active" id="step1">
+            <div class="step-circle">1</div>
+            <div class="step-label">Account Info</div>
+          </div>
+          <div class="step" id="step2">
+            <div class="step-circle">2</div>
+            <div class="step-label">Position</div>
+          </div>
+          <div class="step" id="step3">
+            <div class="step-circle">3</div>
+            <div class="step-label">Details</div>
+          </div>
+        </div>
+
+        <form action="register.php" method="POST" class="space-y-4" id="registrationForm">
+          <!-- Account Information Section -->
+          <div class="form-section">
+            <div class="form-section-title">
+              <i class="fas fa-user-circle text-cvsu-primary"></i>
+              Account Information
+            </div>
+            
+            <!-- Names -->
+            <div class="flex flex-col md:flex-row md:space-x-3 space-y-2 md:space-y-0">
+              <div class="md:w-1/2">
+                <input
+                  type="text"
+                  name="first_name"
+                  placeholder="First Name"
+                  class="form-input w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                         focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+                  required
+                >
+              </div>
+              <div class="md:w-1/2">
+                <input
+                  type="text"
+                  name="last_name"
+                  placeholder="Last Name"
+                  class="form-input w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                         focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+                  required
+                >
+              </div>
+            </div>
+
+            <!-- Email -->
+            <div class="relative mt-3">
+              <input
+                type="email"
+                name="email"
+                id="email"
+                placeholder="Email"
+                class="form-input w-full px-3 py-2.5 pr-9 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                       focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+                required
+              >
+              <span class="absolute right-3 top-2.5 text-gray-400">
+                <i class="fas fa-envelope"></i>
+              </span>
+            </div>
+            <p id="emailHelp" class="text-xs text-gray-500 mt-1">
+              For Students and Academic (Faculty), use your CvSU email (@cvsu.edu.ph).
+            </p>
+            <p id="emailErrorInline" class="text-xs text-red-600 mt-1 hidden"></p>
+
+            <!-- Password -->
+            <div class="relative mt-3">
+              <input
+                type="password"
+                name="password"
+                id="password"
+                placeholder="Password"
+                class="form-input w-full px-3 py-2.5 pr-9 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                       focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+                required
+                minlength="8"
+                pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$"
+                title="Must contain at least 8 characters, including uppercase, lowercase and number"
+              >
+              <span class="absolute right-3 top-2.5 text-gray-400 cursor-pointer toggle-password">
+                <i class="fas fa-eye"></i>
+              </span>
+            </div>
+
+            <!-- Password strength indicator -->
+            <div class="mt-2">
+              <div class="flex items-center text-xs text-gray-500 mb-1">
+                <span id="passwordStrength" class="font-medium">Password strength:</span>
+                <div class="ml-2 flex-1 bg-gray-200 rounded-full h-2">
+                  <div id="strengthBar" class="h-2 rounded-full password-strength-bar" style="width: 0%"></div>
+                </div>
+              </div>
+              <ul class="text-xs text-gray-500 space-y-1">
+                <li id="lengthCheck" class="flex items-center">
+                  <svg class="h-4 w-4 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  At least 8 characters
+                </li>
+                <li id="uppercaseCheck" class="flex items-center">
+                  <svg class="h-4 w-4 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Contains uppercase letter
+                </li>
+                <li id="numberCheck" class="flex items-center">
+                  <svg class="h-4 w-4 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Contains number
+                </li>
+                <li id="specialCheck" class="flex items-center">
+                  <svg class="h-4 w-4 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Contains special character
+                </li>
+              </ul>
+            </div>
+
+            <!-- Confirm password -->
+            <div class="relative mt-3">
+              <input
+                type="password"
+                name="confirm_password"
+                id="confirm_password"
+                placeholder="Confirm Password"
+                class="form-input w-full px-3 py-2.5 pr-9 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                       focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+                required
+              >
+              <span class="absolute right-3 top-2.5 text-gray-400 cursor-pointer toggle-password">
+                <i class="fas fa-eye"></i>
+              </span>
+            </div>
+          </div>
+
+          <!-- Position Selection Section -->
+          <div class="form-section">
+            <div class="form-section-title">
+              <i class="fas fa-id-badge text-cvsu-primary"></i>
+              Position Information
+            </div>
+            
+            <div>
+              <label for="position" class="block text-sm font-semibold text-gray-700 mb-1.5">Position</label>
+              <select
+                id="position"
+                name="position"
+                class="form-input w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                       focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+                required
+              >
+                <option value="">-- Select Position --</option>
+                <option value="student">Student</option>
+                <option value="academic">Academic (Faculty)</option>
+                <option value="non-academic">Non-Academic</option>
+              </select>
+            </div>
+
+            <!-- Student Number Field -->
+            <div id="studentNumberField" class="hidden mt-3">
+              <label for="student_number" class="block text-sm font-semibold text-gray-700 mb-1">Student Number</label>
+              <input
+                type="text"
+                id="student_number"
+                name="student_number"
+                class="form-input w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                       focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+              >
+            </div>
+            
+            <!-- Employee Number Field -->
+            <div id="employeeNumberField" class="hidden mt-3">
+              <label for="employee_number" class="block text-sm font-semibold text-gray-700 mb-1">Employee Number</label>
+              <input
+                type="text"
+                id="employee_number"
+                name="employee_number"
+                class="form-input w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                       focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+              >
+            </div>
+          </div>
+
+          <!-- Position-specific Details Section -->
+          <div id="positionDetails" class="form-section hidden">
+            <div class="form-section-title">
+              <i class="fas fa-info-circle text-cvsu-primary"></i>
+              <span id="detailsTitle">Position Details</span>
+            </div>
+            
+            <!-- Student Fields -->
+            <div id="studentFields" class="hidden space-y-4">
+              <div>
+                <label for="studentDepartment" class="block text-sm font-semibold text-gray-700 mb-1.5">College</label>
+                <select
+                  id="studentDepartment"
+                  name="studentDepartment"
+                  class="form-input w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                         focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+                >
+                  <option value="">-- Select College --</option>
+                  <option value="CAFENR">College of Agriculture, Food, Environment and Natural Resources (CAFENR)</option>
+                  <option value="CEIT">College of Engineering, Information and Technology (CEIT)</option>
+                  <option value="CAS">College of Arts and Sciences (CAS)</option>
+                  <option value="CVMBS">College of Veterinary Medicine and Biomedical Sciences (CVMBS)</option>
+                  <option value="CED">College of Education (CED)</option>
+                  <option value="CEMDS">College of Economics, Management and Development Studies (CEMDS)</option>
+                  <option value="CSPEAR">College of Sports, Physical Education and Recreation (CSPEAR)</option>
+                  <option value="CCJ">College of Criminal Justice Education (CCJ)</option>
+                  <option value="CON">College of Nursing (CON)</option>
+                  <option value="CTHM">College of Tourism and Hospitality Management (CTHM)</option>
+                  <option value="COM">College of Medicine (COM)</option>
+                  <option value="GS-OLC">Graduate School and Open Learning Center (GS-OLC)</option>
+                </select>
+              </div>
+              <div>
+                <label for="studentDepartment1" class="block text-sm font-semibold text-gray-700 mb-1.5">Department</label>
+                <select
+                  id="studentDepartment1"
+                  name="studentDepartment1"
+                  class="form-input w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                         focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+                >
+                  <option value="">-- Select Department --</option>
+                </select>
+              </div>
+              <div>
+                <label for="studentCourse" class="block text-sm font-semibold text-gray-700 mb-1.5">Course</label>
+                <select
+                  id="studentCourse"
+                  name="studentCourse"
+                  class="form-input w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                         focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+                >
+                  <option value="">-- Select Course --</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Academic (Faculty) Fields -->
+            <div id="academicFields" class="hidden space-y-4">
+              <div>
+                <label for="academicCollege" class="block text-sm font-semibold text-gray-700 mb-1.5">College</label>
+                <select
+                  id="academicCollege"
+                  name="academicCollege"
+                  class="form-input w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                         focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+                >
+                  <option value="">-- Select College --</option>
+                  <option value="CAFENR">College of Agriculture, Food, Environment and Natural Resources (CAFENR)</option>
+                  <option value="CEIT">College of Engineering, Information and Technology (CEIT)</option>
+                  <option value="CAS">College of Arts and Sciences (CAS)</option>
+                  <option value="CVMBS">College of Veterinary Medicine and Biomedical Sciences (CVMBS)</option>
+                  <option value="CED">College of Education (CED)</option>
+                  <option value="CEMDS">College of Economics, Management and Development Studies (CEMDS)</option>
+                  <option value="CSPEAR">College of Sports, Physical Education and Recreation (CSPEAR)</option>
+                  <option value="CCJ">College of Criminal Justice Education (CCJ)</option>
+                  <option value="CON">College of Nursing (CON)</option>
+                  <option value="CTHM">College of Tourism and Hospitality Management (CTHM)</option>
+                  <option value="COM">College of Medicine (COM)</option>
+                  <option value="GS-OLC">Graduate School and Open Learning Center (GS-OLC)</option>
+                </select>
+              </div>
+              <div>
+                <label for="academicDepartment" class="block text-sm font-semibold text-gray-700 mb-1.5">Department</label>
+                <select
+                  id="academicDepartment"
+                  name="academicDepartment"
+                  class="form-input w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                         focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+                >
+                  <option value="">-- Select Department --</option>
+                </select>
+              </div>
+              <div>
+                <label for="academicStatus" class="block text-sm font-semibold text-gray-700 mb-1.5">Status</label>
+                <select
+                  id="academicStatus"
+                  name="academicStatus"
+                  class="form-input w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                         focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+                >
+                  <option value="">-- Select Status --</option>
+                  <option value="regular">Regular</option>
+                  <option value="part-time">Part-time</option>
+                  <option value="contractual">Contractual</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Non-Academic Fields -->
+            <div id="nonAcademicFields" class="hidden space-y-4">
+              <div>
+                <label for="nonAcademicDept" class="block text-sm font-semibold text-gray-700 mb-1.5">Department</label>
+                <select
+                  id="nonAcademicDept"
+                  name="nonAcademicDept"
+                  class="form-input w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                         focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+                >
+                  <option value="">-- Select Department --</option>
+                  <option value="NAEA">Non-Academic Employees Association (NAEA)</option>
+                  <option value="ADMIN">Administration</option>
+                  <option value="FINANCE">Finance</option>
+                  <option value="HR">Human Resources</option>
+                  <option value="IT">Information Technology</option>
+                  <option value="MAINTENANCE">Maintenance</option>
+                  <option value="SECURITY">Security</option>
+                  <option value="LIBRARY">Library</option>
+                  <option value="NAES">Non-Academic Employee Services (NAES)</option>
+                  <option value="NAEM">Non-Academic Employee Management (NAEM)</option>
+                  <option value="NAEH">Non-Academic Employee Health (NAEH)</option>
+                  <option value="NAEIT">Non-Academic Employee IT (NAEIT)</option>              
+                </select>
+              </div>
+              <div>
+                <label for="nonAcademicStatus" class="block text-sm font-semibold text-gray-700 mb-1.5">Status</label>
+                <select
+                  id="nonAcademicStatus"
+                  name="nonAcademicStatus"
+                  class="form-input w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-gray-300 text-sm
+                         focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
+                >
+                  <option value="">-- Select Status --</option>
+                  <option value="regular">Regular</option>
+                  <option value="part-time">Part-time</option>
+                  <option value="contractual">Contractual</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Terms -->
+          <div class="flex items-start pt-3">
+            <input
+              type="checkbox"
+              name="terms"
+              id="terms"
+              class="mt-0.5 mr-2 h-4 w-4 text-cvsu-primary rounded border-gray-300 focus:ring-cvsu-primary"
+              required
+            >
+            <label for="terms" class="text-sm text-gray-600">
+              I agree to the
+              <button type="button" id="openTermsLink" class="text-cvsu-primary hover:underline">Terms of Service</button>
+              and
+              <button type="button" id="openPrivacyLink" class="text-cvsu-primary hover:underline">Privacy Policy</button>
+            </label>
+          </div>
+
+          <button
+            type="submit"
+            class="btn-primary w-full bg-cvsu-primary text-white font-semibold py-2.5 rounded-full
+                   text-sm tracking-wide hover:bg-cvsu-secondary transition duration-200 shadow-sm"
+          >
+            REGISTER
+          </button>
+          <div class="text-center text-sm mt-3 text-gray-600">
+            Already have an account?
+            <a href="login.html" class="text-cvsu-primary font-semibold hover:underline">Sign In</a>
+          </div>
+        </form>
       </div>
-      <form action="register.php" method="POST" class="space-y-4" id="registrationForm">
-        <div class="flex flex-col md:flex-row md:space-x-2 space-y-2 md:space-y-0">
-          <div class="md:w-1/2">
-            <input type="text" name="first_name" placeholder="First Name" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary" required>
-          </div>
-          <div class="md:w-1/2">
-            <input type="text" name="last_name" placeholder="Last Name" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary" required>
-          </div>
-        </div>
-        <div class="relative">
-          <input type="email" name="email" id="email" placeholder="Email (must be @cvsu.edu.ph)" pattern="[a-zA-Z0-9._%+-]+@cvsu\.edu\.ph$" title="Please enter a valid CVSU email address (@cvsu.edu.ph)" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary" required>
-          <span class="absolute right-3 top-3 text-gray-400">
-            <i class="fas fa-envelope"></i>
-          </span>
-          <div id="email-error" class="text-red-500 text-sm mt-1 hidden">
-            Please enter a valid CVSU email address (@cvsu.edu.ph)
-          </div>
-        </div>
-        <div class="relative">
-          <input type="password" name="password" id="password" placeholder="Password" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary" required minlength="8" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$" title="Must contain at least 8 characters, including uppercase, lowercase and number">
-          <span class="absolute right-3 top-3 text-gray-400 cursor-pointer toggle-password">
-            <i class="fas fa-eye"></i>
-          </span>
-        </div>
-        <div class="text-xs text-gray-500">
-          Password must contain at least 8 characters, including uppercase, lowercase, and a number.
-        </div>
-        <div class="relative">
-          <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm Password" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary" required>
-          <span class="absolute right-3 top-3 text-gray-400 cursor-pointer toggle-password">
-            <i class="fas fa-eye"></i>
-          </span>
-        </div>
-        <!-- Position Selection -->
-        <div>
-          <label for="position" class="block text-sm font-medium text-gray-700 mb-2">Position</label>
-          <select id="position" name="position" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary" required>
-            <option value="">-- Select Position --</option>
-            <option value="student">Student</option>
-            <option value="academic">Academic (Faculty)</option>
-            <option value="non-academic">Non-Academic</option>
-          </select>
-        </div>
-        
-        <!-- Student Number Field -->
-        <div id="studentNumberField" class="hidden space-y-4">
-          <div>
-            <label for="student_number" class="block text-sm font-medium text-gray-700 mb-2">Student Number</label>
-            <input type="text" id="student_number" name="student_number" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary">
-          </div>
-        </div>
-        
-        <!-- Employee Number Field -->
-        <div id="employeeNumberField" class="hidden space-y-4">
-          <div>
-            <label for="employee_number" class="block text-sm font-medium text-gray-700 mb-2">Employee Number</label>
-            <input type="text" id="employee_number" name="employee_number" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary">
-          </div>
-        </div>
-        
-        <!-- Student Fields -->
-        <div id="studentFields" class="hidden space-y-4">
-          <div>
-            <label for="studentDepartment" class="block text-sm font-medium text-gray-700 mb-2">College</label>
-            <select id="studentDepartment" name="studentDepartment" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary">
-              <option value="">-- Select College --</option>
-              <option value="CAFENR">College of Agriculture, Food, Environment and Natural Resources (CAFENR)</option>
-              <option value="CEIT">College of Engineering, Information and Technology (CEIT)</option>
-              <option value="CAS">College of Arts and Sciences (CAS)</option>
-              <option value="CVMBS">College of Veterinary Medicine and Biomedical Sciences (CVMBS)</option>
-              <option value="CED">College of Education (CED)</option>
-              <option value="CEMDS">College of Economics, Management and Development Studies (CEMDS)</option>
-              <option value="CSPEAR">College of Sports, Physical Education and Recreation (CSPEAR)</option>
-              <option value="CCJ">College of Criminal Justice Education (CCJ)</option>
-              <option value="CON">College of Nursing (CON)</option>
-              <option value="CTHM">College of Tourism and Hospitality Management (CTHM)</option>
-              <option value="COM">College of Medicine (COM)</option>
-              <option value="GS-OLC">Graduate School and Open Learning Center (GS-OLC)</option>
-            </select>
-          </div>
-          <!-- Department field for students -->
-          <div>
-            <label for="studentDepartment1" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
-            <select id="studentDepartment1" name="studentDepartment1" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary">
-              <option value="">-- Select Department --</option>
-            </select>
-          </div>
-          <div>
-            <label for="studentCourse" class="block text-sm font-medium text-gray-700 mb-2">Course</label>
-            <select id="studentCourse" name="studentCourse" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary">
-              <option value="">-- Select Course --</option>
-            </select>
-          </div>
-        </div>
-        <!-- Academic (Faculty) Fields -->
-        <div id="academicFields" class="hidden space-y-4">
-          <div>
-            <label for="academicCollege" class="block text-sm font-medium text-gray-700 mb-2">College</label>
-            <select id="academicCollege" name="academicCollege" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary">
-              <option value="">-- Select College --</option>
-              <option value="CAFENR">College of Agriculture, Food, Environment and Natural Resources (CAFENR)</option>
-              <option value="CEIT">College of Engineering, Information and Technology (CEIT)</option>
-              <option value="CAS">College of Arts and Sciences (CAS)</option>
-              <option value="CVMBS">College of Veterinary Medicine and Biomedical Sciences (CVMBS)</option>
-              <option value="CED">College of Education (CED)</option>
-              <option value="CEMDS">College of Economics, Management and Development Studies (CEMDS)</option>
-              <option value="CSPEAR">College of Sports, Physical Education and Recreation (CSPEAR)</option>
-              <option value="CCJ">College of Criminal Justice Education (CCJ)</option>
-              <option value="CON">College of Nursing (CON)</option>
-              <option value="CTHM">College of Tourism and Hospitality Management (CTHM)</option>
-              <option value="COM">College of Medicine (COM)</option>
-              <option value="GS-OLC">Graduate School and Open Learning Center (GS-OLC)</option>
-            </select>
-          </div>
-          <div>
-            <label for="academicDepartment" class="block text-sm font-medium text-gray-700">Department</label>
-            <select id="academicDepartment" name="academicDepartment" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary">
-              <option value="">-- Select Department --</option>
-            </select>
-          </div>
-          <div>
-            <label for="academicStatus" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-            <select id="academicStatus" name="academicStatus" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary">
-              <option value="">-- Select Status --</option>
-              <option value="regular">Regular</option>
-              <option value="part-time">Part-time</option>
-              <option value="contractual">Contractual</option>
-            </select>
-          </div>
-          <div>
-            <label class="inline-flex items-center">
-              <input type="checkbox" id="academicIsCoop" name="academicIsCoop" class="form-checkbox h-4 w-4 text-cvsu-primary rounded border-gray-300 focus:ring-cvsu-primary" value="1">
-              <span class="ml-2 text-sm text-gray-700">Member of COOP?</span>
-            </label>
-          </div>
-        </div>
-        <!-- Non-Academic Fields -->
-        <div id="nonAcademicFields" class="hidden space-y-4">
-          <div>
-            <label for="nonAcademicDept" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
-            <select id="nonAcademicDept" name="nonAcademicDept" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary">
-              <option value="">-- Select Department --</option>
-              <option value="NAEA">Non-Academic Employees Association (NAEA)</option>
-              <option value="ADMIN">Administration</option>
-              <option value="FINANCE">Finance</option>
-              <option value="HR">Human Resources</option>
-              <option value="IT">Information Technology</option>
-              <option value="MAINTENANCE">Maintenance</option>
-              <option value="SECURITY">Security</option>
-              <option value="LIBRARY">Library</option>
-              <option value="NAES">Non-Academic Employee Services (NAES)</option>
-              <option value="NAEM">Non-Academic Employee Management (NAEM)</option>
-              <option value="NAEH">Non-Academic Employee Health (NAEH)</option>
-              <option value="NAEIT">Non-Academic Employee IT (NAEIT)</option>              
-            </select>
-          </div>
-          <div>
-            <label for="nonAcademicStatus" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-            <select id="nonAcademicStatus" name="nonAcademicStatus" class="w-full p-2 rounded border border-gray-300 focus:border-cvsu-primary focus:ring-1 focus:ring-cvsu-primary">
-              <option value="">-- Select Status --</option>
-              <option value="regular">Regular</option>
-              <option value="part-time">Part-time</option>
-              <option value="contractual">Contractual</option>
-            </select>
-          </div>
-          <div>
-            <label class="inline-flex items-center">
-              <input type="checkbox" id="nonAcademicIsCoop" name="nonAcademicIsCoop" class="form-checkbox h-4 w-4 text-cvsu-primary rounded border-gray-300 focus:ring-cvsu-primary" value="1">
-              <span class="ml-2 text-sm text-gray-700">Member of COOP?</span>
-            </label>
-          </div>
-        </div>
-        <div class="flex items-center pt-4">
-          <input type="checkbox" name="terms" id="terms" class="mr-2 h-4 w-4 text-cvsu-primary rounded border-gray-300 focus:ring-cvsu-primary" required>
-          <label for="terms" class="text-sm text-gray-600">
-            I agree to the <a href="#" class="text-cvsu-primary hover:underline">Terms of Service</a> and <a href="#" class="text-cvsu-primary hover:underline">Privacy Policy</a>
-          </label>
-        </div>
-        <button type="submit" class="w-full bg-cvsu-primary text-white font-bold py-2 rounded hover:bg-cvsu-secondary transition duration-200">
-          REGISTER
-        </button>
-        <div class="text-center text-sm mt-4 text-gray-600">
-          Already have an account? <a href="login.html" class="text-cvsu-primary font-semibold hover:underline">Sign In</a>
-        </div>
-      </form>
     </div>
   </main>
+
+  <!-- SUCCESS MODAL -->
+  <div id="successModal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
+    <div class="modal-backdrop absolute inset-0"></div>
+    <div class="success-modal bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 relative z-10">
+      <button class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl" aria-label="Close" onclick="window.location.href='login.html'">
+        &times;
+      </button>
+      <div class="text-center">
+        <div class="mx-auto bg-emerald-100 w-20 h-20 rounded-full flex items-center justify-center mb-6">
+          <i class="fas fa-check text-emerald-600 text-3xl"></i>
+        </div>
+        <h3 class="text-2xl font-bold text-gray-800 mb-3">Registration Successful!</h3>
+        <p class="text-gray-600 mb-6">
+          Registration successful. A verification email has been sent to your account.
+          Please verify your email to activate your account before logging in.
+        </p>        
+        <div class="flex justify-center">
+          <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN VERIFICATION MODAL -->
+  <div id="adminVerificationModal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
+    <div class="modal-backdrop absolute inset-0"></div>
+    <div class="success-modal bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 relative z-10">
+      <button class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl" aria-label="Close" onclick="window.location.href='login.html'">
+        &times;
+      </button>
+      <div class="text-center">
+        <div class="mx-auto bg-emerald-100 w-20 h-20 rounded-full flex items-center justify-center mb-6">
+          <i class="fas fa-envelope text-emerald-600 text-3xl"></i>
+        </div>
+        <h3 class="text-2xl font-bold text-gray-800 mb-3">Verification Email Sent!</h3>
+        <p class="text-gray-600 mb-2">We've sent a verification link to your email address.</p>
+        <p class="text-gray-600 mb-6">Please check your inbox and click the link to complete your login.</p>
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 text-left">
+          <p class="text-sm text-blue-700">
+            <i class="fas fa-info-circle mr-2"></i>
+            The verification link will expire in 1 hour for security reasons.
+          </p>
+        </div>
+        <div class="flex justify-center">
+          <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ERROR MODAL -->
+  <div id="errorModal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
+    <div class="modal-backdrop absolute inset-0"></div>
+    <div class="success-modal bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 relative z-10">
+      <button class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl" aria-label="Close">
+        &times;
+      </button>
+      <div class="text-center">
+        <div class="mx-auto bg-red-100 w-20 h-20 rounded-full flex items-center justify-center mb-6">
+          <i class="fas fa-exclamation-triangle text-red-600 text-3xl"></i>
+        </div>
+        <h3 class="text-2xl font-bold text-gray-800 mb-3">Registration Failed</h3>
+        <p id="errorMessage" class="text-gray-600 mb-6">
+          There was an error with your registration. Please try again.
+        </p>
+        <button
+          id="errorModalClose"
+          class="mt-4 w-full bg-red-600 text-white font-semibold py-2.5 rounded-full text-sm tracking-wide shadow-sm hover:bg-red-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 focus:ring-offset-red-900 transition"
+        >
+          Back to Register
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- FOOTER -->
-  <footer class="bg-cvsu-primary text-white text-center p-4">
-    <p>© eBalota . All rights reserved.</p>
+  <footer class="bg-emerald-950 text-emerald-100 text-center p-4 text-xs">
+    <p>© eBalota. All rights reserved.</p>
   </footer>
+
+  <!-- Terms & Privacy Modal -->
+  <div id="termsModal" class="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center hidden">
+    <div class="modal-content bg-white max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+      <div class="modal-header">
+        <h3 id="termsModalTitle">Terms of Service</h3>
+        <button type="button" id="termsModalClose" class="modal-close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div id="termsModalBody" class="modal-body">
+        <!-- Content loaded via JS -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="termsModalCloseBottom">Close</button>
+      </div>
+    </div>
+  </div>
   
-  <!-- Hamburger Menu Script -->
-  <script>
-    // Hamburger Dropdown Menu Script
-    const menuBtn = document.getElementById('menuBtn');
-    const mobileMenu = document.getElementById('mobileMenu');
-    menuBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      mobileMenu.classList.toggle('hidden');
-    });
-    document.addEventListener('click', function(e) {
-      if (!mobileMenu.classList.contains('hidden')) {
-        if (!mobileMenu.contains(e.target) && e.target !== menuBtn) {
-          mobileMenu.classList.add('hidden');
-        }
-      }
-    });
-    window.addEventListener('resize', function() {
-      if (window.innerWidth >= 768) {
-        mobileMenu.classList.add('hidden');
-      }
-    });
-  </script>
-  
-  <!-- Main Registration Script - EMBEDDED VERSION -->
-  <script>
-    // Course data for each college (still needed for students)
-    const departmentCourses = {
-      'CAFENR': [
-          'BS Agriculture',
-          'BS Agribusiness',
-          'BS Environmental Science',
-          'BS Food Technology',
-          'BS Forestry',
-          'BS Agricultural and Biosystems Engineering',
-          'Bachelor of Agricultural Entrepreneurship',
-          'BS Land Use Design and Management'
-      ],
-      'CEIT': [
-          'BS Computer Science',
-          'BS Information Technology',
-          'BS Computer Engineering',
-          'BS Electronics Engineering',
-          'BS Civil Engineering',
-          'BS Mechanical Engineering',
-          'BS Electrical Engineering',
-          'BS Industrial Engineering'
-      ],
-      'CAS': [
-          'BS Biology',
-          'BS Chemistry',
-          'BS Mathematics',
-          'BS Physics',
-          'BS Psychology',
-          'BA English Language Studies',
-          'BA Communication',
-          'BS Statistics'
-      ],
-      'CVMBS': [
-          'Doctor of Veterinary Medicine',
-          'BS Biology (Pre-Veterinary)'
-      ],
-      'CED': [
-          'Bachelor of Elementary Education',
-          'Bachelor of Secondary Education',
-          'Bachelor of Physical Education',
-          'Bachelor of Technology and Livelihood Education'
-      ],
-      'CEMDS': [
-          'BS Business Administration',
-          'BS Accountancy',
-          'BS Economics',
-          'BS Entrepreneurship',
-          'BS Office Administration'
-      ],
-      'CSPEAR': [
-          'Bachelor of Physical Education',
-          'BS Exercise and Sports Sciences'
-      ],
-      'CCJ': [
-          'BS Criminology'
-      ],
-      'CON': [
-          'BS Nursing'
-      ]
-    };
-    
-    // College departments data
-    const collegeDepartments = {
-      "CAFENR": [
-          "Department of Animal Science",
-          "Department of Crop Science",
-          "Department of Food Science and Technology",
-          "Department of Forestry and Environmental Science",
-          "Department of Agricultural Economics and Development"
-      ],
-      "CAS": [
-          "Department of Biological Sciences",
-          "Department of Physical Sciences",
-          "Department of Languages and Mass Communication",
-          "Department of Social Sciences",
-          "Department of Mathematics and Statistics"
-      ],
-      "CCJ": ["Department of Criminal Justice"],
-      "CEMDS": [
-          "Department of Economics",
-          "Department of Business and Management",
-          "Department of Development Studies"
-      ],
-      "CED": [
-          "Department of Science Education",
-          "Department of Technology and Livelihood Education",
-          "Department of Curriculum and Instruction",
-          "Department of Human Kinetics"
-      ],
-      "CEIT": [
-          "Department of Civil Engineering",
-          "Department of Computer and Electronics Engineering",
-          "Department of Industrial Engineering and Technology",
-          "Department of Mechanical and Electronics Engineering",
-          "Department of Information Technology"
-      ],
-      "CON": ["Department of Nursing"],
-      "COM": [
-          "Department of Basic Medical Sciences",
-          "Department of Clinical Sciences"
-      ],
-      "CSPEAR": ["Department of Physical Education and Recreation"],
-      "CVMBS": [
-          "Department of Veterinary Medicine",
-          "Department of Biomedical Sciences"
-      ],
-      "GS-OLC": ["Department of Various Graduate Programs"]
-    };
-    
-    // Get DOM elements
-    const position = document.getElementById('position');
-    const studentFields = document.getElementById('studentFields');
-    const academicFields = document.getElementById('academicFields');
-    const nonAcademicFields = document.getElementById('nonAcademicFields');
-    
-    // Get number field elements
-    const studentNumberField = document.getElementById('studentNumberField');
-    const employeeNumberField = document.getElementById('employeeNumberField');
-    const studentNumberInput = document.getElementById('student_number');
-    const employeeNumberInput = document.getElementById('employee_number');
-    
-    const studentDepartment = document.getElementById('studentDepartment');
-    const studentDepartment1 = document.getElementById('studentDepartment1'); // Student department
-    const studentCourse = document.getElementById('studentCourse');
-    
-    const academicCollege = document.getElementById('academicCollege');
-    const academicDepartment = document.getElementById('academicDepartment');
-    const academicStatus = document.getElementById('academicStatus');
-    
-    const nonAcademicDept = document.getElementById('nonAcademicDept');
-    const nonAcademicStatus = document.getElementById('nonAcademicStatus');
-    
-    // DEBUG: Check if elements are found
-    console.log('studentDepartment1 element:', studentDepartment1);
-    
-    // Handle position selection
-    position.addEventListener('change', function() {
-      const value = this.value;
-      
-      // Hide all field groups and number fields
-      studentFields.classList.add('hidden');
-      academicFields.classList.add('hidden');
-      nonAcademicFields.classList.add('hidden');
-      studentNumberField.classList.add('hidden');
-      employeeNumberField.classList.add('hidden');
-      
-      // Show relevant fields based on position
-      if (value === 'student') {
-          studentFields.classList.remove('hidden');
-          studentNumberField.classList.remove('hidden');
-          // Make student fields required
-          studentDepartment.required = true;
-          studentDepartment1.required = true; // Make department required
-          studentCourse.required = true;
-          studentNumberInput.required = true;
-          // Remove required from other fields
-          academicCollege.required = false;
-          academicDepartment.required = false;
-          academicStatus.required = false;
-          nonAcademicDept.required = false;
-          nonAcademicStatus.required = false;
-          employeeNumberInput.required = false;
-      } else if (value === 'academic') {
-          academicFields.classList.remove('hidden');
-          employeeNumberField.classList.remove('hidden');
-          // Make academic fields required
-          academicCollege.required = true;
-          academicDepartment.required = true;
-          academicStatus.required = true;
-          employeeNumberInput.required = true;
-          // Remove required from other fields
-          studentDepartment.required = false;
-          studentDepartment1.required = false;
-          studentCourse.required = false;
-          studentNumberInput.required = false;
-          nonAcademicDept.required = false;
-          nonAcademicStatus.required = false;
-      } else if (value === 'non-academic') {
-          nonAcademicFields.classList.remove('hidden');
-          employeeNumberField.classList.remove('hidden');
-          // Make non-academic fields required
-          nonAcademicDept.required = true;
-          nonAcademicStatus.required = true;
-          employeeNumberInput.required = true;
-          // Remove required from other fields
-          studentDepartment.required = false;
-          studentDepartment1.required = false;
-          studentCourse.required = false;
-          studentNumberInput.required = false;
-          academicCollege.required = false;
-          academicDepartment.required = false;
-          academicStatus.required = false;
-      }
-    });
-    
-    // Handle student department change to populate departments and courses
-    studentDepartment.addEventListener('change', function() {
-      const selectedDept = this.value;
-      console.log('Student college selected:', selectedDept);
-      
-      // Clear current department options
-      studentDepartment1.innerHTML = '<option value="">-- Select Department --</option>';
-      
-      // DEBUG: Check if college exists in our data
-      console.log('Departments data for this college:', collegeDepartments[selectedDept]);
-      
-      // Populate departments based on selected college
-      if (selectedDept && collegeDepartments[selectedDept]) {
-          collegeDepartments[selectedDept].forEach(dept => {
-              const option = document.createElement('option');
-              option.value = dept;
-              option.textContent = dept;
-              studentDepartment1.appendChild(option);
-              console.log('Added department option:', dept);
-          });
-      } else {
-          console.log('No departments found for college:', selectedDept);
-      }
-      
-      // Clear current course options
-      studentCourse.innerHTML = '<option value="">-- Select Course --</option>';
-      
-      // Populate courses based on selected department
-      if (selectedDept && departmentCourses[selectedDept]) {
-          departmentCourses[selectedDept].forEach(course => {
-              const option = document.createElement('option');
-              option.value = course;
-              option.textContent = course;
-              studentCourse.appendChild(option);
-          });
-      }
-    });
-    
-    // Handle academic college change to populate departments
-    academicCollege.addEventListener('change', function() {
-      const selectedCollege = this.value;
-      
-      // Clear current department options
-      academicDepartment.innerHTML = '<option value="">-- Select Department --</option>';
-      
-      // Populate departments based on selected college
-      if (selectedCollege && collegeDepartments[selectedCollege]) {
-          collegeDepartments[selectedCollege].forEach(dept => {
-              const option = document.createElement('option');
-              option.value = dept;
-              option.textContent = dept;
-              academicDepartment.appendChild(option);
-          });
-      }
-    });
-    
-    // COOP checkboxes are now always visible for academic and non-academic
-    // No need for status-based visibility toggle
-    
-    document.getElementById('email').addEventListener('input', function(e) {
-      const email = e.target.value;
-      const errorDiv = document.getElementById('email-error');
-      const emailPattern = /^[a-zA-Z0-9._%+-]+@cvsu\.edu\.ph$/;
-      
-      if (email && !emailPattern.test(email)) {
-          errorDiv.classList.remove('hidden');
-          e.target.setCustomValidity('Please enter a valid CVSU email address');
-      } else {
-          errorDiv.classList.add('hidden');
-          e.target.setCustomValidity('');
-      }
-    });
-    
-    // Additional validation on form submit
-    document.querySelector('form').addEventListener('submit', function(e) {
-      const email = document.getElementById('email').value;
-      const emailPattern = /^[a-zA-Z0-9._%+-]+@cvsu\.edu\.ph$/;
-      
-      if (!emailPattern.test(email)) {
-          e.preventDefault();
-          alert('Please enter a valid CVSU email address (@cvsu.edu.ph)');
-          return false;
-      }
-      
-      // Validate number fields based on position
-      const positionValue = position.value;
-      if (positionValue === 'student' && !studentNumberInput.value.trim()) {
-          e.preventDefault();
-          alert('Student number is required for students.');
-          return false;
-      }
-      
-      if ((positionValue === 'academic' || positionValue === 'non-academic') && !employeeNumberInput.value.trim()) {
-          e.preventDefault();
-          alert('Employee number is required for academic and non-academic staff.');
-          return false;
-      }
-      
-      // Validate department field for students
-      if (positionValue === 'student' && !studentDepartment1.value.trim()) {
-          e.preventDefault();
-          alert('Department is required for students.');
-          return false;
-      }
-    });
-    
-    // Password visibility toggle
-    document.querySelectorAll('.toggle-password').forEach(toggle => {
-      toggle.addEventListener('click', function() {
-          const passwordInput = this.parentElement.querySelector('input[type="password"], input[type="text"]');
-          const icon = this.querySelector('i');
-          
-          if (passwordInput.type === 'password') {
-              passwordInput.type = 'text';
-              icon.classList.remove('fa-eye');
-              icon.classList.add('fa-eye-slash');
-          } else {
-              passwordInput.type = 'password';
-              icon.classList.remove('fa-eye-slash');
-              icon.classList.add('fa-eye');
-          }
-      });
-    });
-    
-    // Password confirmation validation
-    const password = document.getElementById('password');
-    const confirmPassword = document.getElementById('confirm_password');
-    
-    function validatePassword() {
-      if (password.value !== confirmPassword.value) {
-          confirmPassword.setCustomValidity("Passwords don't match");
-      } else {
-          confirmPassword.setCustomValidity('');
-      }
-    }
-    
-    password.addEventListener('change', validatePassword);
-    confirmPassword.addEventListener('keyup', validatePassword);
-    
-    // Form submission handling
-    document.getElementById('registrationForm').addEventListener('submit', function(e) {
-      // Additional client-side validation can be added here
-      validatePassword();
-      
-      // Check if passwords match
-      if (password.value !== confirmPassword.value) {
-          e.preventDefault();
-          alert('Passwords do not match!');
-          return false;
-      }
-      
-      // Check if terms are accepted
-      if (!document.getElementById('terms').checked) {
-          e.preventDefault();
-          alert('Please accept the Terms of Service and Privacy Policy to continue.');
-          return false;
-      }
-    });
-  </script>
+  <!-- Scripts -->
+  <script src="register.js"></script>
 </body>
 </html>

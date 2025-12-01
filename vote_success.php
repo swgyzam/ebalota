@@ -539,7 +539,7 @@ include 'voters_sidebar.php';
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
   <div class="flex">
-    <main class="flex-1 p-4 md:p-8 md:ml-64">
+    <main class="flex-1 px-4 py-6 md:px-8 md:py-8 md:ml-64 pb-24">
       <header class="bg-[var(--cvsu-green-dark)] text-white p-3 md:p-4 flex justify-between items-center shadow-lg rounded-xl mb-8">
         <div class="flex items-center">
           <button class="md:hidden text-white mr-4" onclick="toggleSidebar()">

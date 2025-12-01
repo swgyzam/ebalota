@@ -4,216 +4,452 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="assets/img/weblogo.png" type="image/png">
-    <title>eBalota</title>
+    <title>eBalota | CvSU Online Voting System</title>
+
+    <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="assets/styles/index.css" rel="stylesheet"/>
+
+    <!-- Google Font -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet" />
+
+    <!-- Your custom CSS (optional, keep if you already have styles) -->
+    <link href="assets/styles/index.css" rel="stylesheet"/>
+
+    <style>
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+        }
+
+        /* Hero gradient background */
+        .hero-gradient {
+            background: radial-gradient(circle at top left, #4ade80 0, #166534 45%, #052e16 100%);
+        }
+
+        /* Fade-in on scroll */
+        .fade-section {
+            opacity: 0;
+            transform: translateY(24px);
+            transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+        }
+
+        .fade-section.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Smooth hover lift */
+        .card-hover {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .card-hover:hover {
+            transform: translateY(-4px);
+        }
+
+        /* FAQ marker cleanup */
+        details summary {
+            list-style: none;
+        }
+
+        details summary::-webkit-details-marker {
+            display: none;
+        }
+
+        details summary::after {
+            content: "▾";
+            font-size: 0.85rem;
+            margin-left: 0.5rem;
+            transition: transform 0.25s ease;
+            color: rgb(4 120 87);
+        }
+
+        details[open] summary::after {
+            transform: rotate(180deg);
+        }
+    </style>
 </head>
-<body class="min-h-screen flex flex-col">
+<body class="min-h-screen flex flex-col bg-slate-50 text-slate-900">
+
     <!-- Navigation -->
-    <nav class="sticky top-0 z-50 text-black shadow-lg bg-white">
-        <div class="container mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
-            <div class="ebalotalogo flex-shrink-0">
-                <a href="#" class="block">
-                    <!-- Responsive logo sizing -->
+    <nav class="sticky top-0 z-50 border-b border-emerald-900/10 bg-white/80 backdrop-blur">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <a href="index.html" class="flex items-center gap-3">
                     <img 
                         src="assets/img/ebalota_logo.png" 
-                        alt="logo" 
-                        class="w-32 sm:w-40 md:w-52 lg:w-56 xl:w-60 h-auto"
-                        style="max-width:100%; height:auto; left: 10px;">
+                        alt="eBalota logo" 
+                        class="w-32 sm:w-40 md:w-48 h-auto"
+                    />
                 </a>
             </div>
-            <div class="hidden md:flex space-x-8 items-center">
-                <a href="register.html" class="nav-link font-medium">REGISTER</a>
-                <a href="login.html" class="nav-link font-medium">LOGIN</a>
+
+            <!-- Desktop nav -->
+            <div class="hidden md:flex items-center space-x-6 text-sm font-medium">
+                <a href="#about-us" class="text-slate-700 hover:text-emerald-700 transition">About</a>
+                <a href="#faq" class="text-slate-700 hover:text-emerald-700 transition">FAQ</a>
+                <a href="register.html" class="px-4 py-2 rounded-full border border-emerald-700 text-emerald-800 hover:bg-emerald-700 hover:text-white transition">
+                    Register
+                </a>
+                <a href="login.html" class="px-4 py-2 rounded-full bg-emerald-700 text-white hover:bg-emerald-800 transition">
+                    Login
+                </a>
             </div>
-            <!-- Hamburger Dropdown -->
+
+            <!-- Mobile hamburger -->
             <div class="md:hidden relative">
-                <button id="menuBtn" class="text-2xl focus:outline-none">
+                <button
+                    id="menuBtn"
+                    class="text-2xl focus:outline-none text-emerald-900"
+                    aria-label="Open navigation menu"
+                    aria-expanded="false"
+                    aria-controls="mobileMenu"
+                >
                     ☰
                 </button>
-                <div id="mobileMenu" class="absolute right-0 mt-2 w-40 bg-white rounded shadow-lg py-2 border hidden z-50">
-                    <a href="register.html" class="block px-4 py-2 text-gray-800 hover:bg-green-100">REGISTER</a>
-                    <a href="login.html" class="block px-4 py-2 text-gray-800 hover:bg-green-100">LOGIN</a>
+                <div
+                    id="mobileMenu"
+                    class="absolute right-0 mt-3 w-44 bg-white/95 backdrop-blur rounded-xl shadow-lg py-2 border border-slate-100 hidden z-50"
+                >
+                    <a href="#about-us" class="block px-4 py-2 text-sm text-slate-800 hover:bg-emerald-50">About</a>
+                    <a href="#faq" class="block px-4 py-2 text-sm text-slate-800 hover:bg-emerald-50">FAQ</a>
+                    <div class="border-t my-2"></div>
+                    <a href="register.html" class="block px-4 py-2 text-sm text-emerald-800 font-semibold hover:bg-emerald-50">Register</a>
+                    <a href="login.html" class="block px-4 py-2 text-sm text-white font-semibold bg-emerald-700 hover:bg-emerald-800 mx-3 mt-2 mb-1 rounded-lg text-center">
+                        Login
+                    </a>
                 </div>
             </div>
         </div>
     </nav>
 
-    <!-- Home Section -->
-    <section class="hero-gradient text-white py-16 md:py-32">
-        <div class="container mx-auto px-4 sm:px-6 text-center">
-            <div class="max-w-4xl mx-auto">
-                <div class="flex justify-center items-center mt-4 mb-4">
-                    <!-- Responsive logo sizing for home -->
-                    <img src="assets/img/ebalota_logo.png" alt="logo" 
-                        class="w-100 sm:w-72 md:w-96 lg:w-[500px] xl:w-[600px] h-auto mx-auto">
-                </div>
-                <p class="text-l md:text-2xl mb-8 tracking-wider" style="color: rgb(255,255,255);">Simplify the way you vote. eBalota an Online Voting System delivers a secured, transparent, and flexible election experience — no lines, no delays</p>
-                <div class="flex justify-center flex-wrap gap-4">
-                    <a href="#register-section" class="bg-white text-green-800 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition duration-300">Get Started</a>
-                    <a href="#about-us" class="border-2 border-white px-6 py-3 rounded-lg font-semibold hover:bg-white hover:text-green-800 transition duration-300">Learn More</a>
+    <main class="flex-1">
+
+        <!-- Hero Section -->
+        <section class="hero-gradient text-white py-16 md:py-24 lg:py-28 fade-section">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+                    <!-- Hero text -->
+                    <div class="text-center lg:text-left">
+                        <p class="text-xs font-semibold tracking-[0.25em] uppercase text-emerald-200 mb-4">
+                            Cavite State University
+                        </p>
+                        <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight mb-5">
+                            eBalota: A Safer, Secure Way to Vote
+                        </h1>
+                        <p class="text-base sm:text-lg md:text-xl text-emerald-100/90 mb-8 max-w-xl mx-auto lg:mx-0">
+                            Simplify the way you vote. eBalota, an online voting system inspired by CvSU’s values, 
+                            delivers a secure, transparent, and flexible election experience — 
+                            <span class="font-semibold">no lines, no delays.</span>
+                        </p>
+                        <div class="flex flex-wrap gap-4 justify-center lg:justify-start">
+                            <a href="#register-section" class="inline-flex items-center justify-center px-6 py-3 rounded-full bg-white text-emerald-800 font-semibold shadow-sm hover:bg-emerald-50 transition">
+                                Get Started
+                            </a>
+                            <a href="#about-us" class="inline-flex items-center justify-center px-6 py-3 rounded-full border border-emerald-100 text-white hover:bg-white/10 transition">
+                                Learn More
+                            </a>
+                        </div>
+
+                        <!-- Trust badges -->
+                        <div class="mt-8 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:justify-center lg:justify-start text-xs sm:text-sm text-emerald-100/80">
+                            <div class="flex items-center gap-2 justify-center sm:justify-start">
+                                <span class="inline-block w-2 h-2 rounded-full bg-emerald-300"></span>
+                                University-wide Elections
+                            </div>
+                            <div class="flex items-center gap-2 justify-center sm:justify-start">
+                                <span class="inline-block w-2 h-2 rounded-full bg-emerald-300"></span>
+                                Real-time Results
+                            </div>
+                            <div class="flex items-center gap-2 justify-center sm:justify-start">
+                                <span class="inline-block w-2 h-2 rounded-full bg-emerald-300"></span>
+                                Secure Authentication
+                            </div>
+                            <div class="flex items-center gap-2 justify-center sm:justify-start">
+                                <span class="inline-block w-2 h-2 rounded-full bg-emerald-300"></span>
+                                Mobile Friendly
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hero visual -->
+                    <div class="relative flex justify-center lg:justify-end mt-10 lg:mt-0">
+                        <div class="relative w-full max-w-md">
+                            <div class="absolute -inset-4 bg-emerald-400/20 blur-2xl rounded-3xl"></div>
+
+                            <div class="relative bg-white/10 border border-emerald-100/20 rounded-3xl p-6 backdrop-blur-md shadow-xl">
+                                <img
+                                    src="assets/img/ebalota_logo.png"
+                                    alt="eBalota logo"
+                                    class="w-32 sm:w-48 md:w-56 h-auto mx-auto mb-6"
+                                />
+
+                                <div class="space-y-3 text-sm text-emerald-50">
+                                    <div class="flex items-center justify-between bg-black/10 rounded-xl px-3 py-2">
+                                        <span>Secure Login</span>
+                                        <span class="text-emerald-300 text-xs">Verified via CvSU email</span>
+                                    </div>
+                                    <div class="bg-black/10 rounded-xl px-3 py-3">
+                                        <p class="text-xs uppercase tracking-widest text-emerald-200 mb-1">Live Status</p>
+                                        <div class="flex items-center justify-between">
+                                            <span>CvSU Election 2025</span>
+                                            <span class="inline-flex items-center gap-1">
+                                                <span class="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
+                                                <span class="text-xs">Ongoing</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="bg-black/10 rounded-xl px-3 py-3 group">
+                                        <p class="text-xs uppercase tracking-widest text-emerald-200 mb-1">Turnout Snapshot</p>
+                                    
+                                        <div class="h-1.5 w-full bg-emerald-900/50 rounded-full overflow-hidden">
+                                            <!-- animated bar -->
+                                            <div
+                                                id="turnout-bar"
+                                                class="h-full bg-emerald-400 rounded-full transition-all duration-[1200ms] ease-out group-hover:shadow-[0_0_10px_rgba(52,211,153,0.9)]"
+                                                style="width: 0%;"
+                                            ></div>
+                                        </div>
+                                    
+                                        <p id="turnout-label" class="mt-1 text-xs text-emerald-100/80 text-center">
+                                            0% participation
+                                        </p>
+                                    </div>                                    
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- Values Section -->
-    <section class="py-16 bg-white">
-        <div class="container mx-auto px-4 sm:px-6">
-            <div class="text-center mb-16">
-                <h2 class="text-3xl font-bold text-green-800 mb-4">Our Core Values</h2>
-                <div class="w-24 h-1 bg-green-600 mx-auto"></div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <!-- Cards unchanged, just responsive container -->
-                <div class="bg-gray-50 rounded-xl p-8 text-center hover:shadow-lg transition duration-300">
-                    <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-green-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </div>
-                    <h3 class="text-2xl font-bold text-green-800 mb-4">TRUTH</h3>
-                    <p class="text-gray-600">Ensuring integrity and accuracy in every electoral process, reflecting CvSU's commitment to honesty and transparency.</p>
+        <!-- Core Values Section -->
+        <section class="py-14 bg-white fade-section">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-12">
+                    <h2 class="text-3xl font-bold text-emerald-900 mb-3">Our Core Values</h2>
+                    <p class="text-sm text-slate-500 mb-3">Inspired by Cavite State University's guiding principles</p>
+                    <div class="w-20 h-1 bg-emerald-500 mx-auto rounded-full"></div>
                 </div>
-                <div class="bg-gray-50 rounded-xl p-8 text-center hover:shadow-lg transition duration-300">
-                    <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-green-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                        </svg>
-                    </div>
-                    <h3 class="text-2xl font-bold text-green-800 mb-4">EXCELLENCE</h3>
-                    <p class="text-gray-600">Delivering the highest standards in electoral processes, mirroring CvSU's pursuit of academic and operational excellence.</p>
-                </div>
-                <div class="bg-gray-50 rounded-xl p-8 text-center hover:shadow-lg transition duration-300">
-                    <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-green-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                        </svg>
-                    </div>
-                    <h3 class="text-2xl font-bold text-green-800 mb-4">SERVICE</h3>
-                    <p class="text-gray-600">Dedicated to serving the university community, embodying CvSU's motto of service to students and stakeholders.</p>
-                </div>
-            </div>
-        </div>
-    </section>
 
-    <!-- Features Section -->
-    <section class="bg-green-50 py-16">
-        <div class="container mx-auto px-4 sm:px-6">
-            <h2 class="text-3xl font-bold text-center text-green-900 mb-12">Key Features</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
-                <div class="bg-white p-8 rounded-lg shadow hover:shadow-lg transition">
-                    <div class="flex items-center justify-center w-14 h-14 bg-green-600 text-white rounded-full mb-6 mx-auto">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4" />
-                        </svg>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <!-- TRUTH -->
+                    <div class="bg-slate-50 card-hover rounded-2xl p-8 text-center shadow-sm hover:shadow-md">
+                        <div class="flex items-center justify-center mb-5">
+                            <div class="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-emerald-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                        </div>
+                        <h3 class="text-xl font-semibold text-emerald-900 mb-2">TRUTH</h3>
+                        <p class="text-sm text-slate-700 max-w-xs mx-auto">
+                            Ensuring integrity and accuracy in every electoral process, reflecting CvSU's commitment to honesty and transparency.
+                        </p>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3 text-center text-green-800">Secure Authentication</h3>
-                    <p class="text-gray-700 text-center">Institutional email verification ensures only eligible voters participate.</p>
-                </div>
-                <div class="bg-white p-8 rounded-lg shadow hover:shadow-lg transition">
-                    <div class="flex items-center justify-center w-14 h-14 bg-green-600 text-white rounded-full mb-6 mx-auto">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h11M9 21V3m0 0L3 10m6-7l6 7" />
-                        </svg>
+
+                    <!-- EXCELLENCE -->
+                    <div class="bg-slate-50 card-hover rounded-2xl p-8 text-center shadow-sm hover:shadow-md">
+                        <div class="flex items-center justify-center mb-5">
+                            <div class="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-emerald-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                </svg>
+                            </div>
+                        </div>
+                        <h3 class="text-xl font-semibold text-emerald-900 mb-2">EXCELLENCE</h3>
+                        <p class="text-sm text-slate-700 max-w-xs mx-auto">
+                            Delivering high standards in system design and performance, mirroring CvSU's pursuit of academic and operational excellence.
+                        </p>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3 text-center text-green-800">Flexible Voting</h3>
-                    <p class="text-gray-700 text-center">Supports students, faculty, and staff across multiple colleges and departments.</p>
-                </div>
-                <div class="bg-white p-8 rounded-lg shadow hover:shadow-lg transition">
-                    <div class="flex items-center justify-center w-14 h-14 bg-green-600 text-white rounded-full mb-6 mx-auto">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+
+                    <!-- SERVICE -->
+                    <div class="bg-slate-50 card-hover rounded-2xl p-8 text-center shadow-sm hover:shadow-md">
+                        <div class="flex items-center justify-center mb-5">
+                            <div class="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-emerald-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                </svg>
+                            </div>
+                        </div>
+                        <h3 class="text-xl font-semibold text-emerald-900 mb-2">SERVICE</h3>
+                        <p class="text-sm text-slate-700 max-w-xs mx-auto">
+                            Dedicated to serving the university community, empowering students, faculty, and staff to make their voting rights be counted.
+                        </p>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3 text-center text-green-800">Real-Time Results</h3>
-                    <p class="text-gray-700 text-center">Instant vote counting and analytics for transparency and accountability.</p>
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- Call to Action -->
-    <section id="register-section" class="bg-green-800 text-white py-12">
-        <div class="container mx-auto px-4 sm:px-6 text-center">
-            <h2 class="text-3xl md:text-4xl font-bold mb-6">Ready to participate?</h2>
-            <a href="register.html" class="bg-white text-green-800 px-10 py-4 rounded-lg font-semibold hover:bg-gray-100 transition duration-300">Register Now</a>
-        </div>
-    </section>
+        <!-- Features Section -->
+        <section class="bg-emerald-50/80 py-14 fade-section">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-12">
+                    <h2 class="text-3xl font-bold text-emerald-900 mb-3">Key Features</h2>
+                    <p class="text-sm text-slate-600">Designed for the needs of the CvSU community</p>
+                </div>
 
-    <!-- FAQ Section -->
-    <section class="container mx-auto px-4 sm:px-6 py-16 max-w-4xl">
-        <h2 class="text-3xl font-bold text-green-800 mb-8 text-center">Frequently Asked Questions</h2>
-        <div id="faq" class="space-y-6">
-            <details class="bg-white rounded-lg shadow p-6 cursor-pointer transition hover:shadow-lg" open>
-                <summary class="font-semibold text-green-700">Who can register to vote?</summary>
-                <p class="mt-2 text-gray-700">Only eligible students, faculty, and staff of CvSU with institutional email accounts can register.</p>
-            </details>
-            <details class="bg-white rounded-lg shadow p-6 cursor-pointer transition hover:shadow-lg">
-                <summary class="font-semibold text-green-700">Is my vote secure and confidential?</summary>
-                <p class="mt-2 text-gray-700">Yes, the system uses secure authentication and encryption to protect voter privacy.</p>
-            </details>
-            <details class="bg-white rounded-lg shadow p-6 cursor-pointer transition hover:shadow-lg">
-                <summary class="font-semibold text-green-700">Can I vote from multiple devices?</summary>
-                <p class="mt-2 text-gray-700">Yes, you can log in from different devices, but only one vote per election is allowed per user.</p>
-            </details>
-            <details class="bg-white rounded-lg shadow p-6 cursor-pointer transition hover:shadow-lg">
-                <summary class="font-semibold text-green-700">How can I reset my password?</summary>
-                <p class="mt-2 text-gray-700">Use the "Forgot Password" link on the login page to reset your password via your institutional email.</p>
-            </details>
-        </div>
-    </section>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <!-- Secure Authentication with shield -->
+                    <div class="bg-white rounded-2xl p-8 shadow-sm card-hover hover:shadow-md text-center">
+                        <div class="flex items-center justify-center mb-6">
+                            <div class="w-14 h-14 bg-emerald-700 text-white rounded-full flex items-center justify-center">
+                                <!-- Shield with check -->
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M12 4.5l7.5 3.75v3.38c0 4.56-3.21 8.71-7.5 9.75-4.29-1.04-7.5-5.19-7.5-9.75V8.25L12 4.5z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M9 12.75l2 2 4-4.5" />
+                                </svg>
+                            </div>
+                        </div>                        
+                        <h3 class="text-lg font-semibold mb-3 text-emerald-900">Secure Authentication</h3>
+                        <p class="text-sm text-slate-700 max-w-xs mx-auto">
+                            Institutional email verification ensures only eligible voters participate in each election.
+                        </p>
+                    </div>
 
-<!-- About Us Section -->
-<section id="about-us" class="py-16 bg-white">
-    <div class="container mx-auto px-4 sm:px-6 max-w-4xl">
-      <h2 class="text-3xl font-bold text-green-800 mb-6 text-center">About eBalota</h2>
-      <div class="border-b-4 border-green-600 w-24 mx-auto mb-8"></div>
-      <p class="text-gray-700 text-lg leading-relaxed mb-6">
-        eBalota is Cavite State University's secure and transparent web-based voting system designed to modernize the election process for students, faculty, and staff. Our platform ensures that every eligible voter can participate safely and conveniently using their institutional email accounts for verification.
-      </p>
-      <p class="text-gray-700 text-lg leading-relaxed mb-6">
-        Built with security, flexibility, and transparency as our core priorities, eVOTE supports a seamless voting experience that respects voter privacy while providing real-time election results and analytics to promote trust and accountability within the university community.
-      </p>
-      <p class="text-gray-700 text-lg leading-relaxed">
-        Through eBalota, Cavite State University continues its commitment to innovation and excellence, empowering the community to make their voices heard in an efficient and trustworthy manner.
-      </p>
-    </div>
-  </section>
-  
+                    <!-- Flexible Voting with sliders -->
+                    <div class="bg-white rounded-2xl p-8 shadow-sm card-hover hover:shadow-md text-center">
+                        <div class="flex items-center justify-center mb-6">
+                            <div class="w-14 h-14 bg-emerald-700 text-white rounded-full flex items-center justify-center">
+                                <!-- Check icon -->
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12l2 2 4-4" />
+                                </svg>
+                            </div>
+                        </div>                        
+                        <h3 class="text-lg font-semibold mb-3 text-emerald-900">Flexible Voting</h3>
+                        <p class="text-sm text-slate-700 max-w-xs mx-auto">
+                            Supports students, faculty, and staff from multiple colleges, departments, and organizations.
+                        </p>
+                    </div>
+
+                    <!-- Real-Time Results (unchanged) -->
+                    <div class="bg-white rounded-2xl p-8 shadow-sm card-hover hover:shadow-md text-center">
+                        <div class="flex items-center justify-center mb-6">
+                            <div class="w-14 h-14 bg-emerald-700 text-white rounded-full flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-3 text-emerald-900">Real-Time Results</h3>
+                        <p class="text-sm text-slate-700 max-w-xs mx-auto">
+                            Instant vote counting and analytics promote transparency, trust, and accountability.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Call to Action -->
+        <section id="register-section" class="bg-emerald-800 text-white py-14 fade-section">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Ready to participate?</h2>
+                <p class="text-sm md:text-base text-emerald-100 mb-7 max-w-xl mx-auto">
+                    Register now using your CvSU institutional email and be part of a more modern, secure election process.
+                </p>
+                <a href="register.html" class="inline-flex items-center justify-center px-10 py-3.5 rounded-full bg-white text-emerald-800 font-semibold hover:bg-emerald-50 transition">
+                    Register Now
+                </a>
+            </div>
+        </section>
+
+        <!-- FAQ Section -->
+        <section id="faq" class="max-w-4xl mx-auto px-4 sm:px-6 py-16 fade-section">
+            <h2 class="text-3xl font-bold text-emerald-900 mb-8 text-center">Frequently Asked Questions</h2>
+            <div class="space-y-4">
+                <details class="bg-white rounded-2xl shadow-sm p-5 cursor-pointer hover:shadow-md transition" open>
+                    <summary class="font-semibold text-emerald-800 flex items-center justify-between">
+                        <span>Who can register to vote?</span>
+                    </summary>
+                    <p class="mt-2 text-sm text-slate-700">
+                        Only eligible students, faculty, and staff of Cavite State University with institutional email accounts can register.
+                    </p>
+                </details>
+                <details class="bg-white rounded-2xl shadow-sm p-5 cursor-pointer hover:shadow-md transition">
+                    <summary class="font-semibold text-emerald-800 flex items-center justify-between">
+                        <span>Is my vote secure and confidential?</span>
+                    </summary>
+                    <p class="mt-2 text-sm text-slate-700">
+                        Yes. eBalota uses secure authentication and encryption to protect voter privacy and prevent multiple voting.
+                    </p>
+                </details>
+                <details class="bg-white rounded-2xl shadow-sm p-5 cursor-pointer hover:shadow-md transition">
+                    <summary class="font-semibold text-emerald-800 flex items-center justify-between">
+                        <span>Can I vote from multiple devices?</span>
+                    </summary>
+                    <p class="mt-2 text-sm text-slate-700">
+                        You can log in from different devices, but the system only allows one valid vote per user for each election.
+                    </p>
+                </details>
+                <details class="bg-white rounded-2xl shadow-sm p-5 cursor-pointer hover:shadow-md transition">
+                    <summary class="font-semibold text-emerald-800 flex items-center justify-between">
+                        <span>How can I reset my password?</span>
+                    </summary>
+                    <p class="mt-2 text-sm text-slate-700">
+                        Use the "Forgot Password" option on the login page to reset your password via your institutional email.
+                    </p>
+                </details>
+            </div>
+        </section>
+
+        <!-- About Us Section -->
+        <section id="about-us" class="py-16 bg-white fade-section">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6">
+                <h2 class="text-3xl font-bold text-emerald-900 mb-4 text-center">About eBalota</h2>
+                <div class="border-b-4 border-emerald-600 w-24 mx-auto mb-8"></div>
+                <p class="text-slate-700 text-base md:text-lg leading-relaxed mb-5">
+                    eBalota is Cavite State University's secure and transparent web-based voting system designed to modernize the election process for students, faculty, and staff. Our platform ensures that every eligible voter can participate safely and conveniently using their institutional email accounts for verification.
+                </p>
+                <p class="text-slate-700 text-base md:text-lg leading-relaxed mb-5">
+                    Built with security, flexibility, and transparency as our core priorities, eBalota supports a seamless voting experience that respects voter privacy while providing real-time election results and analytics to promote trust and accountability within the university community.
+                </p>
+                <p class="text-slate-700 text-base md:text-lg leading-relaxed">
+                    Through eBalota, Cavite State University continues its commitment to innovation and excellence, empowering the CvSU community to make their voices heard in an efficient, accessible, and trustworthy manner.
+                </p>
+            </div>
+        </section>
+    </main>
+
     <!-- Footer -->
-    <footer class="bg-green-900 text-white py-12">
-        <div class="container mx-auto px-4 sm:px-6 grid grid-cols-1 md:grid-cols-3 gap-8">
+    <footer class="bg-emerald-900 text-white pt-10 pb-6">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
-                <h3 class="text-xl font-semibold mb-4">Contact Us</h3>
-                <p>Cavite State University</p>
-                <p>Indang, Cavite, Philippines</p>
-                <p>Email: info@cvsu.edu.ph</p>
-                <p>Phone: +63 123 456 7890</p>
+                <h3 class="text-lg font-semibold mb-4">Contact Us</h3>
+                <p class="text-sm">Cavite State University</p>
+                <p class="text-sm">Indang, Cavite, Philippines</p>
+                <p class="text-sm mt-2">Email: ebalotaph@gmail.com</p>
+                <p class="text-sm">Phone: +63 912 345 6789</p>
             </div>
             <div>
-                <h3 class="text-xl font-semibold mb-4">Quick Links</h3>
-                <ul>
-                    <li><a href="#" class="hover:underline">Home</a></li>
+                <h3 class="text-lg font-semibold mb-4">Quick Links</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="index.html" class="hover:underline">Home</a></li>
                     <li><a href="register.html" class="hover:underline">Register</a></li>
                     <li><a href="login.html" class="hover:underline">Login</a></li>
                 </ul>
             </div>
             <div>
-                <h3 class="text-xl font-semibold mb-4">Follow Us</h3>
-                <div class="flex space-x-6">
-                    <a href="#" aria-label="Facebook" class="hover:text-green-300">
+                <h3 class="text-lg font-semibold mb-4">Follow Us</h3>
+                <div class="flex space-x-5">
+                    <a href="#" aria-label="Facebook" class="hover:text-emerald-300">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M22 12a10 10 0 10-11.5 9.88v-7h-3v-3h3v-2.2c0-3 1.8-4.6 4.5-4.6 1.3 0 2.7.24 2.7.24v3h-1.5c-1.5 0-2 1-2 2v2h3.4l-.5 3h-2.9v7A10 10 0 0022 12z"/>
                         </svg>
                     </a>
-                    <a href="#" aria-label="Twitter" class="hover:text-green-300">
+                    <a href="#" aria-label="Twitter" class="hover:text-emerald-300">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M8 19c7.5 0 11.6-6.3 11.6-11.6 0-.2 0-.3 0-.5A8.4 8.4 0 0022 4.5a8.3 8.3 0 01-2.4.7 4.2 4.2 0 001.8-2.3 8.3 8.3 0 01-2.7 1A4.1 4.1 0 0015.5 3c-2.3 0-4.2 1.9-4.2 4.2 0 .3 0 .6.1.9A11.8 11.8 0 013 4.2a4.2 4.2 0 001.3 5.6 4 4 0 01-1.9-.5v.1c0 2 1.4 3.7 3.2 4-.3.1-.7.1-1 .1-.2 0-.4 0-.6-.1a4.2 4.2 0 003.9 2.9A8.3 8.3 0 012 18.6a11.7 11.7 0 006.3 1.8"/>
                         </svg>
                     </a>
-                    <a href="#" aria-label="Instagram" class="hover:text-green-300">
+                    <a href="#" aria-label="Instagram" class="hover:text-emerald-300">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M7.75 2h8.5A5.75 5.75 0 0122 7.75v8.5A5.75 5.75 0 0116.25 22h-8.5A5.75 5.75 0 012 16.25v-8.5A5.75 5.75 0 017.75 2zm0 2A3.75 3.75 0 004 7.75v8.5A3.75 3.75 0 007.75 20h8.5a3.75 3.75 0 003.75-3.75v-8.5A3.75 3.75 0 0016.25 4h-8.5zM12 7a5 5 0 110 10 5 5 0 010-10zm0 2.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5zm4.75-.5a1 1 0 110 2 1 1 0 010-2z"/>
                         </svg>
@@ -221,32 +457,93 @@
                 </div>
             </div>
         </div>
-        <div class="text-center mt-12 text-white-200">&copy; eBalota . All rights reserved.</div>
+        <div class="text-center mt-8 text-xs text-emerald-100/70">
+            &copy; 2025 eBalota. All rights reserved.
+        </div>
     </footer>
 
     <script>
-        // Hamburger Dropdown Menu Script
+        // Mobile menu toggle
         const menuBtn = document.getElementById('menuBtn');
         const mobileMenu = document.getElementById('mobileMenu');
 
-        menuBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            mobileMenu.classList.toggle('hidden');
-        });
+        if (menuBtn && mobileMenu) {
+            menuBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const isHidden = mobileMenu.classList.toggle('hidden');
+                menuBtn.setAttribute('aria-expanded', !isHidden);
+            });
 
-        // Hide dropdown if clicking outside
-        document.addEventListener('click', function(e) {
-            if (!mobileMenu.classList.contains('hidden')) {
-                if (!mobileMenu.contains(e.target) && e.target !== menuBtn) {
-                    mobileMenu.classList.add('hidden');
+            // Hide dropdown if clicking outside
+            document.addEventListener('click', function(e) {
+                if (!mobileMenu.classList.contains('hidden')) {
+                    if (!mobileMenu.contains(e.target) && e.target !== menuBtn) {
+                        mobileMenu.classList.add('hidden');
+                        menuBtn.setAttribute('aria-expanded', 'false');
+                    }
                 }
-            }
+            });
+
+            // Close mobile menu on resize >= md
+            window.addEventListener('resize', function() {
+                if (window.innerWidth >= 768) {
+                    mobileMenu.classList.add('hidden');
+                    menuBtn.setAttribute('aria-expanded', 'false');
+                }
+            });
+        }
+
+        // Fade-in on scroll using Intersection Observer
+        const fadeSections = document.querySelectorAll('.fade-section');
+
+        const observerOptions = {
+            threshold: 0.15
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, observerOptions);
+
+        fadeSections.forEach(section => {
+            observer.observe(section);
         });
 
-        // Optional: close dropdown on resize to md and above
-        window.addEventListener('resize', function() {
-            if (window.innerWidth >= 768) {
-                mobileMenu.classList.add('hidden');
+        // Make hero visible immediately if top of page + animate turnout bar
+        window.addEventListener('load', () => {
+            const firstSection = document.querySelector('.fade-section');
+            if (firstSection) {
+                firstSection.classList.add('visible');
+            }
+
+            // Animate turnout bar from 0% to 60%
+            const turnoutBar = document.getElementById('turnout-bar');
+            const turnoutLabel = document.getElementById('turnout-label');
+            const targetPercent = 60;
+
+            if (turnoutBar) {
+                // slight delay para gumana yung CSS transition
+                setTimeout(() => {
+                    turnoutBar.style.width = targetPercent + '%';
+                }, 150);
+
+                // optional: animated counting text 0 → 60
+                if (turnoutLabel) {
+                    let current = 0;
+                    const animateCount = () => {
+                        current += 1;
+                        if (current > targetPercent) current = targetPercent;
+                        turnoutLabel.textContent = current + '% participation';
+                        if (current < targetPercent) {
+                            requestAnimationFrame(animateCount);
+                        }
+                    };
+                    requestAnimationFrame(animateCount);
+                }
             }
         });
     </script>

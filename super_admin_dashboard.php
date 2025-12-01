@@ -9,14 +9,14 @@ require_once __DIR__ . '/includes/super_admin_helpers.php';
 requireSuperAdmin();
 
 // ===== DB Connection =====
- $host    = 'localhost';
- $db      = 'evoting_system';
- $user    = 'root';
- $pass    = '';
- $charset = 'utf8mb4';
+$host    = 'localhost';
+$db      = 'evoting_system';
+$user    = 'root';
+$pass    = '';
+$charset = 'utf8mb4';
 
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
@@ -53,127 +53,117 @@ if (!function_exists('groupByField')) {
 // ------------------------------------------------------
 
 // Total voters (all voter accounts)
- $stmt = $pdo->query("SELECT COUNT(*) AS total_voters FROM users WHERE role = 'voter'");
- $totalVoters = (int)($stmt->fetch()['total_voters'] ?? 0);
+$stmt = $pdo->query("SELECT COUNT(*) AS total_voters FROM users WHERE role = 'voter'");
+$totalVoters = (int)($stmt->fetch()['total_voters'] ?? 0);
 
 // Total elections (all scope types)
- $stmt = $pdo->query("SELECT COUNT(*) AS total_elections FROM elections");
- $totalElections = (int)($stmt->fetch()['total_elections'] ?? 0);
+$stmt = $pdo->query("SELECT COUNT(*) AS total_elections FROM elections");
+$totalElections = (int)($stmt->fetch()['total_elections'] ?? 0);
 
 // Active admins (admin + super_admin)
- $stmt = $pdo->query("
+$stmt = $pdo->query("
     SELECT COUNT(*) AS active_admins
     FROM users
-    WHERE role IN ('admin','super_admin')
+    WHERE role IN ('admin')
       AND admin_status = 'active'
 ");
- $activeAdmins = (int)($stmt->fetch()['active_admins'] ?? 0);
+$activeAdmins = (int)($stmt->fetch()['active_admins'] ?? 0);
 
 // Elections per year (for simple chart)
- $stmt = $pdo->query("
+$stmt = $pdo->query("
     SELECT YEAR(start_datetime) AS year, COUNT(*) AS count
     FROM elections
     GROUP BY YEAR(start_datetime)
     ORDER BY YEAR(start_datetime)
 ");
- $electionsPerYear = $stmt->fetchAll();
- $yearsForChart    = array_column($electionsPerYear, 'year');
- $countsForChart   = array_map('intval', array_column($electionsPerYear, 'count'));
+$electionsPerYear = $stmt->fetchAll();
+$yearsForChart    = array_column($electionsPerYear, 'year');
+$countsForChart   = array_map('intval', array_column($electionsPerYear, 'count'));
 
 // ------------------------------------------------------
 // 2. Global voters by category (using helpers)
 // ------------------------------------------------------
 
 // Academic-Student (college-based students)
- $acadStudentsGlobal = getScopedVoters(
+$acadStudentsGlobal = getScopedVoters(
     $pdo,
     SCOPE_ACAD_STUDENT,
     null,
     ['year_end' => null, 'include_flags' => false]
 );
- $totalAcadStudents = count($acadStudentsGlobal);
+$totalAcadStudents = count($acadStudentsGlobal);
 
 // Non-Academic-Student (org-based student groups)
- $nonAcadStudentsGlobal = getScopedVoters(
+$nonAcadStudentsGlobal = getScopedVoters(
     $pdo,
     SCOPE_NONACAD_STUDENT,
     null,
     ['year_end' => null, 'include_flags' => false]
 );
- $totalNonAcadStudents = count($nonAcadStudentsGlobal);
+$totalNonAcadStudents = count($nonAcadStudentsGlobal);
 
 // Academic-Faculty
- $acadFacultyGlobal = getScopedVoters(
+$acadFacultyGlobal = getScopedVoters(
     $pdo,
     SCOPE_ACAD_FACULTY,
     null,
     ['year_end' => null, 'include_flags' => false]
 );
- $totalAcadFaculty = count($acadFacultyGlobal);
+$totalAcadFaculty = count($acadFacultyGlobal);
 
 // Non-Academic-Employee
- $nonAcadEmployeeGlobal = getScopedVoters(
+$nonAcadEmployeeGlobal = getScopedVoters(
     $pdo,
     SCOPE_NONACAD_EMPLOYEE,
     null,
     ['year_end' => null, 'include_flags' => false]
 );
- $totalNonAcadEmployee = count($nonAcadEmployeeGlobal);
+$totalNonAcadEmployee = count($nonAcadEmployeeGlobal);
 
-// COOP members (Others-COOP)
- $coopGlobal = getScopedVoters(
+// Others (unified: COOP / Alumni / Retired / etc.)
+$othersGlobal = getScopedVoters(
     $pdo,
-    SCOPE_OTHERS_COOP,
-    null,
-    ['year_end' => null, 'include_flags' => true]
-);
- $totalCoop = count($coopGlobal);
-
-// Others-Default members
- $othersDefaultGlobal = getScopedVoters(
-    $pdo,
-    SCOPE_OTHERS_DEFAULT,
+    SCOPE_OTHERS,
     null,
     ['year_end' => null, 'include_flags' => false]
 );
- $totalOthersDefault = count($othersDefaultGlobal);
+$totalOthers = count($othersGlobal);
 
 // ------------------------------------------------------
 // Global Voter Breakdown (with segment filter)
 // ------------------------------------------------------
 
 // Category breakdown (base totals)
- $categoryLabels = [
+$categoryLabels = [
     'Academic Students',
     'Non-Academic Students',
     'Academic Faculty',
     'Non-Academic Employees',
-    'Others-Default',
-    'COOP (MIGS)',
+    'Others',
 ];
- $categoryCountsBase = [
+
+$categoryCountsBase = [
     $totalAcadStudents,
     $totalNonAcadStudents,
     $totalAcadFaculty,
     $totalNonAcadEmployee,
-    $totalOthersDefault,
-    $totalCoop,
+    $totalOthers,
 ];
 
 // Segment filter: all / students / faculty / employees
- $allowedSegments = ['all', 'students', 'faculty', 'employees'];
- $segment = $_GET['segment'] ?? 'all';
+$allowedSegments = ['all', 'students', 'faculty', 'employees'];
+$segment = $_GET['segment'] ?? 'all';
 if (!in_array($segment, $allowedSegments, true)) {
     $segment = 'all';
 }
 
 // Apply segment to category counts (we keep labels fixed, just zero-out others)
- $categoryCountsSegmented = $categoryCountsBase;
+$categoryCountsSegmented = $categoryCountsBase;
 
 switch ($segment) {
     case 'students':
         // Keep student-related categories, zero-out faculty & employees
-        // Index: 0=AcadStud,1=NonAcadStud,2=Faculty,3=Employees,4=Others-Default,5=COOP
+        // Index: 0=AcadStud,1=NonAcadStud,2=Faculty,3=Employees,4=Others
         $categoryCountsSegmented[2] = 0; // Academic Faculty
         $categoryCountsSegmented[3] = 0; // Non-Academic Employees
         break;
@@ -197,7 +187,7 @@ switch ($segment) {
 }
 
 // Global voters by position (student / academic / non-academic / etc.)
- $whereSegment = "role = 'voter'";
+$whereSegment = "role = 'voter'";
 switch ($segment) {
     case 'students':
         $whereSegment .= " AND position = 'student'";
@@ -214,102 +204,102 @@ switch ($segment) {
         break;
 }
 
- $sqlPositions = "
+$sqlPositions = "
     SELECT COALESCE(NULLIF(position,''),'Unspecified') AS position, COUNT(*) AS count
     FROM users
     WHERE $whereSegment
     GROUP BY COALESCE(NULLIF(position,''),'Unspecified')
     ORDER BY count DESC
 ";
- $stmt = $pdo->query($sqlPositions);
- $positionRows   = $stmt->fetchAll();
- $positionLabels = array_column($positionRows, 'position');
- $positionCounts = array_map('intval', array_column($positionRows, 'count'));
+$stmt = $pdo->query($sqlPositions);
+$positionRows   = $stmt->fetchAll();
+$positionLabels = array_column($positionRows, 'position');
+$positionCounts = array_map('intval', array_column($positionRows, 'count'));
 
 // Limit positions chart to top 10 for readability
- $positionLabelsLimited = array_slice($positionLabels, 0, 10);
- $positionCountsLimited = array_slice($positionCounts, 0, 10);
+$positionLabelsLimited = array_slice($positionLabels, 0, 10);
+$positionCountsLimited = array_slice($positionCounts, 0, 10);
 
 // ------------------------------------------------------
 // 2b. Global turnout by year (all elections)
 // ------------------------------------------------------
- $globalTurnoutByYear = getGlobalTurnoutByYear($pdo, null); // all years in DB
- $turnoutYears        = array_keys($globalTurnoutByYear);
- $turnoutRates        = array_column($globalTurnoutByYear, 'turnout_rate');
+$globalTurnoutByYear = getGlobalTurnoutByYear($pdo, null); // all years in DB
+$turnoutYears        = array_keys($globalTurnoutByYear);
+$turnoutRates        = array_column($globalTurnoutByYear, 'turnout_rate');
 
 // Year range filtering for turnout analytics
- $allTurnoutYears = array_keys($globalTurnoutByYear);
+$allTurnoutYears = array_keys($globalTurnoutByYear);
 
-// Always include 2024 and current year (2025) in the available years
- $currentYear = (int)date('Y');
- $year2024 = 2024;
+// Always include 2024 and current year in the available years
+$currentYear = (int)date('Y');
+$year2024    = 2024;
 
-if (!in_array($year2024, $allTurnoutYears)) {
+if (!in_array($year2024, $allTurnoutYears, true)) {
     $allTurnoutYears[] = $year2024;
     sort($allTurnoutYears);
 }
 
-if (!in_array($currentYear, $allTurnoutYears)) {
+if (!in_array($currentYear, $allTurnoutYears, true)) {
     $allTurnoutYears[] = $currentYear;
     sort($allTurnoutYears);
 }
 
- $minYear = !empty($allTurnoutYears) ? min($allTurnoutYears) : $year2024;
- $maxYear = !empty($allTurnoutYears) ? max($allTurnoutYears) : $currentYear;
+$minYear = !empty($allTurnoutYears) ? min($allTurnoutYears) : $year2024;
+$maxYear = !empty($allTurnoutYears) ? max($allTurnoutYears) : $currentYear;
 
 // Set default year range to 2024-2025 if available
- $fromYear = isset($_GET['from_year']) && ctype_digit((string)$_GET['from_year'])
+$fromYear = isset($_GET['from_year']) && ctype_digit((string)$_GET['from_year'])
     ? (int)$_GET['from_year']
     : $year2024;
 
- $toYear = isset($_GET['to_year']) && ctype_digit((string)$_GET['to_year'])
+$toYear = isset($_GET['to_year']) && ctype_digit((string)$_GET['to_year'])
     ? (int)$_GET['to_year']
     : $currentYear;
 
 // Clamp to bounds
 if ($fromYear < $minYear) $fromYear = $minYear;
-if ($toYear > $maxYear) $toYear = $maxYear;
-if ($toYear < $fromYear) $toYear = $fromYear;
+if ($toYear   > $maxYear) $toYear   = $maxYear;
+if ($toYear   < $fromYear) $toYear  = $fromYear;
 
 // Build filtered turnout data for [fromYear..toYear]
- $filteredTurnoutByYear = [];
+$filteredTurnoutByYear = [];
 for ($y = $fromYear; $y <= $toYear; $y++) {
     if (isset($globalTurnoutByYear[$y])) {
         // Ensure all required keys exist, set defaults if missing
         $filteredTurnoutByYear[$y] = array_merge([
-            'year' => $y,
-            'total_voted' => 0,
+            'year'           => $y,
+            'total_voted'    => 0,
             'total_eligible' => 0,
-            'turnout_rate' => 0.0,
+            'turnout_rate'   => 0.0,
             'election_count' => 0,
-            'growth_rate' => 0.0,
+            'growth_rate'    => 0.0,
         ], $globalTurnoutByYear[$y]);
     } else {
         $filteredTurnoutByYear[$y] = [
-            'year' => $y,
-            'total_voted' => 0,
+            'year'           => $y,
+            'total_voted'    => 0,
             'total_eligible' => 0,
-            'turnout_rate' => 0.0,
+            'turnout_rate'   => 0.0,
             'election_count' => 0,
-            'growth_rate' => 0.0,
+            'growth_rate'    => 0.0,
         ];
     }
 }
 
 // Update variables for chart and table
- $turnoutYears = array_keys($filteredTurnoutByYear);
- $turnoutRates = array_column($filteredTurnoutByYear, 'turnout_rate');
+$turnoutYears = array_keys($filteredTurnoutByYear);
+$turnoutRates = array_column($filteredTurnoutByYear, 'turnout_rate');
 
- $currentYearTurnout = $globalTurnoutByYear[$currentYear]['turnout_rate'] ?? 0.0;
+$currentYearTurnout = $globalTurnoutByYear[$currentYear]['turnout_rate'] ?? 0.0;
 
 // ------------------------------------------------------
 // 3. Scope seat summaries (for "Scopes & Admin Overview")
 // ------------------------------------------------------
 
 // All scope seats from admin_scopes
- $scopeSeatsAll = getScopeSeats($pdo, null);
+$scopeSeatsAll = getScopeSeats($pdo, null);
 
- $scopeSummaries = [];
+$scopeSummaries = [];
 
 foreach ($scopeSeatsAll as $seat) {
     $scopeType = $seat['scope_type'];
@@ -319,8 +309,8 @@ foreach ($scopeSeatsAll as $seat) {
     $votersScopeId    = $scopeId;
     $electionsScopeId = $scopeId;
 
-    // For COOP and CSG we treat them as *global* scopes (no per-owner filtering)
-    if ($scopeType === SCOPE_OTHERS_COOP || $scopeType === SCOPE_SPECIAL_CSG) {
+    // For CSG we treat them as *global* scope (no per-owner filtering)
+    if ($scopeType === SCOPE_SPECIAL_CSG) {
         $votersScopeId    = null;
         $electionsScopeId = null;
     }
@@ -333,13 +323,13 @@ foreach ($scopeSeatsAll as $seat) {
 
     // Elections in this scope (by election_scope_type + owner_scope_id)
     $scopedElections = getScopedElections($pdo, $scopeType, $electionsScopeId, [
-        'years_back' => 5,   // just to keep it bounded
+        'years_back' => 5,   // just to keep it bounded (ignored by current helper, but harmless)
     ]);
 
     // Last election (by start_datetime) if any
     $lastElectionDate = null;
     if (!empty($scopedElections)) {
-        $first = $scopedElections[0];
+        $first           = $scopedElections[0];
         $lastElectionDate = $first['start_datetime'] ?? null;
     }
 
@@ -356,19 +346,19 @@ foreach ($scopeSeatsAll as $seat) {
 }
 
 // Scope Type filter for Scopes & Admin Overview
- $scopeTypesAvailable = [];
+$scopeTypesAvailable = [];
 foreach ($scopeSummaries as $s) {
     $scopeTypesAvailable[] = $s['scope_type'];
 }
- $scopeTypesAvailable = array_values(array_unique($scopeTypesAvailable));
+$scopeTypesAvailable = array_values(array_unique($scopeTypesAvailable));
 sort($scopeTypesAvailable);
 
- $scopeTypeFilter = isset($_GET['scope_type']) && $_GET['scope_type'] !== ''
+$scopeTypeFilter = isset($_GET['scope_type']) && $_GET['scope_type'] !== ''
     ? $_GET['scope_type']
     : 'all';
 
 // Filtered list used in the Scopes & Admin Overview table
- $filteredScopeSummaries = array_values(array_filter(
+$filteredScopeSummaries = array_values(array_filter(
     $scopeSummaries,
     function ($s) use ($scopeTypeFilter) {
         if ($scopeTypeFilter === 'all') {
@@ -383,19 +373,19 @@ sort($scopeTypesAvailable);
 // ------------------------------------------------------
 
 // Build detail view selection AFTER we already have $scopeSeatsAll
- $selectedScopeId   = isset($_GET['scope_id']) && ctype_digit((string)$_GET['scope_id'])
+$selectedScopeId   = isset($_GET['scope_id']) && ctype_digit((string)$_GET['scope_id'])
     ? (int)$_GET['scope_id']
     : null;
- $selectedScopeType = $_GET['scope_type'] ?? null;
+$selectedScopeType = $_GET['scope_type'] ?? null;
 
- $selectedSeat                 = null;
- $selectedScopeVoters          = [];
- $selectedScopeElections       = [];
- $selectedScopeTurnout         = [];
- $selectedScopeLatestYear      = null;
- $selectedScopeLatestTurnout   = null;
- $selectedScopeLatestElection  = null;
- $selectedScopeBreakdown       = [];
+$selectedSeat                = null;
+$selectedScopeVoters         = [];
+$selectedScopeElections      = [];
+$selectedScopeTurnout        = [];
+$selectedScopeLatestYear     = null;
+$selectedScopeLatestTurnout  = null;
+$selectedScopeLatestElection = null;
+$selectedScopeBreakdown      = [];
 
 if ($selectedScopeId && $selectedScopeType) {
     foreach ($scopeSeatsAll as $seat) {
@@ -456,9 +446,13 @@ if ($selectedSeat !== null) {
     }
 
     // 4) SIMPLE BREAKDOWN – depende sa scope type kung ano gagamitin
-    if (in_array($selectedSeat['scope_type'], [SCOPE_ACAD_STUDENT, SCOPE_ACAD_FACULTY, SCOPE_NONACAD_STUDENT, SCOPE_NONACAD_EMPLOYEE], true)) {
-        $selectedScopeBreakdown = groupByField($selectedScopeVoters, 'department');
-    } elseif (in_array($selectedSeat['scope_type'], [SCOPE_OTHERS_COOP, SCOPE_OTHERS_DEFAULT], true)) {
+    if (in_array($selectedSeat['scope_type'], [
+        SCOPE_ACAD_STUDENT,
+        SCOPE_ACAD_FACULTY,
+        SCOPE_NONACAD_STUDENT,
+        SCOPE_NONACAD_EMPLOYEE,
+        SCOPE_OTHERS
+    ], true)) {
         $selectedScopeBreakdown = groupByField($selectedScopeVoters, 'department');
     } else {
         $selectedScopeBreakdown = groupByField($selectedScopeVoters, 'position');
@@ -647,7 +641,7 @@ if ($selectedSeat !== null) {
       <div class="flex items-center justify-between">
         <div>
           <h2 class="text-base md:text-lg font-semibold text-gray-700">
-            Global Turnout (<?= htmlspecialchars($currentYear) ?>)
+            Total Turnout (<?= htmlspecialchars($currentYear) ?>)
           </h2>
           <p class="text-2xl md:text-4xl font-bold" style="color: var(--cvsu-indigo);">
             <?= number_format($currentYearTurnout, 1) ?>%
@@ -815,7 +809,7 @@ if ($selectedSeat !== null) {
 
   <!-- Global Turnout Rate by Year -->
   <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-    <h2 class="text-xl font-bold text-gray-800 mb-4">Global Turnout Rate by Year</h2>
+    <h2 class="text-xl font-bold text-gray-800 mb-4">Total Turnout Rate by Year</h2>
     
     <!-- Year Range Selector -->
     <div class="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -866,12 +860,11 @@ if ($selectedSeat !== null) {
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
             <?php 
-            // Calculate growth rates for the filtered range
-            $prevYear = null;
             foreach ($filteredTurnoutByYear as $year => $data):
-              $isPositive = ($data['growth_rate'] ?? 0) > 0;
-              $trendIcon = $isPositive ? 'fa-arrow-up' : (($data['growth_rate'] ?? 0) < 0 ? 'fa-arrow-down' : 'fa-minus');
-              $trendColor = $isPositive ? 'text-green-600' : (($data['growth_rate'] ?? 0) < 0 ? 'text-red-600' : 'text-gray-600');
+              $growthRate = $data['growth_rate'] ?? 0;
+              $isPositive = $growthRate > 0;
+              $trendIcon  = $isPositive ? 'fa-arrow-up' : ($growthRate < 0 ? 'fa-arrow-down' : 'fa-minus');
+              $trendColor = $isPositive ? 'text-green-600' : ($growthRate < 0 ? 'text-red-600' : 'text-gray-600');
             ?>
               <tr>
                 <td class="px-6 py-4 whitespace-nowrap font-medium"><?= $year ?></td>
@@ -879,12 +872,12 @@ if ($selectedSeat !== null) {
                 <td class="px-6 py-4 whitespace-nowrap"><?= number_format($data['total_eligible'] ?? 0) ?></td>
                 <td class="px-6 py-4 whitespace-nowrap"><?= number_format($data['total_voted'] ?? 0) ?></td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <span class="<?= $data['turnout_rate'] >= 70 ? 'text-green-600' : ($data['turnout_rate'] >= 40 ? 'text-yellow-600' : 'text-red-600') ?>">
+                  <span class="<?= ($data['turnout_rate'] ?? 0) >= 70 ? 'text-green-600' : (($data['turnout_rate'] ?? 0) >= 40 ? 'text-yellow-600' : 'text-red-600') ?>">
                     <?= $data['turnout_rate'] ?? 0 ?>%
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <span class="<?= $trendColor ?>"><?= ($data['growth_rate'] ?? 0) > 0 ? '+' : '' ?><?= $data['growth_rate'] ?? 0 ?>%</span>
+                  <span class="<?= $trendColor ?>"><?= $growthRate > 0 ? '+' : '' ?><?= $growthRate ?>%</span>
                   <i class="fas <?= $trendIcon ?> <?= $trendColor ?> ml-1"></i>
                 </td>
               </tr>
@@ -895,7 +888,7 @@ if ($selectedSeat !== null) {
     </div>
   </div>
 
-  <!-- Scopes & Admin Overview (no more "view scope dashboard" button) -->
+  <!-- Scopes & Admin Overview -->
   <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-3">
       <h2 class="text-2xl font-bold text-gray-800">Scopes &amp; Admin Overview</h2>
@@ -994,27 +987,31 @@ if ($selectedSeat !== null) {
                 <?php
                 // Decide which admin dashboard file to use for "view as seat admin"
                 $viewAsUrl = null;
+
                 switch ($s['scope_type']) {
                     case SCOPE_ACAD_STUDENT:
                         $viewAsUrl = "admin_dashboard_college.php?scope_id=" . (int)$s['scope_id'];
                         break;
+
                     case SCOPE_ACAD_FACULTY:
                         $viewAsUrl = "admin_dashboard_faculty.php?scope_id=" . (int)$s['scope_id'];
                         break;
+
                     case SCOPE_NONACAD_STUDENT:
                         $viewAsUrl = "admin_dashboard_non_acad_students.php?scope_id=" . (int)$s['scope_id'];
                         break;
+
                     case SCOPE_NONACAD_EMPLOYEE:
                         $viewAsUrl = "admin_dashboard_nonacademic.php?scope_id=" . (int)$s['scope_id'];
                         break;
-                    case SCOPE_OTHERS_COOP:
-                        $viewAsUrl = "admin_dashboard_coop.php?scope_id=" . (int)$s['scope_id'];
-                        break;
-                    case SCOPE_OTHERS_DEFAULT:
-                        $viewAsUrl = "admin_dashboard_default.php?scope_id=" . (int)$s['scope_id'];
-                        break;
+
                     case SCOPE_SPECIAL_CSG:
                         $viewAsUrl = "admin_dashboard_csg.php?scope_id=" . (int)$s['scope_id'];
+                        break;
+
+                    case SCOPE_OTHERS:
+                        // Others seat – use the unified default Others admin dashboard
+                        $viewAsUrl = "admin_dashboard_default.php?scope_id=" . (int)$s['scope_id'];
                         break;
                 }
                 ?>
@@ -1036,7 +1033,7 @@ if ($selectedSeat !== null) {
     <?php endif; ?>
   </div>
 
-  <!-- Scope Details Panel (unchanged logic, just moved) -->
+  <!-- Scope Details Panel -->
   <?php if ($selectedSeat !== null): ?>
     <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
       <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
@@ -1100,10 +1097,8 @@ if ($selectedSeat !== null) {
           <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
             <h3 class="text-sm font-semibold text-gray-800">
               Breakdown by
-              <?php if (in_array($selectedSeat['scope_type'], [SCOPE_ACAD_STUDENT, SCOPE_ACAD_FACULTY, SCOPE_NONACAD_STUDENT, SCOPE_NONACAD_EMPLOYEE], true)): ?>
+              <?php if (in_array($selectedSeat['scope_type'], [SCOPE_ACAD_STUDENT, SCOPE_ACAD_FACULTY, SCOPE_NONACAD_STUDENT, SCOPE_NONACAD_EMPLOYEE, SCOPE_OTHERS], true)): ?>
                 Department / College
-              <?php elseif (in_array($selectedSeat['scope_type'], [SCOPE_OTHERS_COOP, SCOPE_OTHERS_DEFAULT], true)): ?>
-                Department
               <?php else: ?>
                 Position
               <?php endif; ?>
@@ -1279,8 +1274,7 @@ document.addEventListener('DOMContentLoaded', function () {
             '#37A66B', // Non-Academic Students
             '#FFD166', // Academic Faculty
             '#154734', // Non-Academic Employees
-            '#2D5F3F', // Others-Default
-            '#4A7C59'  // COOP (MIGS)
+            '#2D5F3F'  // Others
           ],
           borderWidth: 1,
           borderRadius: 4
@@ -1309,7 +1303,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const label = ctx.label || '';
                 const value = ctx.raw || 0;
                 const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
-                const percentage = Math.round((value / total) * 100);
+                const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
                 return `${label}: ${value.toLocaleString()} (${percentage}%)`;
               }
             }
@@ -1362,8 +1356,8 @@ document.addEventListener('DOMContentLoaded', function () {
           },
           x: {
             ticks: { 
-              maxRotation: 0, // Changed from 45 to 0 for horizontal labels
-              minRotation: 0, // Changed from 45 to 0 for horizontal labels
+              maxRotation: 0,
+              minRotation: 0,
               autoSkip: false,
               font: { size: 10 }
             },
@@ -1373,20 +1367,18 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     });
   }
-  
-  // Function to handle year range submission
-  function submitYearRange() {
+
+  // Make submitYearRange globally available
+  window.submitYearRange = function () {
     const fromYear = document.getElementById('fromYear').value;
-    const toYear = document.getElementById('toYear').value;
-    
-    // Get current URL parameters
+    const toYear   = document.getElementById('toYear').value;
+
     const url = new URL(window.location.href);
     url.searchParams.set('from_year', fromYear);
-    url.searchParams.set('to_year', toYear);
-    
-    // Navigate to the new URL
+    url.searchParams.set('to_year',   toYear);
+
     window.location.href = url.toString();
-  }
+  };
 });
 </script>
 

@@ -170,21 +170,21 @@ elseif ($scopeType === SCOPE_NONACAD_STUDENT) {
 
     $totalEligibleVoters = count($scopedVoters);
 }
-// 3) Others-Default elections – only is_other_member = 1 with same owner_scope_id
-elseif ($scopeType === SCOPE_OTHERS_DEFAULT) {
-    $yearEnd = $election['end_datetime'] ?? null;
+// 3) Others elections – only is_other_member = 1 with same owner_scope_id
+elseif ($scopeType === SCOPE_OTHERS) {
+  $yearEnd = $election['end_datetime'] ?? null;
 
-    $scopedVoters = getScopedVoters(
-        $pdo,
-        SCOPE_OTHERS_DEFAULT,
-        $scopeId, // per-seat scope via owner_scope_id
-        [
-            'year_end'      => $yearEnd,
-            'include_flags' => true,
-        ]
-    );
+  $scopedVoters = getScopedVoters(
+      $pdo,
+      SCOPE_OTHERS,
+      $scopeId, // per-seat scope via owner_scope_id
+      [
+          'year_end'      => $yearEnd,
+          'include_flags' => true,
+      ]
+  );
 
-    $totalEligibleVoters = count($scopedVoters);
+  $totalEligibleVoters = count($scopedVoters);
 }
 // 4) For other election types, use generic election-based filters
 else {
@@ -196,71 +196,60 @@ if ($totalEligibleVoters === null) {
     $conditions = ["role = 'voter'"];
     $params     = [];
 
-    // 1) COOP elections (special case: COOP + MIGS only)
-    if ($election['target_position'] === 'coop') {
+    // Position filter (student / academic / non-academic / All)
+    if (($election['target_position'] ?? '') !== 'All') {
+        $targetPos = strtolower($election['target_position'] ?? '');
+        if ($targetPos === 'faculty') {
+            // faculty = academic in users.position
+            $conditions[] = "position = ?";
+            $params[]     = 'academic';
+        } else {
+            $conditions[] = "position = ?";
+            $params[]     = $election['target_position'];
+        }
+    }
 
-        $conditions[] = "is_coop_member = 1";
-        $conditions[] = "migs_status = 1";
+    // Election-level filters
+    $allowed_colleges    = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_colleges']    ?? ''))));
+    $allowed_courses     = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_courses']     ?? ''))));
+    $allowed_status      = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status']      ?? ''))));
+    $allowed_departments = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_departments'] ?? ''))));
 
-    } else {
-        // 2) Position filter (student / academic / non-academic / All)
-        if (($election['target_position'] ?? '') !== 'All') {
-            if (strtolower($election['target_position']) === 'faculty') {
-                // faculty = academic in users.position
-                $conditions[] = "position = ?";
-                $params[]     = 'academic';
-            } else {
-                $conditions[] = "position = ?";
-                $params[]     = $election['target_position'];
-            }
+    // 3a) College filter – applies to everyone
+    if (!empty($allowed_colleges) && !in_array('ALL', $allowed_colleges, true)) {
+        $placeholders = implode(',', array_fill(0, count($allowed_colleges), '?'));
+        $conditions[] = "UPPER(department) IN ($placeholders)";
+        $params       = array_merge($params, $allowed_colleges);
+    }
+
+    // 3b) Department filter – mainly for non-academic / employee-type elections
+    if (!empty($allowed_departments) && !in_array('ALL', $allowed_departments, true)) {
+        $placeholders = implode(',', array_fill(0, count($allowed_departments), '?'));
+        $conditions[] = "UPPER(department) IN ($placeholders)";
+        $params       = array_merge($params, $allowed_departments);
+    }
+
+    // 3c) Course filter – mainly for student elections
+    if (!empty($allowed_courses) && !in_array('ALL', $allowed_courses, true)) {
+        // Convert course codes → full names as stored in users.course
+        $fullNames   = mapCourseCodesToFullNames($allowed_courses);
+        $course_list = [];
+        foreach ($fullNames as $name) {
+            $course_list[] = strtolower($name);
         }
 
-        // 3) Election-level filters
-        $allowed_colleges    = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_colleges']    ?? ''))));
-        $allowed_courses     = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_courses']     ?? ''))));
-        $allowed_status      = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_status']      ?? ''))));
-        $allowed_departments = array_filter(array_map('strtoupper', array_map('trim', explode(',', $election['allowed_departments'] ?? ''))));
-
-        // 3a) College filter – applies to everyone
-        if (!empty($allowed_colleges) && !in_array('ALL', $allowed_colleges, true)) {
-            $placeholders = implode(',', array_fill(0, count($allowed_colleges), '?'));
-            $conditions[] = "UPPER(department) IN ($placeholders)";
-            $params       = array_merge($params, $allowed_colleges);
+        if (!empty($course_list)) {
+            $placeholders = implode(',', array_fill(0, count($course_list), '?'));
+            $conditions[] = "LOWER(course) IN ($placeholders)";
+            $params       = array_merge($params, $course_list);
         }
+    }
 
-        // 3b) Department filter – mainly for non-academic / employee-type elections
-        if (!empty($allowed_departments) && !in_array('ALL', $allowed_departments, true)) {
-            $placeholders = implode(',', array_fill(0, count($allowed_departments), '?'));
-            $conditions[] = "UPPER(department) IN ($placeholders)";
-            $params       = array_merge($params, $allowed_departments);
-        }
-
-        // 3c) Course filter – mainly for student elections
-        if (!empty($allowed_courses) && !in_array('ALL', $allowed_courses, true)) {
-            /**
-             * We use mapCourseCodesToFullNames() from analytics_scopes.php
-             * to convert codes like BSIT, BSCS into full course names
-             * as stored in users.course.
-             */
-            $fullNames = mapCourseCodesToFullNames($allowed_courses);
-            $course_list = [];
-            foreach ($fullNames as $name) {
-                $course_list[] = strtolower($name);
-            }
-
-            if (!empty($course_list)) {
-                $placeholders = implode(',', array_fill(0, count($course_list), '?'));
-                $conditions[] = "LOWER(course) IN ($placeholders)";
-                $params       = array_merge($params, $course_list);
-            }
-        }
-
-        // 3d) Status filter – faculty/non-academic status (e.g. Regular, Probationary)
-        if (!empty($allowed_status) && !in_array('ALL', $allowed_status, true)) {
-            $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
-            $conditions[] = "UPPER(status) IN ($placeholders)";
-            $params       = array_merge($params, $allowed_status);
-        }
+    // 3d) Status filter – faculty/non-academic status (e.g. Regular, Probationary)
+    if (!empty($allowed_status) && !in_array('ALL', $allowed_status, true)) {
+        $placeholders = implode(',', array_fill(0, count($allowed_status), '?'));
+        $conditions[] = "UPPER(status) IN ($placeholders)";
+        $params       = array_merge($params, $allowed_status);
     }
 
     // 4) Final query to count eligible voters for this election

@@ -185,10 +185,10 @@ function formatScopeDetails($scope_type, $scope_details) {
     }
     
     switch ($scope_type) {
-        case 'Academic-Student':
-            $college = $details['college'] ?? '';
-            $courses = $details['courses'] ?? [];
-            $colleges = getColleges();
+        case 'Academic-Student': {
+            $college     = $details['college'] ?? '';
+            $courses     = $details['courses'] ?? [];
+            $colleges    = getColleges();
             $all_courses = getCoursesByCollege($college);
             
             $result = $colleges[$college] ?? $college;
@@ -197,27 +197,33 @@ function formatScopeDetails($scope_type, $scope_details) {
                     return $all_courses[$course] ?? $course;
                 }, $courses);
                 $result .= ' - ' . implode(', ', $course_names);
+            } else {
+                // No specific courses = all courses for that college
+                $result .= ' - All courses';
             }
             return $result;
+        }
             
-        case 'Academic-Faculty':
-            $college = $details['college'] ?? '';
+        case 'Academic-Faculty': {
+            $college     = $details['college'] ?? '';
             $departments = $details['departments'] ?? [];
-            $colleges = getColleges();
-            $all_depts = getAcademicDepartments();
+            $colleges    = getColleges();
+            $all_depts   = getAcademicDepartments();
             
             $result = $colleges[$college] ?? $college;
             if (!empty($departments)) {
-                $dept_names = array_map(function($dept) use ($all_depts, $college) {
-                    return $all_depts[$college][$dept] ?? $dept;
-                }, $departments);
-                $result .= ' - ' . implode(', ', $dept_names);
+                // NOTE: dito sa helpers, departments array ay names, hindi codes,
+                // so we just join them directly.
+                $result .= ' - ' . implode(', ', $departments);
+            } else {
+                $result .= ' - All departments';
             }
             return $result;
+        }
             
-        case 'Non-Academic-Employee':
+        case 'Non-Academic-Employee': {
             $departments = $details['departments'] ?? [];
-            $all_depts = getNonAcademicDepartments();
+            $all_depts   = getNonAcademicDepartments();
             
             if (!empty($departments)) {
                 $dept_names = array_map(function($dept) use ($all_depts) {
@@ -226,12 +232,14 @@ function formatScopeDetails($scope_type, $scope_details) {
                 return implode(', ', $dept_names);
             }
             return 'All Non-Academic Departments';
+        }
+
+        case 'Non-Academic-Student':
+            return 'All non-academic student organizations';
             
-        case 'Others-COOP':
-            return 'COOP Admin (COOP + MIGS members only)';
-            
-        case 'Others-Default':
-            return 'Others - Default Admin (All faculty and non-academic employees)';
+        case 'Others':
+            // Unified Others: COOP, Alumni, Retired, etc. – all handled as custom elections.
+            return 'Others Admin (custom election via uploaded voters)';
             
         case 'Special-Scope':
             return 'CSG Admin';
@@ -243,14 +251,12 @@ function formatScopeDetails($scope_type, $scope_details) {
 
 function getScopeCategoryLabel($scope_category) {
     $labels = [
-        'Academic-Student' => 'Academic - Student',
-        'Non-Academic-Student' => 'Non-Academic - Student',
-        'Academic-Faculty' => 'Academic - Faculty',
+        'Academic-Student'      => 'Academic - Student',
+        'Non-Academic-Student'  => 'Non-Academic - Student',
+        'Academic-Faculty'      => 'Academic - Faculty',
         'Non-Academic-Employee' => 'Non-Academic - Employee',
-        'Others-Default' => 'Others - Default',
-        'Others-COOP' => 'Others - COOP',
-        'Others-Other' => 'Others - Other',
-        'Special-Scope' => 'Special Scope - CSG Admin'
+        'Others'                => 'Others',
+        'Special-Scope'         => 'Special Scope - CSG Admin',
     ];
     
     return $labels[$scope_category] ?? $scope_category;

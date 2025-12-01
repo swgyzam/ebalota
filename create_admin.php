@@ -99,13 +99,19 @@ switch ($scope_category) {
     case 'Academic-Student': {
         $college = $_POST['college'] ?? '';
         $courses = $_POST['courses'] ?? [];
-
+    
         if (empty($college)) {
             sendJsonResponse('error', 'College selection is required for Academic-Student admins.');
         }
-
-        // Check if all courses are selected
-        if (isset($_POST['select_all_courses']) && $_POST['select_all_courses'] === 'true') {
+    
+        $allCoursesSelected = isset($_POST['select_all_courses']) && $_POST['select_all_courses'] === 'true';
+    
+        // 🔒 Back-end guard: at least one course or Select All required
+        if (!$allCoursesSelected && empty($courses)) {
+            sendJsonResponse('error', 'Please select at least one course or use Select All for Academic-Student admins.');
+        }
+    
+        if ($allCoursesSelected) {
             $courses_display  = 'All';
             $assigned_scope_1 = 'All';
         } elseif (!empty($courses)) {
@@ -116,11 +122,8 @@ switch ($scope_category) {
                 $courses_display  = $courses[0];
                 $assigned_scope_1 = $courses[0];
             }
-        } else {
-            $courses_display  = '';
-            $assigned_scope_1 = '';
         }
-
+    
         $scope_details = [
             'college'         => $college,
             'courses'         => $courses,
@@ -134,13 +137,19 @@ switch ($scope_category) {
     case 'Academic-Faculty': {
         $college     = $_POST['college']    ?? '';
         $departments = $_POST['departments']?? [];
-
+    
         if (empty($college)) {
             sendJsonResponse('error', 'College selection is required for Academic-Faculty admins.');
         }
-
-        // Check if all departments are selected
-        if (isset($_POST['select_all_departments']) && $_POST['select_all_departments'] === 'true') {
+    
+        $allDeptsSelected = isset($_POST['select_all_departments']) && $_POST['select_all_departments'] === 'true';
+    
+        // 🔒 Back-end guard: at least one department or Select All required
+        if (!$allDeptsSelected && empty($departments)) {
+            sendJsonResponse('error', 'Please select at least one department or use Select All for Academic-Faculty admins.');
+        }
+    
+        if ($allDeptsSelected) {
             $departments_display = 'All';
             $assigned_scope_1    = 'All';
         } elseif (!empty($departments)) {
@@ -151,11 +160,8 @@ switch ($scope_category) {
                 $departments_display = $departments[0];
                 $assigned_scope_1    = $departments[0];
             }
-        } else {
-            $departments_display = '';
-            $assigned_scope_1    = '';
         }
-
+    
         $scope_details = [
             'college'             => $college,
             'departments'         => $departments,
@@ -168,15 +174,15 @@ switch ($scope_category) {
 
     case 'Non-Academic-Employee': {
         $departments = $_POST['departments'] ?? [];
-
+    
         if (empty($departments)) {
             sendJsonResponse('error', 'Department selection is required for Non-Academic-Employee admins.');
         }
-
+    
         if (isset($_POST['select_all_non_academic_depts']) && $_POST['select_all_non_academic_depts'] === 'true') {
             $departments_display = 'All';
             $assigned_scope_1    = 'All';
-        } elseif (!empty($departments)) {
+        } elseif (!empty($departments)) {    
             if (count($departments) > 1) {
                 $departments_display = implode(', ', $departments);
                 $assigned_scope_1    = 'Multiple: ' . implode(', ', $departments);
@@ -207,19 +213,11 @@ switch ($scope_category) {
         break;
     }
 
-    case 'Others-COOP': {
-        $scope_details    = ['type' => 'coop'];
-        $assigned_scope   = 'COOP';
-        $assigned_scope_1 = 'COOP Admin';
-        $scope_value      = 'Others-COOP';
-        break;
-    }
-
-    case 'Others-Default': {
-        $scope_details    = ['type' => 'default'];
-        $assigned_scope   = 'Default';
-        $assigned_scope_1 = 'Default Admin';
-        $scope_value      = 'Others-Default';
+    case 'Others': {
+        $scope_details    = ['type' => 'others'];
+        $assigned_scope   = 'Others';
+        $assigned_scope_1 = 'Others Admin';
+        $scope_value      = 'Others';
         break;
     }
 

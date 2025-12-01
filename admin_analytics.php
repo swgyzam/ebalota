@@ -195,8 +195,8 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
               </div>
 
               <!-- Info -->
-              <div class="flex-1">
-                <h2 class="election-title text-lg font-bold text-[var(--cvsu-green-dark)] mb-2 truncate">
+              <div class="flex-1 min-w-0">
+                <h2 class="election-title text-lg font-bold text-[var(--cvsu-green-dark)] mb-2 line-clamp-2 break-words">
                   <?= htmlspecialchars($election['title']) ?>
                 </h2>
                 

@@ -106,7 +106,7 @@ $scopeData = $stmt->fetch();
 $scope_details    = [];
 $assigned_scope   = '';
 $assigned_scope_1 = '';
-$scope_value      = ''; // new: for admin_scopes.scope_value
+$scope_value      = ''; // for admin_scopes.scope_value
 
 switch ($scope_category) {
     case 'Academic-Student': {
@@ -129,6 +129,7 @@ switch ($scope_category) {
                 $assigned_scope_1 = $courses[0];
             }
         } else {
+            // For updates, allow legacy “no course selection” and just keep blank
             $courses_display  = '';
             $assigned_scope_1 = '';
         }
@@ -218,19 +219,11 @@ switch ($scope_category) {
         break;
     }
 
-    case 'Others-COOP': {
-        $scope_details    = ['type' => 'coop'];
-        $assigned_scope   = 'COOP';
-        $assigned_scope_1 = 'COOP Admin';
-        $scope_value      = 'Others-COOP';
-        break;
-    }
-
-    case 'Others-Default': {
-        $scope_details    = ['type' => 'default'];
-        $assigned_scope   = 'Default';
-        $assigned_scope_1 = 'Default Admin';
-        $scope_value      = 'Others-Default';
+    case 'Others': {
+        $scope_details    = ['type' => 'others'];
+        $assigned_scope   = 'Others';
+        $assigned_scope_1 = 'Others Admin';
+        $scope_value      = 'Others';
         break;
     }
 

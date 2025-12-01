@@ -1,5 +1,4 @@
-first_name,last_name,email,position,employee_number,college,department,status,is_other_member
-John,Doe,main.markanthony.dano@cvsu.edu.ph,academic,3001,CEIT,Department of Information Technology,regular,1
-Jane,Smith,main.alejandro.zamora@cvsu.edu.ph,academic,3002,CAS,Department of Biological Sciences,part-time,1
-Ramon,Guzman,main.jhenidellannemary.benito@cvsu.edu.ph,non-academic,3003,,Administration,regular,1
-Trisha,Mendoza,ebalota.ph@gmail.com,non-academic,3004,,Library,contractual,1
+first_name,last_name,email,position,employee_number,college,department,status
+John,Doe,main.markanthony.dano@cvsu.edu.ph,academic,3001,CEIT,Department of Information Technology,Regular
+Jane,Smith,main.alejandro.zamora@cvsu.edu.ph,academic,3002,CAS,Department of Biological Sciences,Part-time
+Ramon,Guzman,main.jhenidellannemary.benito@cvsu.edu.ph,non-academic,3003,,Administration,Regular

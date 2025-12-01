@@ -78,61 +78,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
             // Enforce one ACTIVE admin per logical scope
             if ($newStatus === 'active') {
-                $conditions = [];
-                $params     = [];
+              $conditions = [];
+              $params     = [];
 
-                if (!empty($admin['scope_category'])) {
-                    $conditions[]              = "scope_category = :scope_category";
-                    $params[':scope_category'] = $admin['scope_category'];
-                }
-                if (!empty($admin['assigned_scope'])) {
-                    $conditions[]              = "assigned_scope = :assigned_scope";
-                    $params[':assigned_scope'] = $admin['assigned_scope'];
-                }
-                if (!empty($admin['assigned_scope_1'])) {
-                    $conditions[]               = "assigned_scope_1 = :assigned_scope_1";
-                    $params[':assigned_scope_1']= $admin['assigned_scope_1'];
-                }
+              if (!empty($admin['scope_category'])) {
+                  $conditions[]              = "scope_category = :scope_category";
+                  $params[':scope_category'] = $admin['scope_category'];
+              }
+              if (!empty($admin['assigned_scope'])) {
+                  $conditions[]              = "assigned_scope = :assigned_scope";
+                  $params[':assigned_scope'] = $admin['assigned_scope'];
+              }
+              if (!empty($admin['assigned_scope_1'])) {
+                  $conditions[]               = "assigned_scope_1 = :assigned_scope_1";
+                  $params[':assigned_scope_1']= $admin['assigned_scope_1'];
+              }
 
-                /**
-                 * SPECIAL CASE:
-                 * For Non-Academic-Student and Others-Default,
-                 * uniqueness should be per SEAT:
-                 *   (scope_category, assigned_scope, assigned_scope_1, admin_title)
-                 *
-                 * This means:
-                 *  - Music Org admin & Esports Org admin can both be active
-                 *    (different admin_title → different seat)
-                 *  - But two "Music Org" admins in the same scope → only 1 active.
-                 */
-                if (
-                    in_array($admin['scope_category'], ['Non-Academic-Student', 'Others-Default'], true) &&
-                    !empty($admin['admin_title'])
-                ) {
-                    $conditions[]              = "admin_title = :admin_title";
-                    $params[':admin_title']    = $admin['admin_title'];
-                }
+              /**
+               * SPECIAL CASE:
+               * For Non-Academic-Student and Others,
+               * uniqueness should be per SEAT:
+               *   (scope_category, assigned_scope, assigned_scope_1, admin_title)
+               */
+              if (
+                  in_array($admin['scope_category'], ['Non-Academic-Student', 'Others'], true) &&
+                  !empty($admin['admin_title'])
+              ) {
+                  $conditions[]           = "admin_title = :admin_title";
+                  $params[':admin_title'] = $admin['admin_title'];
+              }
 
-                if ($conditions) {
-                    $where = implode(' AND ', $conditions);
-                    $sql   = "SELECT user_id, first_name, last_name, admin_title 
-                              FROM users 
-                              WHERE role = 'admin' AND admin_status = 'active' 
-                                AND $where AND user_id != :cur";
-                    $params[':cur'] = $adminId;
+              if ($conditions) {
+                  $where = implode(' AND ', $conditions);
+                  $sql   = "SELECT user_id, first_name, last_name, admin_title 
+                            FROM users 
+                            WHERE role = 'admin' AND admin_status = 'active' 
+                              AND $where AND user_id != :cur";
+                  $params[':cur'] = $adminId;
 
-                    $check    = $pdo->prepare($sql);
-                    $check->execute($params);
-                    $existing = $check->fetch();
+                  $check    = $pdo->prepare($sql);
+                  $check->execute($params);
+                  $existing = $check->fetch();
 
-                    if ($existing) {
-                        $pdo->rollBack();
-                        throw new Exception(
-                            "Cannot activate this admin. There is already an active admin ({$existing['admin_title']}: " .
-                            "{$existing['first_name']} {$existing['last_name']}) with the same scope."
-                        );
-                    }
-                }
+                  if ($existing) {
+                      $pdo->rollBack();
+                      throw new Exception(
+                          "Cannot activate this admin. There is already an active admin ({$existing['admin_title']}: " .
+                          "{$existing['first_name']} {$existing['last_name']}) with the same scope."
+                      );
+                  }
+              }
             }
 
             $update = $pdo->prepare("UPDATE users SET admin_status = ? WHERE user_id = ?");
@@ -347,9 +342,9 @@ if (!empty($filterYear)) {
  $stmt->execute($params);
  $adminsRaw = $stmt->fetchAll();
 
-// Build Admin Title filter options only for Non-Academic-Student / Others-Default
- $adminFilterOptions = [];
-if (in_array($filterScope, ['Non-Academic-Student', 'Others-Default'], true)) {
+// Build Admin Title filter options only for Non-Academic-Student / Others
+$adminFilterOptions = [];
+if (in_array($filterScope, ['Non-Academic-Student', 'Others'], true)) {
     foreach ($adminsRaw as $row) {
         $title = trim($row['admin_title'] ?? '');
         if ($title === '') continue;
@@ -358,7 +353,7 @@ if (in_array($filterScope, ['Non-Academic-Student', 'Others-Default'], true)) {
 }
 
 // Apply Admin Title filter (seat-level) for those two categories
-if (!empty($filterAdminTitle) && in_array($filterScope, ['Non-Academic-Student', 'Others-Default'], true)) {
+if (!empty($filterAdminTitle) && in_array($filterScope, ['Non-Academic-Student', 'Others'], true)) {
     $admins = array_values(array_filter(
         $adminsRaw,
         fn($a) => trim($a['admin_title'] ?? '') === $filterAdminTitle
@@ -523,6 +518,88 @@ function summarizeAssignedScopeShort(array $admin): string {
       .admin-actions{ flex-direction:column; gap:.5rem; }
       .admin-actions button{ width:100%; }
     }
+    /* Compact mode for admin table on desktops/laptops */
+    @media (min-width:1024px){
+      /* bawas padding sa cells */
+      .admin-table th,
+      .admin-table td{
+        padding-top: 0.35rem;
+        padding-bottom: 0.35rem;
+        padding-left: 0.4rem;
+        padding-right: 0.4rem;
+      }
+
+      /* bawas laki ng text sa row details */
+      .admin-table .admin-info .admin-details .text-sm{
+        font-size: 0.8rem;
+      }
+
+      /* mas maliit na avatar */
+      .admin-table .admin-avatar .h-10.w-10{
+        width: 2.2rem;
+        height: 2.2rem;
+      }
+
+      /* bawasan width ng scope pill para di kumain ng space */
+      .scope-cell .scope-secondary{
+        max-width: 260px;   /* dati 420px */
+      }
+
+      /* badges mas slim */
+      .status-badge{
+        padding: 0.08rem 0.4rem;
+        font-size: 0.7rem;
+      }
+      .scope-badge{
+        padding: 0.08rem 0.35rem;
+        font-size: 0.7rem;
+      }
+
+      /* ACTION BUTTONS – ito yung pinaka-importante */
+      .admin-actions{
+        gap: 0.25rem;
+      }
+
+      .admin-actions button{
+        padding: 0.25rem 0.6rem;  /* mas maliit na padding */
+        font-size: 0.75rem;       /* mas maliit na font */
+        border-radius: 0.35rem;
+      }
+
+      .admin-actions i{
+        margin-right: 0.25rem;
+        font-size: 0.7rem;
+      }
+    }
+    /* Slightly smaller buttons / text sa actions – hindi sobrang payat */
+    @media (min-width:1024px){
+      .admin-table th,
+      .admin-table td{
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+      }
+
+      .admin-actions button{
+        padding: 0.35rem 0.8rem;   /* kaunti lang bawas sa lapad at taas */
+        font-size: 0.8rem;         /* medyo mas maliit pero readable */
+        border-radius: 0.4rem;
+      }
+
+      .admin-actions i{
+        margin-right: 0.3rem;
+        font-size: 0.8rem;
+      }
+
+      .status-badge,
+      .scope-badge{
+        font-size: 0.75rem;
+        padding: 0.15rem 0.5rem;
+      }
+
+      .scope-cell .scope-secondary{
+        max-width: 320px;  /* hindi ultra-haba, pero hindi rin sobrang ikli */
+      }
+    }
   </style>
 </head>
 
@@ -685,8 +762,8 @@ function summarizeAssignedScopeShort(array $admin): string {
               </div>
             </div>
 
-            <!-- Admin Title filter only for Non-Academic-Student & Others-Default -->
-            <div id="adminFilterContainer" class="relative <?= in_array($filterScope, ['Non-Academic-Student','Others-Default'], true) ? '' : 'hidden' ?>">
+            <!-- Admin Title filter only for Non-Academic-Student & Others -->
+            <div id="adminFilterContainer" class="relative <?= in_array($filterScope, ['Non-Academic-Student','Others'], true) ? '' : 'hidden' ?>">
               <label for="admin_title" class="block text-sm font-medium text-gray-700 mb-1">Admin Title</label>
               <div class="relative">
                 <select name="admin_title" id="admin_title"
@@ -788,12 +865,13 @@ function summarizeAssignedScopeShort(array $admin): string {
                   }
 
                   // Determine if this row should show "Inherit Scope" instead of "Activate"
+                                    // Determine if this row should show "Inherit Scope" instead of "Activate"
                   $showInherit = false;
 
                   if (!empty($filterScope) && $status === 'inactive' && !empty($admin['scope_category'])) {
 
-                      // Special seat-based logic for Non-Academic-Student & Others-Default
-                      if (in_array($admin['scope_category'], ['Non-Academic-Student','Others-Default'], true)) {
+                      // Special seat-based logic for Non-Academic-Student & Others
+                      if (in_array($admin['scope_category'], ['Non-Academic-Student','Others'], true)) {
 
                           $seatCategory = $admin['scope_category']   ?? '';
                           $seatScope    = $admin['assigned_scope']   ?? '';
@@ -904,7 +982,7 @@ function summarizeAssignedScopeShort(array $admin): string {
                   </td>
 
                   <td class="px-4 md:px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                    <div class="flex flex-col sm:flex-row gap-2 justify-center admin-actions">
+                    <div class="flex flex-wrap gap-2 justify-center admin-actions">
                       <?php if ($isAllCategories): ?>
                         <!-- All Categories: ONLY Edit/Delete -->
                         <button onclick="handleEditClick(<?= (int)$admin['user_id'] ?>)"
@@ -1083,8 +1161,8 @@ function updateCollegeFilter(){
   const adminContainer  = document.getElementById('adminFilterContainer');
   const selected        = scope ? scope.value : '';
 
-  // Admin Title filter only for Non-Academic-Student & Others-Default
-  if (selected === 'Non-Academic-Student' || selected === 'Others-Default') {
+  // Admin Title filter only for Non-Academic-Student & Others
+  if (selected === 'Non-Academic-Student' || selected === 'Others') {
     adminContainer.classList.remove('hidden');
   } else {
     adminContainer.classList.add('hidden');

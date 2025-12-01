@@ -79,7 +79,7 @@ if ($endTs <= $startTs) {
 
 // === FILE UPLOAD (LOGO) ===
 $logoPath = null;
-if (isset($_FILES['election_logo']) && $_FILES['election_logo'] && $_FILES['election_logo']['error'] === UPLOAD_ERR_OK) {
+if (isset($_FILES['election_logo']) && $_FILES['election_logo']['error'] === UPLOAD_ERR_OK) {
     $uploadDir = __DIR__ . '/uploads/logos/';
     if (!is_dir($uploadDir)) {
         if (!mkdir($uploadDir, 0777, true) && !is_dir($uploadDir)) {
@@ -132,9 +132,10 @@ try {
     $adminRow = $adminStmt->fetch();
 
     if ($adminRow) {
-        $election_scope_type = $adminRow['scope_category']; // e.g. 'Academic-Faculty'
+        // e.g. 'Academic-Faculty', 'Others', etc.
+        $election_scope_type = $adminRow['scope_category'];
 
-        // 2) Get scope row for this admin + category
+        // 2) Get admin_scope row for this admin + category
         $scopeStmt = $pdo->prepare("
             SELECT scope_id, scope_type, scope_details
             FROM admin_scopes
@@ -153,7 +154,7 @@ try {
     }
 } catch (PDOException $e) {
     error_log("Error resolving admin scope in create_election.php: " . $e->getMessage());
-    // don't hard-fail; elections can still be created but without scope linking
+    // Do not hard-fail; election can still be created but without scope linking
 }
 
 // === MAP target_voter + form fields → DB columns ===
@@ -175,6 +176,7 @@ switch ($target_voter) {
                 $allowed_courses = '';
             }
         }
+
         $target_position   = 'student';
         $target_department = 'Students';
         break;
@@ -196,7 +198,6 @@ switch ($target_voter) {
             $clean = array_filter($clean, fn($d) => $d !== '');
             $allowed_departments = $clean ? implode(',', $clean) : 'All';
         } else {
-            // No specific dept checked → all departments in that college
             $allowed_departments = 'All';
         }
 
@@ -238,35 +239,21 @@ switch ($target_voter) {
         $target_department  = 'Non-Academic';
         break;
 
-    // 4) OTHERS (Employees / COOP + MIGS) – from create modal (radio "others")
+    // 4) OTHERS (generic, no special filters – voters fully controlled by uploaded list)
     case 'others':
-        $migsArray = $_POST['allowed_status_coop'] ?? [];
-        $hasMigs   = is_array($migsArray) && in_array('MIGS', $migsArray, true);
+        // No restrictions stored; everything default / "All"
+        $allowed_colleges    = 'All';
+        $allowed_courses     = '';
+        $allowed_status      = null;     // means no explicit status filter
+        $allowed_departments = 'All';
 
-        if ($hasMigs) {
-            // COOP + MIGS election
-            $target_position     = 'coop';
-            $target_department   = 'COOP';
-            $allowed_status      = 'MIGS';
-            $allowed_colleges    = 'All';
-            $allowed_courses     = '';
-            $allowed_departments = 'All';
+        $target_position     = 'others';
+        $target_department   = 'Others';
 
-            if ($election_scope_type === null) {
-                $election_scope_type = 'Others-COOP';
-            }
-        } else {
-            // Others-Default: employee election
-            $target_position     = 'others';
-            $target_department   = 'Employees';
-            $allowed_status      = 'All';
-            $allowed_colleges    = 'All';
-            $allowed_courses     = '';
-            $allowed_departments = 'All';
-
-            if ($election_scope_type === null) {
-                $election_scope_type = 'Others-Default';
-            }
+        // election_scope_type should already be 'Others' if admin is an Others admin;
+        // do NOT invent Others-COOP / Others-Default anymore.
+        if ($election_scope_type === null) {
+            $election_scope_type = 'Others';
         }
         break;
 

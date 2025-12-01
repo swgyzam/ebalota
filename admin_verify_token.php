@@ -4,16 +4,16 @@ session_start();
 
 date_default_timezone_set('Asia/Manila');
 
- $host = 'localhost';
- $db = 'evoting_system';
- $user = 'root';
- $pass = '';
- $charset = 'utf8mb4';
+$host    = 'localhost';
+$db      = 'evoting_system';
+$user    = 'root';
+$pass    = '';
+$charset = 'utf8mb4';
 
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, // ✅ fixed typo
 ];
 
 try {
@@ -28,22 +28,33 @@ if (!isset($_GET['token'])) {
     exit;
 }
 
- $token = filter_input(INPUT_GET, 'token', FILTER_SANITIZE_STRING);
+$token = filter_input(INPUT_GET, 'token', FILTER_SANITIZE_STRING);
 
-// Updated query to join with admin_scopes table to get scope_details
- $stmt = $pdo->prepare("
+// Updated query to join with admin_scopes table to get scope_details + scope_id (owner_scope_id)
+$stmt = $pdo->prepare("
     SELECT 
-        u.user_id, u.first_name, u.last_name, u.email, u.role, 
-        u.is_verified, u.assigned_scope, u.scope_category, 
-        u.assigned_scope_1, u.admin_status,
-        ascope.scope_details
+        u.user_id,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.role,
+        u.is_verified,
+        u.assigned_scope,
+        u.scope_category,
+        u.assigned_scope_1,
+        u.admin_status,
+        ascope.scope_details,
+        ascope.scope_id AS owner_scope_id
     FROM admin_login_tokens alt
     JOIN users u ON alt.user_id = u.user_id
-    LEFT JOIN admin_scopes ascope ON u.user_id = ascope.user_id
-    WHERE alt.token = ? AND alt.expires_at > NOW()
+    LEFT JOIN admin_scopes ascope 
+        ON u.user_id = ascope.user_id
+        AND u.scope_category = ascope.scope_type
+    WHERE alt.token = ? 
+      AND alt.expires_at > NOW()
 ");
- $stmt->execute([$token]);
- $user = $stmt->fetch();
+$stmt->execute([$token]);
+$user = $stmt->fetch();
 
 if (!$user || $user['role'] !== 'admin') {
     header("Location: login.html?error=" . urlencode("Token is invalid or has expired."));
@@ -57,39 +68,37 @@ if ($user['admin_status'] === 'inactive') {
 }
 
 // Delete the token
- $stmt = $pdo->prepare("DELETE FROM admin_login_tokens WHERE token = ?");
- $stmt->execute([$token]);
+$stmt = $pdo->prepare("DELETE FROM admin_login_tokens WHERE token = ?");
+$stmt->execute([$token]);
 
 // Set all required session variables
- $_SESSION['user_id'] = $user['user_id'];
- $_SESSION['first_name'] = $user['first_name'];
- $_SESSION['last_name'] = $user['last_name'];
- $_SESSION['email'] = $user['email'];
- $_SESSION['role'] = 'admin';
- $_SESSION['is_verified'] = (bool)$user['is_verified']; // Ensure boolean value
- $_SESSION['CREATED'] = time();
- $_SESSION['LAST_ACTIVITY'] = time();
+$_SESSION['user_id']      = $user['user_id'];
+$_SESSION['first_name']   = $user['first_name'];
+$_SESSION['last_name']    = $user['last_name'];
+$_SESSION['email']        = $user['email'];
+$_SESSION['role']         = 'admin';
+$_SESSION['is_verified']  = (bool)$user['is_verified']; // Ensure boolean value
+$_SESSION['CREATED']      = time();
+$_SESSION['LAST_ACTIVITY']= time();
 
-// Set all new scope-related session variables
- $_SESSION['scope_category'] = $user['scope_category'] ?? '';
- $_SESSION['assigned_scope'] = $user['assigned_scope'] ?? '';
- $_SESSION['assigned_scope_1'] = $user['assigned_scope_1'] ?? '';
- $_SESSION['scope_details'] = !empty($user['scope_details']) ? json_decode($user['scope_details'], true) : [];
- $_SESSION['admin_status'] = $user['admin_status'] ?? 'inactive';
+// Scope-related session variables
+$_SESSION['scope_category']   = $user['scope_category']   ?? '';
+$_SESSION['assigned_scope']   = $user['assigned_scope']   ?? '';
+$_SESSION['assigned_scope_1'] = $user['assigned_scope_1'] ?? '';
+$_SESSION['scope_details']    = !empty($user['scope_details']) 
+    ? json_decode($user['scope_details'], true) 
+    : [];
+$_SESSION['admin_status']     = $user['admin_status']     ?? 'inactive';
+
+// ✅ New: store owner_scope_id for this admin (important for Others + scoping)
+$_SESSION['owner_scope_id'] = $user['owner_scope_id'] ?? null;
 
 // If user isn't verified in DB, update them
 if (!$user['is_verified']) {
     $pdo->prepare("UPDATE users SET is_verified = 1 WHERE user_id = ?")
-       ->execute([$user['user_id']]);
+        ->execute([$user['user_id']]);
     $_SESSION['is_verified'] = true;
 }
-
-// Generate debug information
- $scopeDescription = formatScopeDetailsForDebug($user['scope_category'], $user['scope_details']);
- $debugInfo = "Role: " . $_SESSION['role'] . 
-             ", Category: " . $_SESSION['scope_category'] . 
-             ", Scope: " . $_SESSION['assigned_scope'] . 
-             ", Details: " . $scopeDescription;
 
 // Helper function to format scope details for debugging
 function formatScopeDetailsForDebug($scope_type, $scope_details) {
@@ -104,32 +113,42 @@ function formatScopeDetailsForDebug($scope_type, $scope_details) {
     
     switch ($scope_type) {
         case 'Academic-Student':
-            $college = $details['college'] ?? '';
-            $courses_display = $details['courses_display'] ?? '';
+            $college         = $details['college']          ?? '';
+            $courses_display = $details['courses_display']  ?? '';
             return "$college - $courses_display";
             
         case 'Academic-Faculty':
-            $college = $details['college'] ?? '';
-            $departments_display = $details['departments_display'] ?? '';
+            $college              = $details['college']              ?? '';
+            $departments_display  = $details['departments_display']  ?? '';
             return "$college - $departments_display";
             
         case 'Non-Academic-Employee':
             $departments_display = $details['departments_display'] ?? '';
             return $departments_display;
             
-        case 'Others-COOP':
-            return 'COOP Admin';
-            
-        case 'Others-Default':
-            return 'Default Admin';
+        case 'Others':
+            // Unified Others: COOP, Alumni, Retired, etc. – all via uploaded voters
+            return 'Others Admin (custom elections via uploaded voters)';
             
         case 'Special-Scope':
             return 'CSG Admin';
+            
+        case 'Non-Academic-Student':
+            return 'Non-Academic Student Orgs Admin';
             
         default:
             return 'Unknown scope type';
     }
 }
+
+// Generate debug information
+$scopeDescription = formatScopeDetailsForDebug($user['scope_category'], $user['scope_details']);
+$debugInfo = "Role: " . $_SESSION['role'] . 
+             ", Category: " . $_SESSION['scope_category'] . 
+             ", Scope: " . $_SESSION['assigned_scope'] . 
+             ", Details: " . $scopeDescription .
+             ", OwnerScopeID: " . ($_SESSION['owner_scope_id'] ?? 'null');
+
 ?>
 
 <!DOCTYPE html>
@@ -286,6 +305,9 @@ function formatScopeDetailsForDebug($scope_type, $scope_details) {
       <p><strong>Scope Details:</strong> <?php echo htmlspecialchars($_SESSION['assigned_scope_1']); ?></p>
       <?php endif; ?>
       <p><strong>Status:</strong> <?php echo htmlspecialchars($_SESSION['admin_status']); ?></p>
+      <?php if (!empty($_SESSION['owner_scope_id'])): ?>
+      <p><strong>Owner Scope ID:</strong> <?php echo htmlspecialchars((string)$_SESSION['owner_scope_id']); ?></p>
+      <?php endif; ?>
     </div>
     
     <!-- Debug info (remove after testing) -->

@@ -51,13 +51,6 @@
             Manage Users
         </a>
 
-        <a href="analytics_reports.php" class="flex items-center gap-3 py-3 px-8 hover:bg-[var(--cvsu-green-light)] rounded-r-lg transition duration-300">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--cvsu-yellow)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6m4 6V9m4 8v-2M3 3h18M3 7h18M3 11h18M3 15h18M3 19h18" />
-            </svg>
-            Analytics Reports
-        </a>
-
         <a href="logout.php" class="flex items-center gap-3 py-3 px-8 mt-10 bg-red-600 hover:bg-red-700 rounded-lg font-semibold transition duration-300">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7" />

@@ -3,16 +3,18 @@ session_start();
 date_default_timezone_set('Asia/Manila');
 
 // --- DB Connection ---
- $host = 'localhost';
- $db   = 'evoting_system';
- $user = 'root';
- $pass = '';
- $charset = 'utf8mb4';
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
+$host   = 'localhost';
+$db     = 'evoting_system';
+$user   = 'root';
+$pass   = '';
+$charset= 'utf8mb4';
+
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
+
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (\PDOException $e) {
@@ -25,7 +27,7 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin','super
     exit();
 }
 
-// Check if user_id is provided
+// --- Validate user_id ---
 if (!isset($_GET['user_id']) || empty($_GET['user_id'])) {
     $_SESSION['message'] = "Invalid user ID.";
     $_SESSION['message_type'] = "error";
@@ -33,15 +35,15 @@ if (!isset($_GET['user_id']) || empty($_GET['user_id'])) {
     exit();
 }
 
- $user_id = $_GET['user_id'];
- $currentRole = $_SESSION['role'];
- $assignedScope = strtoupper(trim($_SESSION['assigned_scope'] ?? ''));
- $scopeCategory = $_SESSION['scope_category'] ?? '';   // NEW
+$user_id       = $_GET['user_id'];
+$currentRole   = $_SESSION['role'];
+$assignedScope = strtoupper(trim($_SESSION['assigned_scope'] ?? ''));
+$scopeCategory = $_SESSION['scope_category'] ?? '';   // e.g. Academic-Student, Others, etc.
 
-// NEW: resolve admin scope seat (admin_scopes) + scope_details
- $myScopeId      = null;
- $myScopeType    = null;
- $myScopeDetails = [];
+// --- Resolve this admin's scope seat (admin_scopes) + scope_details ---
+$myScopeId      = null;
+$myScopeType    = null;
+$myScopeDetails = [];
 
 if ($currentRole === 'admin' && !empty($scopeCategory)) {
     $scopeStmt = $pdo->prepare("
@@ -70,11 +72,10 @@ if ($currentRole === 'admin' && !empty($scopeCategory)) {
     }
 }
 
-// Verify the admin has permission to delete this user
-// First, get the user details
- $stmt = $pdo->prepare("SELECT * FROM users WHERE user_id = :user_id AND role = 'voter'");
- $stmt->execute([':user_id' => $user_id]);
- $userToDelete = $stmt->fetch();
+// --- Get the user to delete (voter only) ---
+$stmt = $pdo->prepare("SELECT * FROM users WHERE user_id = :user_id AND role = 'voter'");
+$stmt->execute([':user_id' => $user_id]);
+$userToDelete = $stmt->fetch();
 
 if (!$userToDelete) {
     $_SESSION['message'] = "User not found or cannot be deleted.";
@@ -83,10 +84,10 @@ if (!$userToDelete) {
     exit();
 }
 
-// Check if the current admin has permission to delete this user based on their scope
- $hasPermission = false;
+// --- Permission Checks ---
+$hasPermission = false;
 
-// Super admin can delete any user
+// 0) SUPER ADMIN – can delete any voter
 if ($currentRole === 'super_admin') {
     $hasPermission = true;
 }
@@ -103,7 +104,19 @@ else if ($scopeCategory === 'Non-Academic-Student' && $myScopeId !== null) {
     }
 }
 
-// 2) Others-Default admin: can delete academic + non-academic voters in their scope (owner_scope_id)
+// 2) Others admin (UNIFIED): can delete any "Others" members in their scope
+//    (matches admin_manage_users.php: owner_scope_id + is_other_member = 1)
+else if ($scopeCategory === 'Others' && $myScopeId !== null) {
+    if (
+        (int)$userToDelete['owner_scope_id'] === $myScopeId &&
+        (int)$userToDelete['is_other_member'] === 1
+    ) {
+        $hasPermission = true;
+    }
+}
+
+// 2b) LEGACY: Others-Default admin (if may lumang scope pa sa DB)
+//     can delete academic + non-academic voters in their scope (owner_scope_id)
 else if ($scopeCategory === 'Others-Default' && $myScopeId !== null) {
     if (
         in_array($userToDelete['position'], ['academic','non-academic'], true) &&
@@ -118,7 +131,7 @@ else if ($scopeCategory === 'Non-Academic-Employee') {
 
     if ($userToDelete['position'] === 'non-academic') {
 
-        // If departments_display is 'All' → any non-academic under this admin is allowed
+        // Default: allowed, then narrow down if scope_details has specific departments
         $allowed = true;
 
         if (!empty($myScopeDetails)) {
@@ -148,9 +161,11 @@ else if ($scopeCategory === 'Non-Academic-Employee') {
 // === LEGACY / OLD MODEL PERMISSIONS (keep for older admins) ===
 
 // College Admin can only delete students from their college (old style)
-else if (in_array($assignedScope, ['CEIT', 'CAS', 'CEMDS', 'CCJ', 'CAFENR', 'CON', 'COED', 'CVM', 'GRADUATE SCHOOL'])) {
+else if (in_array($assignedScope, [
+    'CEIT','CAS','CEMDS','CCJ','CAFENR','CON','COED','CVM','GRADUATE SCHOOL'
+])) {
     if (
-        $userToDelete['position'] === 'student' && 
+        $userToDelete['position'] === 'student' &&
         strtoupper(trim($userToDelete['department'])) === $assignedScope
     ) {
         $hasPermission = true;
@@ -171,7 +186,7 @@ else if ($assignedScope === 'NON-ACADEMIC') {
     }
 }
 
-// COOP Admin can only delete COOP members
+// COOP Admin can only delete COOP members (legacy; ok lang na maiwan kahit di mo na ginagamit)
 else if ($assignedScope === 'COOP') {
     if ($userToDelete['is_coop_member'] == 1) {
         $hasPermission = true;
@@ -185,6 +200,7 @@ else if ($assignedScope === 'CSG ADMIN') {
     }
 }
 
+// --- If still no permission, block ---
 if (!$hasPermission) {
     $_SESSION['message'] = "You don't have permission to delete this user.";
     $_SESSION['message_type'] = "error";
@@ -192,40 +208,39 @@ if (!$hasPermission) {
     exit();
 }
 
-// Log the deletion action
- $adminId = $_SESSION['user_id'];
- $action = "Deleted user: " . $userToDelete['first_name'] . " " . $userToDelete['last_name'] . " (ID: " . $userToDelete['user_id'] . ")";
- $logStmt = $pdo->prepare("INSERT INTO activity_logs (user_id, action, timestamp) VALUES (:user_id, :action, NOW())");
- $logStmt->execute([':user_id' => $adminId, ':action' => $action]);
+// --- Log the deletion action ---
+$adminId = $_SESSION['user_id'];
+$action  = "Deleted user: " . $userToDelete['first_name'] . " " . $userToDelete['last_name'] .
+           " (ID: " . $userToDelete['user_id'] . ")";
+$logStmt = $pdo->prepare("INSERT INTO activity_logs (user_id, action, timestamp) VALUES (:user_id, :action, NOW())");
+$logStmt->execute([':user_id' => $adminId, ':action' => $action]);
 
-// Delete the user
+// --- Delete the user (with related records) ---
 try {
     // Begin transaction
     $pdo->beginTransaction();
-    
-    // Delete related records first (if any)
-    // For example, delete votes cast by this user
+
+    // Delete related records first (example: votes)
     $stmt = $pdo->prepare("DELETE FROM votes WHERE voter_id = :voter_id");
     $stmt->execute([':voter_id' => $user_id]);
-    
-    // Delete the user
+
+    // Delete the user itself
     $stmt = $pdo->prepare("DELETE FROM users WHERE user_id = :user_id");
     $stmt->execute([':user_id' => $user_id]);
-    
+
     // Commit transaction
     $pdo->commit();
-    
+
     $_SESSION['message'] = "User deleted successfully.";
     $_SESSION['message_type'] = "success";
 } catch (Exception $e) {
     // Rollback transaction on error
     $pdo->rollBack();
-    
+
     $_SESSION['message'] = "Error deleting user: " . $e->getMessage();
     $_SESSION['message_type'] = "error";
 }
 
-// Redirect back to the manage users page
+// Redirect back to manage users page
 header('Location: admin_manage_users.php');
 exit();
-?>

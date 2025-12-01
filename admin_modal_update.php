@@ -67,8 +67,7 @@ $csrf_token = $_SESSION['csrf_token'];
               <option value="Non-Academic-Student">Non-Academic - Student</option>
               <option value="Academic-Faculty">Academic - Faculty</option>
               <option value="Non-Academic-Employee">Non-Academic - Employee</option>
-              <option value="Others-Default">Others - Default</option>
-              <option value="Others-COOP">Others - COOP</option>
+              <option value="Others">Others</option>
               <option value="Special-Scope">Special Scope - CSG Admin</option>
             </select>
             <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -267,34 +266,43 @@ select:focus {
     // ==== SCOPE FIELDS (READ-ONLY) ====
 
     function updateScopeFieldsForEdit() {
-        const scopeCategory = document.getElementById('updateScopeCategoryModal');
-        const container     = document.getElementById('updateDynamicScopeFieldsModal');
-        if (!scopeCategory || !container) return;
+        const scopeCategoryDisplay = document.getElementById('updateScopeCategoryModal');
+        const scopeCategoryHidden  = document.getElementById('update_scope_category_hidden');
+        const container            = document.getElementById('updateDynamicScopeFieldsModal');
+        if (!scopeCategoryDisplay || !container) return;
 
         container.innerHTML = '';
 
-        switch (scopeCategory.value) {
+        // Gamitin ang hidden value para sa logic (real value from DB)
+        const categoryForLogic =
+            (scopeCategoryHidden && scopeCategoryHidden.value) ||
+            scopeCategoryDisplay.value;
+
+        switch (categoryForLogic) {
             case 'Academic-Student':
                 container.innerHTML = getAcademicStudentFieldsForEdit();
                 break;
+
             case 'Academic-Faculty':
                 container.innerHTML = getAcademicFacultyFieldsForEdit();
                 break;
+
             case 'Non-Academic-Employee':
                 container.innerHTML = getNonAcademicEmployeeFieldsForEdit();
                 break;
+
             case 'Non-Academic-Student':
                 container.innerHTML = getNonAcademicStudentFieldsForEdit();
                 break;
-            case 'Others-Default':
-                container.innerHTML = getOtherFieldsForEdit();
+
+            case 'Others':
+                container.innerHTML = getOthersFieldsForEdit();
                 break;
-            case 'Others-COOP':
-                container.innerHTML = getCoopFieldsForEdit();
-                break;
+
             case 'Special-Scope':
                 container.innerHTML = getSpecialScopeFieldsForEdit();
                 break;
+
             default:
                 container.innerHTML = '<p class="text-gray-500">Scope details are not available for this category.</p>';
         }
@@ -303,12 +311,12 @@ select:focus {
     function getAcademicStudentFieldsForEdit() {
         return `
           <div>
-            <label class="read-only-label">College Scope (Read-only)</label>
+            <label class="read-only-label">College Scope</label>
             <div id="updateCollegeDisplay" class="read-only-display read-only-value"></div>
             <input type="hidden" name="college" id="updateCollegeHidden" />
           </div>
           <div class="mt-3">
-            <label class="read-only-label">Course Scope (Read-only)</label>
+            <label class="read-only-label">Course Scope</label>
             <div id="updateCoursesDisplay" class="read-only-display read-only-value"></div>
             <div id="updateCoursesHiddenContainer"></div>
           </div>
@@ -318,12 +326,12 @@ select:focus {
     function getAcademicFacultyFieldsForEdit() {
         return `
           <div>
-            <label class="read-only-label">College Scope (Read-only)</label>
+            <label class="read-only-label">College Scope</label>
             <div id="updateFacultyCollegeDisplay" class="read-only-display read-only-value"></div>
             <input type="hidden" name="college" id="updateFacultyCollegeHidden" />
           </div>
           <div class="mt-3">
-            <label class="read-only-label">Department Scope (Read-only)</label>
+            <label class="read-only-label">Department Scope</label>
             <div id="updateDepartmentsDisplay" class="read-only-display read-only-value"></div>
             <div id="updateDepartmentsHiddenContainer"></div>
           </div>
@@ -333,7 +341,7 @@ select:focus {
     function getNonAcademicEmployeeFieldsForEdit() {
         return `
           <div>
-            <label class="read-only-label">Department Scope (Read-only)</label>
+            <label class="read-only-label">Department Scope</label>
             <div id="updateNonAcademicDeptsDisplay" class="read-only-display read-only-value"></div>
             <div id="updateNonAcademicDeptsHiddenContainer"></div>
           </div>
@@ -343,7 +351,7 @@ select:focus {
     function getNonAcademicStudentFieldsForEdit() {
         return `
           <div class="disabled-field-container">
-            <div class="disabled-field-label">Admin Scope Information (Read-only)</div>
+            <div class="disabled-field-label">Admin Scope Information</div>
             <div class="bg-blue-50 p-3 rounded text-sm text-blue-800">
               <strong>Non-Academic - Student Admin</strong><br>
               Scope: All non-academic student organizations
@@ -352,26 +360,14 @@ select:focus {
         `;
     }
 
-    function getOtherFieldsForEdit() {
+    function getOthersFieldsForEdit() {
         return `
           <div class="disabled-field-container">
-            <div class="disabled-field-label">Admin Scope Information (Read-only)</div>
+            <div class="disabled-field-label">Admin Scope Information</div>
             <div class="bg-purple-50 p-3 rounded text-sm text-purple-800">
-              <strong>Others - Default Admin</strong><br>
-              Scope: All Faculty and Non-Academic Employees<br>
-              No membership restrictions.
-            </div>
-          </div>
-        `;
-    }
-
-    function getCoopFieldsForEdit() {
-        return `
-          <div class="disabled-field-container">
-            <div class="disabled-field-label">Admin Scope Information (Read-only)</div>
-            <div class="bg-green-50 p-3 rounded text-sm text-green-800">
-              <strong>Others - COOP Admin</strong><br>
-              Scope: Faculty & Non-Academic (COOP + MIGS only).
+              <strong>Others Admin</strong><br>
+              Scope: Special elections with custom uploaded voters (e.g. COOP, Alumni, Retired).<br>
+              Semantics (COOP/Alumni/Retired/etc.) are based on the Admin Title and the uploaded voter list.
             </div>
           </div>
         `;
@@ -380,7 +376,7 @@ select:focus {
     function getSpecialScopeFieldsForEdit() {
         return `
           <div class="disabled-field-container">
-            <div class="disabled-field-label">Admin Scope Information (Read-only)</div>
+            <div class="disabled-field-label">Admin Scope Information</div>
             <div class="bg-yellow-50 p-3 rounded text-sm text-yellow-800">
               <strong>CSG Admin</strong><br>
               Scope: All Student Organizations.
@@ -618,8 +614,20 @@ select:focus {
 
         const scopeSel    = document.getElementById('updateScopeCategoryModal');
         const scopeHidden = document.getElementById('update_scope_category_hidden');
-        if (scopeSel) scopeSel.value = admin.scope_category || '';
-        if (scopeHidden) scopeHidden.value = admin.scope_category || '';
+
+        if (scopeHidden) {
+            // Real value galing DB (Others-Default / Others-COOP / etc.)
+            scopeHidden.value = admin.scope_category || '';
+        }
+
+        if (scopeSel) {
+            // Display value sa dropdown
+            if (admin.scope_category === 'Others-Default' || admin.scope_category === 'Others-COOP') {
+                scopeSel.value = 'Others';   // UI: iisang “Others”
+            } else {
+                scopeSel.value = admin.scope_category || '';
+            }
+        }
 
         updateScopeFieldsForEdit();
         setTimeout(() => populateScopeDetailsForEdit(admin), 100);

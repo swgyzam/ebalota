@@ -79,6 +79,7 @@ try {
 
 // Process voter type (align with create_election.php)
 switch ($target_voter) {
+
     // STUDENT
     case 'student':
         $allowed_colleges = $_POST['allowed_colleges'] ?? 'all';
@@ -95,6 +96,7 @@ switch ($target_voter) {
                 $allowed_courses = '';
             }
         }
+
         $target_position   = 'student';
         $target_department = 'Students';
         break;
@@ -144,41 +146,24 @@ switch ($target_voter) {
             $allowed_status = 'All';
         }
 
-        $allowed_courses  = '';
-        $allowed_colleges = 'All';
-        $target_position  = 'non-academic';
-        $target_department= 'Non-Academic';
+        $allowed_courses   = '';
+        $allowed_colleges  = 'All';
+        $target_position   = 'non-academic';
+        $target_department = 'Non-Academic';
         break;
 
-    // COOP / OTHERS (update modal radio "coop")
-    case 'coop':
-        $migsArray = $_POST['allowed_status_coop'] ?? [];
-        $hasMigs   = is_array($migsArray) && in_array('MIGS', $migsArray, true);
+    // OTHERS (generic, no MIGS logic; voters fully defined by uploads)
+    case 'others':
+        $allowed_colleges    = 'All';
+        $allowed_courses     = '';
+        $allowed_status      = null;       // no explicit filter
+        $allowed_departments = 'All';
 
-        if ($hasMigs) {
-            // COOP + MIGS
-            $allowed_colleges    = 'All';
-            $allowed_courses     = '';
-            $allowed_status      = 'MIGS';
-            $allowed_departments = 'All';
-            $target_position     = 'coop';
-            $target_department   = 'COOP';
+        $target_position     = 'others';
+        $target_department   = 'Others';
 
-            if ($election_scope_type === null) {
-                $election_scope_type = 'Others-COOP';
-            }
-        } else {
-            // Others-Default: Employees
-            $allowed_colleges    = 'All';
-            $allowed_courses     = '';
-            $allowed_status      = 'All';
-            $allowed_departments = 'All';
-            $target_position     = 'others';
-            $target_department   = 'Employees';
-
-            if ($election_scope_type === null) {
-                $election_scope_type = 'Others-Default';
-            }
+        if ($election_scope_type === null) {
+            $election_scope_type = 'Others';
         }
         break;
 
@@ -190,9 +175,9 @@ switch ($target_voter) {
 
 // Date validation
 if (strtotime($start_datetime) >= strtotime($end_datetime)) {
-  $_SESSION['error'] = 'End date must be after start date';
-  header('Location: manage_elections.php');
-  exit();
+    $_SESSION['error'] = 'End date must be after start date';
+    header('Location: manage_elections.php');
+    exit();
 }
 
 // ===== File Upload Handling for Logo Update =====

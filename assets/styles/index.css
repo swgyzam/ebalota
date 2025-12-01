@@ -1,39 +1,54 @@
+/* Global body font only */
 body {
-            font-family: 'Poppins', sans-serif;
-            background-color: #f8fafc;
-        }
-        .hero-gradient {
-            background-color: #195905;
-        }
-        .sticky {
-            background-color: #f8fafc;
-        }
-        .nav-link {
-            position: relative;
-        }
-        .ebalotalogo.img {
-            display: flex;
-            max-width: 100%;
-            height: auto;
-        }
-        .nav-link:after {
-            content: '';
-            position: absolute;
-            width: 0;
-            height: 2px;
-            bottom: -2px;
-            left: 0;
-            background-color: rgb(6, 81, 16);
-            transition: width 0.3s ease;
-        }
-        .nav-link:hover:after {
-            width: 100%;
-        }
-        .floating {
-            animation: floating 3s ease-in-out infinite;
-        }
-        @keyframes floating {
-            0% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-            100% { transform: translateY(0px); }
-        }
+    font-family: 'Poppins', sans-serif;
+}
+
+/* Default light background (gamitin sa mga page na kailangan) */
+.page-default {
+    background-color: #f8fafc;
+}
+
+/* Hero gradient for homepage (pwede mong alisin yung inline style sa index.html) */
+.hero-gradient {
+    background: radial-gradient(circle at top left, #4ade80 0, #166534 45%, #052e16 100%);
+}
+
+/* Optional: default sticky nav background (kung gusto mo pa rin) */
+.sticky {
+    background-color: #f8fafc;
+}
+
+/* Nav underline hover */
+.nav-link {
+    position: relative;
+}
+.nav-link:after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 2px;
+    bottom: -2px;
+    left: 0;
+    background-color: rgb(6, 81, 16);
+    transition: width 0.3s ease;
+}
+.nav-link:hover:after {
+    width: 100%;
+}
+
+/* Correct selector for logo image */
+.ebalotalogo img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+
+/* Floating animation (kung gagamitin mo sa homepage/login cards) */
+.floating {
+    animation: floating 3s ease-in-out infinite;
+}
+@keyframes floating {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0px); }
+}

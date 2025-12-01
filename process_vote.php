@@ -373,20 +373,21 @@ try {
     $pdo->commit();
     error_log("Successfully committed all votes for voter_id: $voter_id");
 
-    // Log the activity (abstain or normal both count as "vote" activity)
+    // Log the activity (abstain or normal both count as "vote" activity")
     try {
         $stmt = $pdo->prepare("
-            INSERT INTO activity_logs (user_id, activity_type, activity_details, ip_address, created_at)
-            VALUES (?, 'vote', ?, ?, NOW())
+            INSERT INTO activity_logs (user_id, action, timestamp)
+            VALUES (:uid, :action, NOW())
         ");
-        $activityDetails = json_encode([
-            'election_id'    => $election_id,
-            'election_title' => $election['title'],
-        ]);
+
+        $actionText = 'Cast vote in election ID ' . $election_id;
+        if (!empty($election['title'])) {
+            $actionText .= ' (' . $election['title'] . ')';
+        }
+
         $stmt->execute([
-            $voter_id,
-            $activityDetails,
-            $_SERVER['REMOTE_ADDR'] ?? 'unknown'
+            ':uid'    => $voter_id,
+            ':action' => $actionText,
         ]);
     } catch (\Exception $e) {
         error_log("Failed to log activity: " . $e->getMessage());

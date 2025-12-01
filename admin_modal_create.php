@@ -87,14 +87,13 @@ foreach (array_keys($colleges) as $collegeCode) {
             <option value="Non-Academic-Student">Non-Academic - Student</option>
             <option value="Academic-Faculty">Academic - Faculty</option>
             <option value="Non-Academic-Employee">Non-Academic - Employee</option>
-            <option value="Others-Default">Others - Default</option>
-            <option value="Others-COOP">Others - COOP</option>
+            <option value="Others">Others</option>
             <option value="Special-Scope">Special Scope - CSG Admin</option>
           </select>
         </div>
 
         <div id="dynamicScopeFieldsModal" class="space-y-4">
-          <!-- Dynamic fields will be inserted here -->
+            <!-- Dynamic fields will be inserted here -->
         </div>
 
         <div>
@@ -177,7 +176,8 @@ console.log('coursesByCollege object:', coursesByCollege);
 // === Dynamic scope fields ===
 function updateScopeFields() {
     const scopeCategory = document.getElementById('scopeCategoryModal');
-    const container = document.getElementById('dynamicScopeFieldsModal');
+    const container     = document.getElementById('dynamicScopeFieldsModal');
+    const scopeError    = document.getElementById('scopeValidationError');
 
     console.log('updateScopeFields called with:', scopeCategory ? scopeCategory.value : 'not found');
 
@@ -186,7 +186,12 @@ function updateScopeFields() {
         return;
     }
 
-    container.innerHTML = ''; // Clear existing fields
+    // clear dynamic fields + scope error
+    container.innerHTML = '';
+    if (scopeError) {
+        scopeError.textContent = '';
+        scopeError.classList.add('hidden');
+    }
 
     switch(scopeCategory.value) {
         case 'Academic-Student':
@@ -201,11 +206,8 @@ function updateScopeFields() {
         case 'Non-Academic-Employee':
             container.innerHTML = getNonAcademicEmployeeFields();
             break;
-        case 'Others-Default':
-            container.innerHTML = getOtherFields();
-            break;
-        case 'Others-COOP':
-            container.innerHTML = getCoopFields();
+        case 'Others':
+            container.innerHTML = getUnifiedOthersFields();
             break;
         case 'Special-Scope':
             container.innerHTML = getSpecialScopeFields();
@@ -219,45 +221,49 @@ function updateScopeFields() {
 function getAcademicStudentFields() {
     return `
         <div>
-            <label class="block font-semibold">College Scope</label>
+            <label class="block font-semibold">College Scope <span class="text-red-600">*</span></label>
             <select name="college" id="collegeSelectModal" class="w-full p-2 border rounded" onchange="updateCourseOptions()">
                 <option value="">Select College</option>
     ` + Object.entries(colleges).map(([code, name]) =>
         `<option value="${code}">${code} - ${name}</option>`
     ).join('') + `
             </select>
+            <p class="text-xs text-gray-500 mt-1">Required: choose a college.</p>
         </div>
         <div id="coursesContainerModal" class="hidden mt-3">
-            <label class="block font-semibold">Course Scope</label>
+            <label class="block font-semibold">Course Scope <span class="text-red-600">*</span></label>
             <div id="coursesListModal" class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border p-2 rounded text-sm">
                 <!-- Courses will be populated here -->
             </div>
-            <div class="mt-1">
-                <button type="button" onclick="toggleAllCourses()" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+            <div class="mt-1 flex flex-col gap-1">
+                <button type="button" onclick="toggleAllCourses()" class="text-xs text-blue-600 hover:text-blue-800 text-left">Select All</button>
+                <p class="text-xs text-gray-500">Required: select at least one course or use Select All.</p>
             </div>
         </div>
     `;
 }
 
 // Academic-Faculty Fields
-function getAcademicFacultyFields() {
+function getAcademicStudentFields() {
     return `
         <div>
-            <label class="block font-semibold">College Scope</label>
-            <select name="college" id="facultyCollegeSelectModal" class="w-full p-2 border rounded" onchange="updateFacultyDepartmentOptions()">
+            <label class="block font-semibold">College Scope <span class="text-red-600">*</span></label>
+            <select name="college" id="collegeSelectModal" class="w-full p-2 border rounded" onchange="updateCourseOptions()">
                 <option value="">Select College</option>
     ` + Object.entries(colleges).map(([code, name]) =>
         `<option value="${code}">${code} - ${name}</option>`
     ).join('') + `
             </select>
+            <p class="text-xs text-gray-500 mt-1">Required: choose a college.</p>
         </div>
-        <div id="departmentsContainerModal" class="hidden mt-3">
-            <label class="block font-semibold">Department Scope</label>
-            <div id="departmentsListModal" class="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto border p-2 rounded text-sm">
-                <!-- Departments will be populated here -->
+        <div id="coursesContainerModal" class="hidden mt-3">
+            <label class="block font-semibold">Course Scope <span class="text-red-600">*</span></label>
+            <div id="coursesListModal" class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border p-2 rounded text-sm">
+                <!-- Courses will be populated here -->
             </div>
-            <div class="mt-1">
-                <button type="button" onclick="toggleAllDepartments()" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+            <div class="mt-1 flex flex-col gap-1">
+                <button type="button" onclick="toggleAllCourses()" class="text-xs text-blue-600 hover:text-blue-800 text-left">Select All</button>
+                <p class="text-xs text-gray-500">Required: select at least one course or use Select All.</p>
             </div>
         </div>
     `;
@@ -267,7 +273,7 @@ function getAcademicFacultyFields() {
 function getNonAcademicEmployeeFields() {
     return `
         <div>
-            <label class="block font-semibold">Department Scope</label>
+            <label class="block font-semibold">Department Scope <span class="text-red-600">*</span></label>
             <div id="nonAcademicDeptsContainer" class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border p-2 rounded text-sm">
     ` + Object.entries(nonAcademicDepartments).map(([code, name]) =>
         `<label class="flex items-center">
@@ -276,8 +282,9 @@ function getNonAcademicEmployeeFields() {
         </label>`
     ).join('') + `
             </div>
-            <div class="mt-1">
-                <button type="button" onclick="toggleAllNonAcademicDepts()" class="text-xs text-blue-600 hover:text-blue-800">Select All</button>
+            <div class="mt-1 flex flex-col gap-1">
+                <button type="button" onclick="toggleAllNonAcademicDepts()" class="text-xs text-blue-600 hover:text-blue-800 text-left">Select All</button>
+                <p class="text-xs text-gray-500">Required: select at least one department or use Select All.</p>
             </div>
         </div>
     `;
@@ -324,6 +331,35 @@ function getCoopFields() {
             <div class="mt-1 text-xs text-green-600">
                 <i class="fas fa-user-check mr-1"></i>
                 <strong>Scope:</strong> Faculty and Non-Academic Employees
+            </div>
+        </div>
+    `;
+}
+
+// Unified Others Fields (single category only)
+// Ginagamit para sa lahat ng special elections: COOP, Alumni, Retired, etc.
+function getUnifiedOthersFields() {
+    return `
+        <div class="bg-purple-50 p-3 rounded">
+            <p class="text-sm text-purple-800">
+                <i class="fas fa-info-circle mr-1"></i>
+                <strong>Others Admin</strong>
+            </p>
+            <p class="text-sm text-purple-700 mt-1">
+                This admin manages a special election that is <strong>not tied to colleges/departments</strong>,
+                but instead to a custom uploaded voter list.
+            </p>
+
+            <div class="mt-3 text-xs text-purple-700 space-y-1">
+                <p>
+                    <i class="fas fa-users mr-1"></i>
+                    <strong>Examples:</strong> Cooperative Election, Alumni Election, Retired Staff Election, and other similar organizations.
+                </p>
+                <p>
+                    <i class="fas fa-info-circle mr-1"></i>
+                    <strong>How it works:</strong> The <em>Admin Title</em> (e.g. "Cooperative Election Admin", "Alumni Election Admin")
+                    and the uploaded voter list will define what type of "Others" election this is.
+                </p>
             </div>
         </div>
     `;
@@ -578,6 +614,7 @@ async function submitCreateAdmin(event) {
         }
 
         const errorDiv   = document.getElementById('formError');
+        const scopeError = document.getElementById('scopeValidationError');
         const submitBtn  = document.getElementById('submitBtnModal');
         const submitText = document.getElementById('submitBtnTextModal');
         const loaderIcon = document.getElementById('loaderIconModal');
@@ -586,7 +623,64 @@ async function submitCreateAdmin(event) {
             throw new Error('Required elements not found');
         }
 
+        // clear old errors
         errorDiv.classList.add('hidden');
+        if (scopeError) {
+            scopeError.textContent = '';
+            scopeError.classList.add('hidden');
+        }
+
+        const scopeCategory = document.getElementById('scopeCategoryModal')?.value || '';
+
+        // helper for inline scope error
+        const failScope = (msg) => {
+            if (!scopeError) return false;
+            scopeError.textContent = msg;
+            scopeError.classList.remove('hidden');
+
+            // auto-scroll yung mismong scope section sa gitna ng modal
+            scopeError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return false;
+        };
+
+        // === CUSTOM SCOPE VALIDATION ===
+
+        if (scopeCategory === 'Academic-Student') {
+            const college = document.getElementById('collegeSelectModal')?.value || '';
+            if (!college) {
+                if (failScope('Please select a college for this Academic-Student admin.')) return;
+            }
+
+            const selectedCourses = document.querySelectorAll('input[name="courses[]"]:checked');
+            const selectAllHidden = document.getElementById('selectAllCoursesInput');
+            if (!selectedCourses.length && !selectAllHidden) {
+                if (failScope('Please select at least one course or use Select All for this Academic-Student admin.')) return;
+            }
+        }
+
+        if (scopeCategory === 'Academic-Faculty') {
+            const college = document.getElementById('facultyCollegeSelectModal')?.value || '';
+            if (!college) {
+                if (failScope('Please select a college for this Academic-Faculty admin.')) return;
+            }
+
+            const selectedDepts   = document.querySelectorAll('input[name="departments[]"]:checked');
+            const selectAllHidden = document.getElementById('selectAllDepartmentsInput');
+            if (!selectedDepts.length && !selectAllHidden) {
+                if (failScope('Please select at least one department or use Select All for this Academic-Faculty admin.')) return;
+            }
+        }
+
+        if (scopeCategory === 'Non-Academic-Employee') {
+            const selectedDepts   = document.querySelectorAll('input[name="departments[]"]:checked');
+            const selectAllHidden = document.getElementById('selectAllNonAcademicDeptsInput');
+            if (!selectedDepts.length && !selectAllHidden) {
+                if (failScope('Please select at least one department or use Select All for this Non-Academic-Employee admin.')) return;
+            }
+        }
+
+        // ✅ kung umabot dito, pasado na scope validation
+
         submitBtn.disabled = true;
         submitText.textContent = 'Creating...';
         loaderIcon.classList.remove('hidden');
@@ -632,12 +726,15 @@ async function submitCreateAdmin(event) {
         loaderIcon.classList.add('hidden');
 
         if (data.status === 'error') {
+            // server-side validation error -> pwede mo pa ring ipakita sa top
             errorDiv.textContent = data.message;
             errorDiv.classList.remove('hidden');
+            // optional: scroll to top of modal
+            errorDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else {
             closeCreateModal();
             openSuccessModal();
-            setTimeout(() => window.location.reload(), 3000);
+            setTimeout(() => window.location.reload(), 1000);
         }
     } catch (error) {
         console.error('Error in submitCreateAdmin:', error);
@@ -653,6 +750,7 @@ async function submitCreateAdmin(event) {
             loaderIcon.classList.add('hidden');
             errorDiv.textContent = "Error: " + error.message;
             errorDiv.classList.remove('hidden');
+            errorDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     }
 }
