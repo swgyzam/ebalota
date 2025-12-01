@@ -6669,3 +6669,266 @@ Array
 )
 
 Update successful for election 232
+Executing with params:
+Array
+(
+    [:title] => ELITS ELECTION 2025
+    [:description] => NONE
+    [:start_datetime] => 2025-11-25 00:18:00
+    [:end_datetime] => 2025-11-27 11:11:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Academic-Student
+    [:owner_scope_id] => 143
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSIT
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764001076_prof.jpg
+    [:assigned_admin_id] => 486
+    [:election_id] => 228
+)
+
+Update successful for election 228
+Executing with params:
+Array
+(
+    [:title] => ELITS ELECTION v2
+    [:description] => NONE
+    [:start_datetime] => 2025-11-25 00:27:00
+    [:end_datetime] => 2025-11-26 23:00:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Academic-Student
+    [:owner_scope_id] => 143
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSIT
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1763566223_black_g.jpeg
+    [:assigned_admin_id] => 486
+    [:election_id] => 225
+)
+
+Update successful for election 225
+Executing with params:
+Array
+(
+    [:title] => CSSO ELECTION
+    [:description] => NONE
+    [:start_datetime] => 2025-11-25 00:48:00
+    [:end_datetime] => 2025-11-26 23:00:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Academic-Student
+    [:owner_scope_id] => 144
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSCS
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1763566223_black_g.jpeg
+    [:assigned_admin_id] => 487
+    [:election_id] => 225
+)
+
+Update successful for election 225
+Executing with params:
+Array
+(
+    [:title] => DIT FACULTY ELECTION
+    [:description] => NONE
+    [:start_datetime] => 2025-11-25 00:52:00
+    [:end_datetime] => 2025-11-27 23:11:00
+    [:target_position] => faculty
+    [:target_department] => Faculty
+    [:election_scope_type] => Academic-Faculty
+    [:owner_scope_id] => 145
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => DIT
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1763567100_pingwinnn.jpg
+    [:assigned_admin_id] => 488
+    [:election_id] => 226
+)
+
+Update successful for election 226
+Executing with params:
+Array
+(
+    [:title] => NON-ACAD ELECTION
+    [:description] => ASAS
+    [:start_datetime] => 2025-11-25 03:03:00
+    [:end_datetime] => 2025-11-27 11:11:00
+    [:target_position] => non-academic
+    [:target_department] => Non-Academic
+    [:election_scope_type] => Non-Academic-Employee
+    [:owner_scope_id] => 147
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => Regular,Part-time,Contractual
+    [:allowed_departments] => ADMIN
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1763801154_black_g.jpeg
+    [:assigned_admin_id] => 493
+    [:election_id] => 229
+)
+
+Update successful for election 229
+Executing with params:
+Array
+(
+    [:title] => CSSO ELECTION
+    [:description] => NONE
+    [:start_datetime] => 2025-11-25 21:07:00
+    [:end_datetime] => 2025-11-26 23:00:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Academic-Student
+    [:owner_scope_id] => 148
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSCS
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1763566223_black_g.jpeg
+    [:assigned_admin_id] => 494
+    [:election_id] => 225
+)
+
+Update successful for election 225
+Executing with params:
+Array
+(
+    [:title] => CSG ELECTION
+    [:description] => a
+    [:start_datetime] => 2025-11-25 21:27:00
+    [:end_datetime] => 2025-11-26 22:00:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => 
+    [:assigned_admin_id] => 495
+    [:election_id] => 224
+)
+
+Update successful for election 224
+Executing with params:
+Array
+(
+    [:title] => COOP Election
+    [:description] => COOP ONLY
+    [:start_datetime] => 2025-11-25 22:26:00
+    [:end_datetime] => 2025-11-26 22:00:00
+    [:target_position] => coop
+    [:target_department] => COOP
+    [:election_scope_type] => Others-COOP
+    [:owner_scope_id] => 150
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => MIGS
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1763614340_blue.jpeg
+    [:assigned_admin_id] => 496
+    [:election_id] => 227
+)
+
+Update successful for election 227
+Executing with params:
+Array
+(
+    [:title] => CSG ELECTION
+    [:description] => a
+    [:start_datetime] => 2025-11-25 22:27:00
+    [:end_datetime] => 2025-11-27 22:00:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764080767_pingwinnn.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 224
+)
+
+Update successful for election 224
+Executing with params:
+Array
+(
+    [:title] => CSG ELECTION
+    [:description] => a
+    [:start_datetime] => 2025-11-25 22:27:00
+    [:end_datetime] => 2025-11-27 22:00:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764080767_pingwinnn.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 224
+)
+
+Executing with params:
+Array
+(
+    [:title] => COOP Election
+    [:description] => COOP ONLY
+    [:start_datetime] => 2025-11-25 23:47:00
+    [:end_datetime] => 2025-11-26 22:00:00
+    [:target_position] => coop
+    [:target_department] => COOP
+    [:election_scope_type] => Others-COOP
+    [:owner_scope_id] => 150
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => MIGS
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1763614340_blue.jpeg
+    [:assigned_admin_id] => 496
+    [:election_id] => 227
+)
+
+Update successful for election 227
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => NONE
+    [:start_datetime] => 2025-11-26 12:58:00
+    [:end_datetime] => 2025-11-27 01:10:00
+    [:target_position] => coop
+    [:target_department] => COOP
+    [:election_scope_type] => Others-COOP
+    [:owner_scope_id] => 150
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => MIGS
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764085826_blue.jpeg
+    [:assigned_admin_id] => 496
+    [:election_id] => 235
+)
+
+Update successful for election 235

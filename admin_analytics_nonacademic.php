@@ -201,6 +201,47 @@ $turnoutPercentage = $totalEligibleVoters > 0
     ? round(($totalVotesCast / $totalEligibleVoters) * 100, 1)
     : 0.0;
 
+/* === COMPUTE EXPLICIT ABSTAINERS FOR THIS ELECTION (NON-ACAD) ===
+   Definition:
+   - Employee is eligible for this election
+   - Has at least one vote row with is_abstain = 1 for this election
+   - Has no normal (is_abstain = 0) votes for this election
+*/
+
+$seatEmployeesAll = getScopedVoters(
+    $pdo,
+    SCOPE_NONACAD_EMPLOYEE,
+    $scopeId,
+    [
+        'year_end'      => null,
+        'include_flags' => true,
+    ]
+);
+
+$electionYear = (int) date('Y', strtotime($election['start_datetime']));
+
+$perElectionStats = computePerElectionStatsWithAbstain(
+    $pdo,
+    SCOPE_NONACAD_EMPLOYEE,
+    $scopeId,
+    $seatEmployeesAll,
+    $electionYear
+);
+
+// Default value
+$totalAbstained = 0;
+
+foreach ($perElectionStats as $row) {
+    if ((int)$row['election_id'] === $electionId) {
+        $totalAbstained = (int)($row['abstain_count'] ?? 0);
+        break;
+    }
+}
+
+$abstainRate = $totalEligibleVoters > 0
+    ? round(($totalAbstained / $totalEligibleVoters) * 100, 1)
+    : 0.0;
+
 /* ==========================================================
    WINNERS BY POSITION + CANDIDATE MAPS
    ========================================================== */
@@ -454,6 +495,47 @@ foreach ($turnoutRangeData as $y => &$row) {
 }
 unset($row);
 
+// ==== Abstain by year (REAL abstain: is_abstain = 1 & walang normal vote) ====
+
+// 1) Kunin lahat ng abstain data by year para sa scope na ito
+$abstainAllYears = computeAbstainByYear(
+  $pdo,
+  SCOPE_NONACAD_EMPLOYEE,
+  $scopeId,
+  $scopedAllEmployees,
+  [
+      'year_from' => null,
+      'year_to'   => null,
+  ]
+);
+
+// 2) I-slice lang yung nasa [fromYear..toYear], punuin ng zero kung wala
+$abstainByYear = [];
+for ($y = $fromYear; $y <= $toYear; $y++) {
+  if (isset($abstainAllYears[$y])) {
+      $abstainByYear[$y] = $abstainAllYears[$y];
+  } else {
+      $abstainByYear[$y] = [
+          'year'           => $y,
+          'abstain_count'  => 0,
+          'total_eligible' => 0,
+          'abstain_rate'   => 0.0,
+      ];
+  }
+}
+
+// 3) I-export sa JS arrays
+$abstainYears      = array_keys($abstainByYear);
+sort($abstainYears);
+$abstainCountsYear = [];
+$abstainRatesYear  = [];
+
+foreach ($abstainYears as $y) {
+  $abstainCountsYear[] = (int)($abstainByYear[$y]['abstain_count'] ?? 0);
+  $abstainRatesYear[]  = (float)($abstainByYear[$y]['abstain_rate']  ?? 0.0);
+}
+
+
 // Focus year for summary cards (default: year of this election's start)
 $ctxYear = isset($_GET['ctx_year']) && ctype_digit($_GET['ctx_year'])
   ? (int) $_GET['ctx_year']
@@ -527,28 +609,52 @@ foreach ($ctxYearElections as $erow) {
   }
   $totalEligible = count($eligibleForElection);
 
-  // 3) Distinct voters who actually voted in this election
-  $stmt = $pdo->prepare("
-      SELECT DISTINCT v.voter_id
-      FROM votes v
-      JOIN users u ON u.user_id = v.voter_id
-      WHERE v.election_id = :eid
-        AND u.role = 'voter'
-        AND u.position = 'non-academic'
-  ");
-  $stmt->execute([':eid' => $eid]);
-  $votedIdsForElection = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
-  $votedSetForElection = array_flip($votedIdsForElection);
+  // 3) Votes breakdown per eligible voter (with abstain logic)
+  $totalVoted   = 0;
+  $abstainCount = 0;
 
-  $totalVoted = 0;
-  foreach ($eligibleForElection as $uid => $_) {
-      if (isset($votedSetForElection[$uid])) {
-          $totalVoted++;
+  if ($totalEligible > 0) {
+      // a) Gawing listahan ng eligible user_ids
+      $eligibleIds = array_keys($eligibleForElection);
+
+      // b) Query votes for this election & eligible voters only,
+      //    may breakdown kung abstain o normal
+      $placeholders = implode(',', array_fill(0, count($eligibleIds), '?'));
+      $sqlVotes = "
+          SELECT
+              voter_id,
+              SUM(CASE WHEN is_abstain = 1 THEN 1 ELSE 0 END) AS abstain_rows,
+              SUM(CASE WHEN is_abstain = 0 THEN 1 ELSE 0 END) AS normal_rows
+          FROM votes
+          WHERE election_id = ?
+            AND voter_id IN ($placeholders)
+          GROUP BY voter_id
+      ";
+      $params = array_merge([$eid], $eligibleIds);
+      $stmtV  = $pdo->prepare($sqlVotes);
+      $stmtV->execute($params);
+      $rowsV = $stmtV->fetchAll();
+
+      // c) totalVoted = lahat ng eligible na may kahit anong record sa election
+      $totalVoted = count($rowsV);
+
+      // d) Abstained = may abstain row, walang normal row
+      foreach ($rowsV as $vr) {
+          $abRows   = (int)($vr['abstain_rows'] ?? 0);
+          $normRows = (int)($vr['normal_rows'] ?? 0);
+          if ($abRows > 0 && $normRows === 0) {
+              $abstainCount++;
+          }
       }
   }
 
+  // 4) Rates
   $turnoutRate = $totalEligible > 0
       ? round(($totalVoted / $totalEligible) * 100, 1)
+      : 0.0;
+
+  $absRate = $totalEligible > 0
+      ? round(($abstainCount / $totalEligible) * 100, 1)
       : 0.0;
 
   $ctxElectionStats[] = [
@@ -558,11 +664,14 @@ foreach ($ctxYearElections as $erow) {
       'total_eligible' => $totalEligible,
       'total_voted'    => $totalVoted,
       'turnout_rate'   => $turnoutRate,
+      'abstain_count'  => $abstainCount,
+      'abstain_rate'   => $absRate,
       'status'         => $erow['status'],
   ];
 }
 
 $pageTitle = 'Non-Academic Election Analytics';
+$reportDownloadUrl = 'download_nonacademic_report.php?id=' . $electionId;
 
 include 'sidebar.php';
 ?>
@@ -744,7 +853,7 @@ include 'sidebar.php';
             <div class="mt-4 md:mt-0 flex items-center space-x-3">
               <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold shadow-md
                     <?= $status === 'completed' ? 'bg-green-500 text-white' : 
-                       ($status === 'ongoing' ? 'bg-blue-500 text-white' : 'bg-yellow-600 text-white') ?>">
+                      ($status === 'ongoing' ? 'bg-blue-500 text-white' : 'bg-yellow-600 text-white') ?>">
                 <?php if ($status === 'completed'): ?>
                   <i class="fas fa-check-circle mr-2"></i> Completed
                 <?php elseif ($status === 'ongoing'): ?>
@@ -753,6 +862,15 @@ include 'sidebar.php';
                   <i class="fas fa-hourglass-start mr-2"></i> Upcoming
                 <?php endif; ?>
               </span>
+
+              <!-- Download report button -->
+              <a href="<?= htmlspecialchars($reportDownloadUrl) ?>"
+                class="inline-flex items-center px-4 py-2 rounded-md shadow-md 
+                        bg-[#FFD166] hover:bg-[#E0B453] 
+                        text-[#154734] text-sm font-semibold transition">
+                <i class="fas fa-file-pdf mr-2 text-[#154734]"></i>
+                Download Election Report
+              </a>
             </div>
           </div>
         </div>
@@ -1070,6 +1188,7 @@ include 'sidebar.php';
                         class="block w-48 px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm">
                   <option value="elections">Elections vs Turnout</option>
                   <option value="voters">Voters vs Turnout</option>
+                  <option value="abstained">Abstained</option>
                 </select>
               </div>
 
@@ -1207,7 +1326,7 @@ function getFullDepartmentName(deptCode) {
 
 let turnoutChartInstance = null;
 
-// Current state
+// Current state (for first chart: department/status)
 let currentState = {
   breakdownType: 'department',
   filterValue:   'all'
@@ -1561,8 +1680,9 @@ function showChartNoDataMessage(message = 'No data available for chart') {
   }
 }
 </script>
+
 <script>
-// === Non-Academic Elections vs Turnout (Year Range) ===
+// === Non-Academic Elections / Employees / Abstained vs Turnout (Year + Election) ===
 
 // PHP → JS data
 const ctxTurnoutYears   = <?= json_encode(array_keys($turnoutRangeData)) ?>;
@@ -1571,19 +1691,24 @@ const ctxTotalEligible  = <?= json_encode(array_column($turnoutRangeData, 'total
 const ctxTotalVoted     = <?= json_encode(array_column($turnoutRangeData, 'total_voted')) ?>;
 const ctxTurnoutRates   = <?= json_encode(array_column($turnoutRangeData, 'turnout_rate')) ?>;
 
-// Per-election stats (focus year)
+// Abstain by year (derived in PHP)
+const ctxAbstainYears      = <?= json_encode($abstainYears) ?>;
+const ctxAbstainCountsYear = <?= json_encode($abstainCountsYear) ?>;
+const ctxAbstainRatesYear  = <?= json_encode($abstainRatesYear) ?>;
+
+// Per-election stats (focus year) – includes abstain_count, abstain_rate
 const ctxElectionStats = <?= json_encode($ctxElectionStats) ?>;
 
 const ctxChartData = {
   elections: {
     year: {
-      labels: ctxTurnoutYears,
+      labels:         ctxTurnoutYears,
       electionCounts: ctxElectionCounts,
       turnoutRates:   ctxTurnoutRates
     },
     election: {
       labels:        ctxElectionStats.map(e => e.title),
-      electionCounts: ctxElectionStats.map(e => 1), // one bar per election
+      electionCounts: ctxElectionStats.map(e => 1),
       turnoutRates:   ctxElectionStats.map(e => e.turnout_rate)
     }
   },
@@ -1598,11 +1723,23 @@ const ctxChartData = {
       eligibleCounts: ctxElectionStats.map(e => e.total_eligible),
       turnoutRates:   ctxElectionStats.map(e => e.turnout_rate)
     }
+  },
+  abstained: {
+    year: {
+      labels:        ctxAbstainYears,
+      abstainCounts: ctxAbstainCountsYear,
+      abstainRates:  ctxAbstainRatesYear
+    },
+    election: {
+      labels:        ctxElectionStats.map(e => e.title),
+      abstainCounts: ctxElectionStats.map(e => e.abstain_count || 0),
+      abstainRates:  ctxElectionStats.map(e => e.abstain_rate  || 0)
+    }
   }
 };
 
-let ctxCurrentSeries    = 'elections';
-let ctxCurrentBreakdown = 'year';
+let ctxCurrentSeries    = 'elections'; // 'elections' | 'voters' | 'abstained'
+let ctxCurrentBreakdown = 'year';      // 'year' | 'election'
 let ctxChartInstance    = null;
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -1656,32 +1793,72 @@ function renderCtxChartAndTable() {
   let labels   = [];
   let leftData = [];
   let rightData= [];
+  let leftLabel;
+  let rightLabel;
   let titleText;
 
   if (ctxCurrentSeries === 'elections') {
     if (ctxCurrentBreakdown === 'year') {
-      labels   = ctxChartData.elections.year.labels;
-      leftData = ctxChartData.elections.year.electionCounts;
-      rightData= ctxChartData.elections.year.turnoutRates;
-      titleText= 'Elections vs Turnout Rate (By Year)';
+      labels    = ctxChartData.elections.year.labels;
+      leftData  = ctxChartData.elections.year.electionCounts;
+      rightData = ctxChartData.elections.year.turnoutRates;
+      leftLabel = 'Number of Elections';
+      rightLabel= 'Turnout Rate (%)';
+      titleText = 'Elections vs Turnout Rate (By Year)';
     } else {
-      labels   = ctxChartData.elections.election.labels;
-      leftData = ctxChartData.elections.election.electionCounts;
-      rightData= ctxChartData.elections.election.turnoutRates;
-      titleText= 'Elections vs Turnout Rate (By Election)';
+      labels    = ctxChartData.elections.election.labels;
+      leftData  = ctxChartData.elections.election.electionCounts;
+      rightData = ctxChartData.elections.election.turnoutRates;
+      leftLabel = 'Elections';
+      rightLabel= 'Turnout Rate (%)';
+      titleText = 'Elections vs Turnout Rate (By Election, current year)';
     }
-  } else {
+  } else if (ctxCurrentSeries === 'voters') {
     if (ctxCurrentBreakdown === 'year') {
-      labels   = ctxChartData.voters.year.labels;
-      leftData = ctxChartData.voters.year.eligibleCounts;
-      rightData= ctxChartData.voters.year.turnoutRates;
-      titleText= 'Voters vs Turnout Rate (By Year)';
+      labels    = ctxChartData.voters.year.labels;
+      leftData  = ctxChartData.voters.year.eligibleCounts;
+      rightData = ctxChartData.voters.year.turnoutRates;
+      leftLabel = 'Eligible Voters';
+      rightLabel= 'Turnout Rate (%)';
+      titleText = 'Voters vs Turnout Rate (By Year)';
     } else {
-      labels   = ctxChartData.voters.election.labels;
-      leftData = ctxChartData.voters.election.eligibleCounts;
-      rightData= ctxChartData.voters.election.turnoutRates;
-      titleText= 'Voters vs Turnout Rate (By Election)';
+      labels    = ctxChartData.voters.election.labels;
+      leftData  = ctxChartData.voters.election.eligibleCounts;
+      rightData = ctxChartData.voters.election.turnoutRates;
+      leftLabel = 'Eligible Voters (per election)';
+      rightLabel= 'Turnout Rate (%)';
+      titleText = 'Voters vs Turnout Rate (By Election, current year)';
     }
+  } else { // abstained
+    if (ctxCurrentBreakdown === 'year') {
+      labels    = ctxChartData.abstained.year.labels;
+      leftData  = ctxChartData.abstained.year.abstainCounts;
+      rightData = ctxChartData.abstained.year.abstainRates;
+      leftLabel = 'Abstained Employees';
+      rightLabel= 'Abstain Rate (%)';
+      titleText = 'Abstained Employees (By Year)';
+    } else {
+      labels    = ctxChartData.abstained.election.labels;
+      leftData  = ctxChartData.abstained.election.abstainCounts;
+      rightData = ctxChartData.abstained.election.abstainRates;
+      leftLabel = 'Abstained Employees';
+      rightLabel= 'Abstain Rate (%)';
+      titleText = 'Abstained Employees (By Election, current year)';
+    }
+  }
+
+  // Colors: abstain = red/orange, others = green/yellow
+  let barColor, barBorder, rateColor, rateBorder;
+  if (ctxCurrentSeries === 'abstained') {
+    barColor   = '#EF4444';
+    barBorder  = '#B91C1C';
+    rateColor  = '#F97316';
+    rateBorder = '#C2410C';
+  } else {
+    barColor   = '#1E6F46';
+    barBorder  = '#154734';
+    rateColor  = '#FFD166';
+    rateBorder = '#F59E0B';
   }
 
   ctxChartInstance = new Chart(ctx, {
@@ -1690,21 +1867,19 @@ function renderCtxChartAndTable() {
       labels,
       datasets: [
         {
-          label: ctxCurrentSeries === 'elections'
-            ? (ctxCurrentBreakdown === 'year' ? 'Number of Elections' : 'Elections')
-            : (ctxCurrentBreakdown === 'year' ? 'Eligible Voters' : 'Eligible Voters (per election)'),
+          label: leftLabel,
           data: leftData,
-          backgroundColor: '#1E6F46',
-          borderColor: '#154734',
+          backgroundColor: barColor,
+          borderColor: barBorder,
           borderWidth: 1,
           borderRadius: 4,
           yAxisID: 'y'
         },
         {
-          label: 'Turnout Rate (%)',
+          label: rightLabel,
           data: rightData,
-          backgroundColor: '#FFD166',
-          borderColor: '#F59E0B',
+          backgroundColor: rateColor,
+          borderColor: rateBorder,
           borderWidth: 1,
           borderRadius: 4,
           yAxisID: 'y1'
@@ -1733,7 +1908,7 @@ function renderCtxChartAndTable() {
           callbacks: {
             label: (context) => {
               const dsLabel = context.dataset.label || '';
-              if (dsLabel.includes('Turnout')) {
+              if (dsLabel.includes('Rate')) {
                 return `${dsLabel}: ${context.raw}%`;
               }
               return `${dsLabel}: ${context.raw.toLocaleString()}`;
@@ -1747,9 +1922,7 @@ function renderCtxChartAndTable() {
           position: 'left',
           title: {
             display: true,
-            text: ctxCurrentSeries === 'elections'
-              ? (ctxCurrentBreakdown === 'year' ? 'Number of Elections' : 'Elections')
-              : 'Number of Voters',
+            text: leftLabel,
             font: { size: 14, weight: 'bold' }
           }
         },
@@ -1759,7 +1932,7 @@ function renderCtxChartAndTable() {
           position: 'right',
           title: {
             display: true,
-            text: 'Turnout Rate (%)',
+            text: rightLabel,
             font: { size: 14, weight: 'bold' }
           },
           ticks: { callback: v => v + '%' },
@@ -1779,6 +1952,97 @@ function renderCtxYearTable() {
 
   container.innerHTML = '';
 
+  // Abstained – election breakdown
+  if (ctxCurrentSeries === 'abstained' && ctxCurrentBreakdown === 'election') {
+    if (!ctxElectionStats || ctxElectionStats.length === 0) {
+      container.innerHTML = `
+        <div class="table-no-data">
+          <i class="fas fa-table text-gray-400 text-4xl mb-3"></i>
+          <p class="text-gray-600 text-lg">No abstain data for this year.</p>
+        </div>`;
+      return;
+    }
+
+    const table = document.createElement('table');
+    table.className = 'data-table';
+
+    const thead = document.createElement('thead');
+    thead.innerHTML = `
+      <tr>
+        <th>Election</th>
+        <th class="text-center">Eligible Employees</th>
+        <th class="text-center">Abstained</th>
+        <th class="text-center">Abstain Rate</th>
+      </tr>`;
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    ctxElectionStats.forEach(row => {
+      const count = row.abstain_count ?? 0;
+      const rate  = row.abstain_rate  ?? 0;
+      const cls   = rate >= 70 ? 'text-red-600'
+                 : rate >= 40 ? 'text-yellow-600'
+                              : 'text-green-600';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="px-6 py-4 whitespace-nowrap font-medium">${row.title}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-center">${(row.total_eligible ?? 0).toLocaleString()}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-center">${count.toLocaleString()}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-center"><span class="${cls}">${rate}%</span></td>`;
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    container.appendChild(table);
+    return;
+  }
+
+  // Abstained – year breakdown
+  if (ctxCurrentSeries === 'abstained' && ctxCurrentBreakdown === 'year') {
+    if (!ctxAbstainYears || ctxAbstainYears.length === 0) {
+      container.innerHTML = `
+        <div class="table-no-data">
+          <i class="fas fa-table text-gray-400 text-4xl mb-3"></i>
+          <p class="text-gray-600 text-lg">No non-academic employee abstain data available.</p>
+        </div>`;
+      return;
+    }
+
+    const table = document.createElement('table');
+    table.className = 'data-table';
+
+    const thead = document.createElement('thead');
+    thead.innerHTML = `
+      <tr>
+        <th>Year</th>
+        <th class="text-center">Abstained Employees</th>
+        <th class="text-center">Abstain Rate</th>
+      </tr>`;
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    ctxAbstainYears.forEach((year, idx) => {
+      const count = ctxAbstainCountsYear[idx] ?? 0;
+      const rate  = ctxAbstainRatesYear[idx]  ?? 0;
+      const cls   = rate >= 70 ? 'text-red-600'
+                 : rate >= 40 ? 'text-yellow-600'
+                              : 'text-green-600';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="px-6 py-4 whitespace-nowrap font-medium">${year}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-center">${count.toLocaleString()}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-center"><span class="${cls}">${rate}%</span></td>`;
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    container.appendChild(table);
+    return;
+  }
+
+  // Normal elections/voters – election breakdown
   if (ctxCurrentBreakdown === 'election') {
     if (!ctxElectionStats || ctxElectionStats.length === 0) {
       container.innerHTML = `
@@ -1796,7 +2060,7 @@ function renderCtxYearTable() {
     thead.innerHTML = `
       <tr>
         <th>Election</th>
-        <th class="text-center">Eligible Voters (seat-wide)</th>
+        <th class="text-center">Eligible Employees</th>
         <th class="text-center">Voters Participated</th>
         <th class="text-center">Turnout Rate</th>
         <th class="text-center">Status</th>
@@ -1824,7 +2088,7 @@ function renderCtxYearTable() {
     return;
   }
 
-  // Year mode table
+  // Year mode – elections/voters
   const labels    = ctxTurnoutYears;
   const counts    = ctxElectionCounts;
   const eligibles = ctxTotalEligible;
@@ -1835,7 +2099,7 @@ function renderCtxYearTable() {
     container.innerHTML = `
       <div class="table-no-data">
         <i class="fas fa-table text-gray-400 text-4xl mb-3"></i>
-        <p class="text-gray-600 text-lg">No non-academic turnout data available.</p>
+        <p class="text-gray-600 text-lg">No non-academic employee turnout data available.</p>
       </div>`;
     return;
   }
@@ -1848,7 +2112,7 @@ function renderCtxYearTable() {
     <tr>
       <th>Year</th>
       <th class="text-center">Elections</th>
-      <th class="text-center">Eligible Voters</th>
+      <th class="text-center">Eligible Employees</th>
       <th class="text-center">Voters Participated</th>
       <th class="text-center">Turnout Rate</th>
     </tr>`;
@@ -1874,5 +2138,6 @@ function renderCtxYearTable() {
   container.appendChild(table);
 }
 </script>
+
 </body>
 </html>

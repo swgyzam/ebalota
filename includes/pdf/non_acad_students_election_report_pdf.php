@@ -1,31 +1,27 @@
 <?php
 /**
- * csg_election_report_pdf.php
+ * nonacad_election_report_pdf.php
  *
- * CSG-specific election report generator (styled, with summary,
- * college breakdown, candidate turnout, and signatory).
+ * Non-Academic Student (NAS) election report generator.
+ * Similar style to CSG/College/Faculty reports, but for SCOPE_NONACAD_STUDENT.
  */
 
-if (!function_exists('generateCSGElectionReportPDF')) {
-    function generateCSGElectionReportPDF(PDO $pdo, int $electionId, int $adminUserId, int $scopeId): void
+if (!function_exists('generateNonAcadElectionReportPDF')) {
+    function generateNonAcadElectionReportPDF(PDO $pdo, int $electionId, int $adminUserId, int $scopeId): void
     {
         /* ======================================================
            1. LOAD DEPENDENCIES
            ====================================================== */
-
-        // TCPDF library
         require_once __DIR__ . '/../../tcpdf/tcpdf.php';
 
-        // Shared helpers
-        if (!defined('SCOPE_SPECIAL_CSG')) {
+        if (!defined('SCOPE_NONACAD_STUDENT')) {
             require_once __DIR__ . '/../analytics_scopes.php';
         }
         require_once __DIR__ . '/../../admin_functions.php';
 
         /* ======================================================
-           2. FETCH ELECTION + PERMISSION GUARDS
+           2. FETCH ELECTION + GUARDS
            ====================================================== */
-
         $stmt = $pdo->prepare("SELECT * FROM elections WHERE election_id = ?");
         $stmt->execute([$electionId]);
         $election = $stmt->fetch();
@@ -34,68 +30,68 @@ if (!function_exists('generateCSGElectionReportPDF')) {
             die('Election not found.');
         }
 
-        if (($election['election_scope_type'] ?? '') !== 'Special-Scope') {
-            die('This election is not a CSG (Special-Scope) election.');
+        if (($election['election_scope_type'] ?? '') !== SCOPE_NONACAD_STUDENT) {
+            die('This election is not a Non-Academic-Student election.');
         }
 
-        if ((int) ($election['owner_scope_id'] ?? 0) !== $scopeId) {
-            die('You do not have permission to generate this CSG report.');
+        if ((int)($election['owner_scope_id'] ?? 0) !== $scopeId) {
+            die('You do not have permission to generate this Non-Academic Student report.');
         }
 
         /* ======================================================
            3. FETCH ADMIN + SCOPE SEAT (FOR SIGNATORY)
            ====================================================== */
-
         $stmt = $pdo->prepare("SELECT first_name, last_name, email FROM users WHERE user_id = ?");
         $stmt->execute([$adminUserId]);
         $admin = $stmt->fetch() ?: ['first_name' => '', 'last_name' => '', 'email' => ''];
 
         $adminName = trim(($admin['first_name'] ?? '') . ' ' . ($admin['last_name'] ?? ''));
         if ($adminName === '') {
-            $adminName = $admin['email'] ?? 'Admin #' . $adminUserId;
+            $adminName = $admin['email'] ?? ('Admin #' . $adminUserId);
         }
 
-        // Scope seat details for this CSG admin
         $mySeat   = null;
-        $csgSeats = getScopeSeats($pdo, SCOPE_SPECIAL_CSG);
-
-        foreach ($csgSeats as $seat) {
-            if ((int) $seat['scope_id'] === $scopeId) {
+        $nasSeats = getScopeSeats($pdo, SCOPE_NONACAD_STUDENT);
+        foreach ($nasSeats as $seat) {
+            if ((int)$seat['scope_id'] === $scopeId) {
                 $mySeat = $seat;
                 break;
             }
         }
 
-        $scopeDescription = 'CSG Admin';
-        if ($mySeat) {
-            $scopeDescription = formatScopeDetails(
-                $mySeat['scope_type'],
-                json_encode($mySeat['scope_details'])
-            );
+        if (!$mySeat) {
+            die('Non-Academic Student scope seat not found.');
         }
 
+        $scopeDescription = formatScopeDetails(
+            $mySeat['scope_type'],
+            json_encode($mySeat['scope_details'])
+        );
+
         /* ======================================================
-           4. ELIGIBLE VOTERS + TURNOUT (CSG GLOBAL)
+           4. ELIGIBLE VOTERS (NAS) + TURNOUT
            ====================================================== */
 
         $yearEnd = $election['end_datetime'] ?? null;
 
-        // All CSG-eligible students as of election end
-        $scopedStudents = getScopedVoters(
+        // All NAS voters for this seat as of election end
+        $seatStudentsAtEnd = getScopedVoters(
             $pdo,
-            SCOPE_SPECIAL_CSG,
-            null, // CSG is global
+            SCOPE_NONACAD_STUDENT,
+            $scopeId,
             [
                 'year_end'      => $yearEnd,
                 'include_flags' => true,
             ]
         );
 
-        $eligibleStudentsForElection = [];
-        foreach ($scopedStudents as $v) {
-            $eligibleStudentsForElection[$v['user_id']] = $v;
+        // For this election, all seat students at end are eligible (no extra filter)
+        $eligibleForElection = [];
+        foreach ($seatStudentsAtEnd as $stu) {
+            $eligibleForElection[$stu['user_id']] = $stu;
         }
-        $totalEligibleVoters = count($eligibleStudentsForElection);
+
+        $totalEligibleVoters = count($eligibleForElection);
 
         // Distinct voters who voted in this election
         $stmt = $pdo->prepare("SELECT DISTINCT voter_id FROM votes WHERE election_id = ?");
@@ -104,7 +100,7 @@ if (!function_exists('generateCSGElectionReportPDF')) {
         $votedSet = array_flip($votedIds);
 
         $totalVotesCast = 0;
-        foreach ($eligibleStudentsForElection as $uid => $_row) {
+        foreach ($eligibleForElection as $uid => $_) {
             if (isset($votedSet[$uid])) {
                 $totalVotesCast++;
             }
@@ -112,19 +108,29 @@ if (!function_exists('generateCSGElectionReportPDF')) {
 
         $totalDidNotVote = max(0, $totalEligibleVoters - $totalVotesCast);
 
-        // Abstain counts per election (still computed, but not shown in summary table)
+        // For abstain stats, use all seat students (no year_end limit)
+        $seatStudentsAll = getScopedVoters(
+            $pdo,
+            SCOPE_NONACAD_STUDENT,
+            $scopeId,
+            [
+                'year_end'      => null,
+                'include_flags' => true,
+            ]
+        );
+
         $perElectionStats = computePerElectionStatsWithAbstain(
             $pdo,
-            SCOPE_SPECIAL_CSG,
+            SCOPE_NONACAD_STUDENT,
             $scopeId,
-            $scopedStudents,
+            $seatStudentsAll,
             (int) date('Y', strtotime($election['start_datetime']))
         );
 
         $totalAbstained = 0;
         foreach ($perElectionStats as $row) {
-            if ((int) $row['election_id'] === $electionId) {
-                $totalAbstained = (int) ($row['abstain_count'] ?? 0);
+            if ((int)$row['election_id'] === $electionId) {
+                $totalAbstained = (int)($row['abstain_count'] ?? 0);
                 break;
             }
         }
@@ -134,29 +140,26 @@ if (!function_exists('generateCSGElectionReportPDF')) {
             : 0.0;
 
         /* ======================================================
-           5. COLLEGE + DEPARTMENT + COURSE BREAKDOWN
+           5. COLLEGE + DEPARTMENT + COURSE BREAKDOWN (PER COLLEGE)
            ====================================================== */
 
-        $collegesMap = getColleges(); // for nicer display
+        // Optional: pretty college names if helper exists
+        $collegesMap          = function_exists('getColleges') ? getColleges() : [];
 
         $collegeBuckets       = []; // [college => ['eligible' => x, 'voted' => y]]
         $collegeDeptBuckets   = []; // [college][department1] => ['eligible' => x, 'voted' => y]
         $collegeCourseBuckets = []; // [college][course]      => ['eligible' => x, 'voted' => y]
 
-        foreach ($eligibleStudentsForElection as $uid => $v) {
+        foreach ($eligibleForElection as $uid => $v) {
             $college = $v['department']  ?: 'UNSPECIFIED';
             $dept    = $v['department1'] ?: 'General';
             $course  = $v['course']      ?: 'UNSPECIFIED';
 
             // College level
             if (!isset($collegeBuckets[$college])) {
-                $collegeBuckets[$college] = [
-                    'eligible' => 0,
-                    'voted'    => 0,
-                ];
+                $collegeBuckets[$college] = ['eligible' => 0, 'voted' => 0];
             }
             $collegeBuckets[$college]['eligible']++;
-
             if (isset($votedSet[$uid])) {
                 $collegeBuckets[$college]['voted']++;
             }
@@ -166,10 +169,7 @@ if (!function_exists('generateCSGElectionReportPDF')) {
                 $collegeDeptBuckets[$college] = [];
             }
             if (!isset($collegeDeptBuckets[$college][$dept])) {
-                $collegeDeptBuckets[$college][$dept] = [
-                    'eligible' => 0,
-                    'voted'    => 0,
-                ];
+                $collegeDeptBuckets[$college][$dept] = ['eligible' => 0, 'voted' => 0];
             }
             $collegeDeptBuckets[$college][$dept]['eligible']++;
             if (isset($votedSet[$uid])) {
@@ -181,10 +181,7 @@ if (!function_exists('generateCSGElectionReportPDF')) {
                 $collegeCourseBuckets[$college] = [];
             }
             if (!isset($collegeCourseBuckets[$college][$course])) {
-                $collegeCourseBuckets[$college][$course] = [
-                    'eligible' => 0,
-                    'voted'    => 0,
-                ];
+                $collegeCourseBuckets[$college][$course] = ['eligible' => 0, 'voted' => 0];
             }
             $collegeCourseBuckets[$college][$course]['eligible']++;
             if (isset($votedSet[$uid])) {
@@ -192,11 +189,11 @@ if (!function_exists('generateCSGElectionReportPDF')) {
             }
         }
 
-        // ---- College Summary (used for ordering + top table) ----
+        // Build collegeSummary for ordering + top table
         $collegeSummary = [];
-        foreach ($collegeBuckets as $college => $data) {
-            $eligible = (int) $data['eligible'];
-            $voted    = (int) $data['voted'];
+        foreach ($collegeBuckets as $college => $stats) {
+            $eligible = (int)$stats['eligible'];
+            $voted    = (int)$stats['voted'];
             $rate     = $eligible > 0 ? round(($voted / $eligible) * 100, 1) : 0.0;
 
             $collegeSummary[] = [
@@ -206,15 +203,11 @@ if (!function_exists('generateCSGElectionReportPDF')) {
                 'rate'     => $rate,
             ];
         }
-
-        usort($collegeSummary, function ($a, $b) {
-            return strcmp($a['college'], $b['college']);
-        });
+        usort($collegeSummary, fn($a, $b) => strcmp($a['college'], $b['college']));
 
         /* ======================================================
-           6. CANDIDATES GROUPED BY POSITION (TIE-AWARE RANKING)
+           6. CANDIDATES GROUPED BY POSITION
            ====================================================== */
-
         $sql = "
            SELECT 
                ec.position,
@@ -230,6 +223,7 @@ if (!function_exists('generateCSGElectionReportPDF')) {
            GROUP BY ec.position, c.id, c.first_name, c.last_name
            ORDER BY ec.position, vote_count DESC
         ";
+
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$electionId]);
         $allCandidates = $stmt->fetchAll();
@@ -243,33 +237,36 @@ if (!function_exists('generateCSGElectionReportPDF')) {
             $positions[$pos][] = $row;
         }
 
-        // Tie-aware ranking (1,1,3 style)
+        // Tie-aware ranking: same vote_count => same rank, next rank skips (1,1,3,...)
         foreach ($positions as $pos => &$cands) {
+            // candidates are already sorted by vote_count DESC via SQL
             $prevVoteCount = null;
             $prevRank      = null;
 
-            foreach ($cands as $index => &$cand) {
-                $votes = (int)($cand['vote_count'] ?? 0);
+            foreach ($cands as $index => &$c) {
+                $votes = (int)($c['vote_count'] ?? 0);
 
                 if ($votes > 0 && $prevVoteCount !== null && $votes === $prevVoteCount) {
-                    $cand['rank'] = $prevRank;
+                    // tie with previous candidate
+                    $c['rank'] = $prevRank;
                 } else {
-                    $cand['rank'] = $index + 1;
-                    $prevRank     = $cand['rank'];
+                    // new rank
+                    $c['rank'] = $index + 1;
+                    $prevRank  = $c['rank'];
                 }
 
                 $prevVoteCount = $votes;
             }
-            unset($cand);
+            unset($c);
         }
         unset($cands);
 
-        // ==========================
-        // CUSTOM TCPDF CLASS (PAGE NUMBERS)
-        // ==========================
-        class PDF extends TCPDF {
+        /* ======================================================
+           7. CUSTOM TCPDF CLASS (FOOTER)
+           ====================================================== */
+        class NonAcadPDF extends TCPDF {
             public function Footer() {
-                $this->SetY(-15);
+                $this->setY(-15);
                 $this->SetFont('helvetica', '', 9);
                 $pageText = 'Page ' . $this->getAliasNumPage() . ' of ' . $this->getAliasNbPages();
                 $this->Cell(0, 10, $pageText, 0, 0, 'L');
@@ -277,20 +274,19 @@ if (!function_exists('generateCSGElectionReportPDF')) {
         }
 
         /* ======================================================
-           7. INIT TCPDF + THEME COLORS + LOGO
+           8. INIT PDF
            ====================================================== */
-
-        $pdf = new PDF('P', 'mm', 'A4', true, 'UTF-8', false);
+        $pdf = new NonAcadPDF('P', 'mm', 'A4', true, 'UTF-8', false);
         $pdf->SetCreator('eBalota');
         $pdf->SetAuthor($adminName);
-        $pdf->SetTitle('Election Report - ' . ($election['title'] ?? ''));
-        $pdf->SetSubject('CSG Election Report');
+        $pdf->SetTitle('Non-Academic Student Election Report - ' . ($election['title'] ?? ''));
+        $pdf->SetSubject('Non-Academic Student Election Report');
 
         $pdf->SetMargins(15, 15, 15);
         $pdf->SetAutoPageBreak(true, 20);
         $pdf->AddPage();
 
-        // Place logo (30mm width) at top-left
+        // Logo
         $logoPath = __DIR__ . '/../../assets/img/ebalota_logo.jpg';
         if (file_exists($logoPath)) {
             $pdf->Image($logoPath, 15, 8, 30);
@@ -298,12 +294,14 @@ if (!function_exists('generateCSGElectionReportPDF')) {
 
         $pdf->SetY(20);
 
-        // Header bar
+        /* ======================================================
+           9. HEADER BAR
+           ====================================================== */
         $headerHtml = '
         <table cellpadding="4" cellspacing="0" border="0" width="100%">
           <tr>
             <td width="60%" style="background-color:#154734;color:#ffffff;font-size:13pt;font-weight:bold;">
-              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;CSG Election Report
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Non-Academic Student Election Report
             </td>
             <td width="40%" align="right" style="background-color:#154734;color:#FFD166;font-size:9pt;">
               eBalota &nbsp;&bull;&nbsp; Cavite State University
@@ -317,13 +315,11 @@ if (!function_exists('generateCSGElectionReportPDF')) {
         </table>
         ';
         $pdf->writeHTML($headerHtml, true, false, true, false, '');
-
         $pdf->Ln(4);
 
         /* ======================================================
-           8. ELECTION DETAILS (NEW ORDER, OLD SPACING)
+           10. ELECTION DETAILS
            ====================================================== */
-
         $start  = $election['start_datetime'] ?? '';
         $end    = $election['end_datetime']   ?? '';
         $status = ucfirst($election['status'] ?? '');
@@ -331,12 +327,14 @@ if (!function_exists('generateCSGElectionReportPDF')) {
         $startFormatted = $start ? date('Y-m-d h:i A', strtotime($start)) : '';
         $endFormatted   = $end   ? date('Y-m-d h:i A', strtotime($end))   : '';
 
+        $eligibleScopeText = 'Student voters (Non-Academic Student organizations)';
+
         $detailsHtml = '
         <h4 style="font-family: helvetica; font-size: 11pt; font-weight: bold;color:#154734;">Election Details</h4>
         <table cellpadding="2" cellspacing="0" border="0" width="100%" style="font-size:9.5pt;">
           <tr>
-            <td width="25%"><b>Scope:</b></td>
-            <td width="30%">CSG (Special-Scope)</td>
+            <td width="25%"><b>Scope Type:</b></td>
+            <td width="30%">Non-Academic-Student</td>
             <td width="20%"><b>Status:</b></td>
             <td width="25%">' . htmlspecialchars($status) . '</td>
           </tr>
@@ -348,7 +346,9 @@ if (!function_exists('generateCSGElectionReportPDF')) {
           </tr>
           <tr>
             <td width="25%"><b>Eligible Voters:</b></td>
-            <td colspan="3">All student voters (University wide)</td>
+            <td width="30%">' . htmlspecialchars($eligibleScopeText) . '</td>
+            <td width="20%"><b>Scope Seat ID:</b></td>
+            <td width="25%">' . htmlspecialchars((string)$scopeId) . '</td>
           </tr>
         </table>
         ';
@@ -356,9 +356,8 @@ if (!function_exists('generateCSGElectionReportPDF')) {
         $pdf->Ln(3);
 
         /* ======================================================
-           9. ELECTION SUMMARY (NO ABSTAIN COLUMN)
+           11. ELECTION SUMMARY (INCLUDING ABSTAINED)
            ====================================================== */
-
         $summaryHtml = '
         <h4 style="font-family: helvetica; font-size: 11pt; font-weight: bold;color:#154734;">Election Summary</h4>
         <table cellpadding="4" cellspacing="0" border="1" width="100%" style="font-size:9.5pt;border-color:#d1d5db;">
@@ -380,9 +379,8 @@ if (!function_exists('generateCSGElectionReportPDF')) {
         $pdf->Ln(3);
 
         /* ======================================================
-           10. TURNOUT BY COLLEGE
+           12. TURNOUT BY COLLEGE
            ====================================================== */
-
         if (!empty($collegeSummary)) {
             $collegeHtml = '
             <h4 style="font-family: helvetica; font-size: 11pt; font-weight: bold;color:#154734;">Turnout by College</h4>
@@ -411,12 +409,12 @@ if (!function_exists('generateCSGElectionReportPDF')) {
 
             $collegeHtml .= '</table>';
             $pdf->writeHTML($collegeHtml, true, false, true, false, '');
+            $pdf->Ln(3);
         }
 
         /* ======================================================
-           10.B TURNOUT BY DEPARTMENT (PER COLLEGE)
+           13. TURNOUT BY DEPARTMENT (PER COLLEGE)
            ====================================================== */
-
         if (!empty($collegeDeptBuckets)) {
             $pdf->Ln(4);
             $pdf->writeHTML(
@@ -453,7 +451,7 @@ if (!function_exists('generateCSGElectionReportPDF')) {
                     false,
                     ''
                 );
-                $pdf->Ln(1.5); // extra space before table
+                $pdf->Ln(1.5);
 
                 $deptHtml = '
                 <table cellpadding="4" cellspacing="0" border="1" width="100%" style="font-size:9.5pt;border-color:#d1d5db;">
@@ -466,8 +464,8 @@ if (!function_exists('generateCSGElectionReportPDF')) {
                 ';
 
                 foreach ($deptData as $deptName => $stats) {
-                    $eligible = (int) $stats['eligible'];
-                    $voted    = (int) $stats['voted'];
+                    $eligible = (int)$stats['eligible'];
+                    $voted    = (int)$stats['voted'];
                     $rate     = $eligible > 0 ? round(($voted / $eligible) * 100, 1) : 0.0;
 
                     $deptHtml .= '
@@ -486,9 +484,8 @@ if (!function_exists('generateCSGElectionReportPDF')) {
         }
 
         /* ======================================================
-           10.C TURNOUT BY COURSE (PER COLLEGE)
+           13.B TURNOUT BY COURSE (PER COLLEGE)
            ====================================================== */
-
         if (!empty($collegeCourseBuckets)) {
             $pdf->Ln(4);
             $pdf->writeHTML(
@@ -525,7 +522,7 @@ if (!function_exists('generateCSGElectionReportPDF')) {
                     false,
                     ''
                 );
-                $pdf->Ln(1.5); // extra space before table
+                $pdf->Ln(1.5);
 
                 $courseHtml = '
                 <table cellpadding="4" cellspacing="0" border="1" width="100%" style="font-size:9.5pt;border-color:#d1d5db;">
@@ -538,8 +535,8 @@ if (!function_exists('generateCSGElectionReportPDF')) {
                 ';
 
                 foreach ($courseData as $courseName => $stats) {
-                    $eligible = (int) $stats['eligible'];
-                    $voted    = (int) $stats['voted'];
+                    $eligible = (int)$stats['eligible'];
+                    $voted    = (int)$stats['voted'];
                     $rate     = $eligible > 0 ? round(($voted / $eligible) * 100, 1) : 0.0;
 
                     $courseHtml .= '
@@ -558,14 +555,11 @@ if (!function_exists('generateCSGElectionReportPDF')) {
         }
 
         /* ======================================================
-           11. CANDIDATE TABLES PER POSITION
+           14. CANDIDATE POSITION RANKING (NEW PAGE)
            ====================================================== */
-
         if (!empty($positions)) {
-            // Start candidate section on a NEW page
             $pdf->AddPage();
 
-            // Section title
             $pdf->SetFont('helvetica', 'B', 12);
             $pdf->SetTextColor(21, 71, 52);
             $pdf->Cell(0, 8, "Candidate's Position Ranking", 0, 1, 'L');
@@ -578,25 +572,22 @@ if (!function_exists('generateCSGElectionReportPDF')) {
                 if ($firstPos) {
                     $firstPos = false;
                 } else {
-                    // extra spacing between different positions
                     $pdf->Ln(6);
                 }
 
                 $pdf->SetFont('helvetica', 'B', 11);
-                $pdf->SetTextColor(21, 71, 52); // dark green
+                $pdf->SetTextColor(21, 71, 52);
                 $pdf->Cell(0, 7, 'Position: ' . $posName, 0, 1, 'L');
                 $pdf->Ln(1);
 
                 $pdf->SetFont('helvetica', '', 9.5);
                 $pdf->SetTextColor(0, 0, 0);
 
-                // Compute total votes for this position (for % of position votes)
                 $positionTotalVotes = 0;
                 foreach ($cands as $cand) {
                     $positionTotalVotes += (int)($cand['vote_count'] ?? 0);
                 }
 
-                // Candidate table header
                 $html = '
                 <table cellpadding="3" cellspacing="0" border="1" width="100%" style="font-size:9pt;border-color:#d1d5db;">
                   <tr style="background-color:#154734;color:#ffffff;">
@@ -632,11 +623,10 @@ if (!function_exists('generateCSGElectionReportPDF')) {
         }
 
         /* ======================================================
-           12. SIGNATORY ON LAST PAGE (BOTTOM)
+           15. SIGNATORY
            ====================================================== */
-
         $pageHeight   = $pdf->getPageHeight();
-        $bottomMargin = $pdf->getBreakMargin(); // usually 20mm
+        $bottomMargin = $pdf->getBreakMargin();
         $currentY     = $pdf->GetY();
 
         if ($currentY > ($pageHeight - $bottomMargin - 60)) {
@@ -644,7 +634,7 @@ if (!function_exists('generateCSGElectionReportPDF')) {
         }
 
         $pdf->SetFont('helvetica', '', 11);
-        $pdf->SetY(-60); // position ~60mm from bottom
+        $pdf->SetY(-60);
 
         $generatedAt   = date('F d, Y h:i A');
         $electionTitle = $election['title'] ?? 'Election';
@@ -667,11 +657,10 @@ if (!function_exists('generateCSGElectionReportPDF')) {
         $pdf->writeHTML($signHtml, true, false, true, false, '');
 
         /* ======================================================
-           13. OUTPUT PDF
+           16. OUTPUT PDF
            ====================================================== */
-
-        $safeTitle = preg_replace('/[^A-Za-z0-9_\-]+/', '_', $election['title'] ?? 'election');
-        $pdf->Output($safeTitle . '_report.pdf', 'I');
+        $safeTitle = preg_replace('/[^A-Za-z0-9_\-]+/', '_', $election['title'] ?? 'non_acad_election');
+        $pdf->Output($safeTitle . '_non_acad_report.pdf', 'I');
         exit;
     }
 }

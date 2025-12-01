@@ -1663,7 +1663,22 @@ function computeTurnoutByYear(PDO $pdo, string $scopeType, ?int $scopeId, array 
  * Compute per-election stats (eligible, voted, turnout, abstain) for a given
  * scope + year.
  *
- * This is scope-based (election_scope_type + owner_scope_id), not assigned_admin_id.
+ * This version now aligns eligibility with the same filters used in the
+ * per-scope analytics pages:
+ *
+ *   - Always:
+ *       * created_at <= election end
+ *   - Academic-Student:
+ *       * respects election.allowed_courses (course codes → full names)
+ *   - Academic-Faculty:
+ *       * respects election.allowed_status (e.g. REGULAR, PROBATIONARY) if set
+ *   - Non-Academic-Employee:
+ *       * respects election.allowed_departments (department codes like ADMIN, LIBRARY, HR, ...)
+ *       * respects election.allowed_status if set
+ *
+ * For all scopes, abstainer definition:
+ *   * voter has at least one row with is_abstain = 1 for that election
+ *   * and has NO row with is_abstain = 0 for that election.
  *
  * @param PDO    $pdo
  * @param string $scopeType   one of SCOPE_* constants (e.g. SCOPE_ACAD_STUDENT)
@@ -1729,10 +1744,12 @@ function computePerElectionStatsWithAbstain(
             e.start_datetime,
             e.end_datetime,
             e.status,
-            e.allowed_courses
+            e.allowed_courses,
+            e.allowed_departments,
+            e.allowed_status
         FROM elections e
         WHERE e.election_scope_type = :stype
-          AND e.owner_scope_id = :sid
+          AND e.owner_scope_id      = :sid
           AND YEAR(e.start_datetime) = :year
         ORDER BY e.start_datetime ASC, e.election_id ASC
     ";
@@ -1747,57 +1764,115 @@ function computePerElectionStatsWithAbstain(
         return [];
     }
 
-    // 2) For each election, compute eligible / voted / abstain
     $results = [];
 
+    // 2) For each election, compute eligible / voted / abstain
     foreach ($elections as $erow) {
         $eid   = (int)$erow['election_id'];
         $title = $erow['title'];
         $end   = $erow['end_datetime'] ?: sprintf('%04d-12-31 23:59:59', $year);
 
-        // Parse allowed_courses (course codes) for this election
-        $allowedCodesNorm = [];
-        $rawAllowed = trim($erow['allowed_courses'] ?? '');
-        if ($rawAllowed !== '' && strcasecmp($rawAllowed, 'ALL') !== 0) {
-            $parts = array_filter(array_map('trim', explode(',', $rawAllowed)));
+        // --- Election-level filters ---
+
+        // Courses (for academic-student; other scopes just ignore if empty)
+        $allowedCourseCodes = [];
+        $rawAllowedCourses  = trim($erow['allowed_courses'] ?? '');
+        if ($rawAllowedCourses !== '' && strcasecmp($rawAllowedCourses, 'ALL') !== 0) {
+            $parts = array_filter(array_map('trim', explode(',', $rawAllowedCourses)));
             foreach ($parts as $c) {
-                $allowedCodesNorm[] = strtoupper($c);
+                $allowedCourseCodes[] = strtoupper($c);
             }
-            $allowedCodesNorm = array_unique($allowedCodesNorm);
+            $allowedCourseCodes = array_values(array_unique($allowedCourseCodes));
         }
 
-        // Eligible = scoped voters as of election end, optionally filtered by allowed_courses
+        // Allowed status (for faculty, non-acad employee, others if needed)
+        $allowedStatusCodes = [];
+        $restrictStatus     = false;
+        $rawAllowedStatus   = trim($erow['allowed_status'] ?? '');
+        if ($rawAllowedStatus !== '') {
+            $statusParts = array_filter(array_map('trim', explode(',', $rawAllowedStatus)));
+            $statusParts = array_map('strtoupper', $statusParts);
+            if ($statusParts && !in_array('ALL', $statusParts, true)) {
+                $allowedStatusCodes = $statusParts;
+                $restrictStatus     = true;
+            }
+        }
+
+        // Allowed departments (for Non-Academic-Employee scope)
+        $allowedDeptCodes = [];
+        $restrictDept     = false;
+        $rawAllowedDepts  = trim($erow['allowed_departments'] ?? '');
+        if ($rawAllowedDepts !== '') {
+            $deptParts = array_filter(array_map('trim', explode(',', $rawAllowedDepts)));
+            $deptParts = array_map('strtoupper', $deptParts);
+            if ($deptParts && !in_array('ALL', $deptParts, true)) {
+                $allowedDeptCodes = $deptParts;
+                $restrictDept     = true;
+            }
+        }
+
+        // 2a) Determine eligible IDs (per election end + filters)
         $eligibleIds = [];
 
         foreach ($scopedVoters as $v) {
             $createdAt = $v['created_at'] ?? null;
             if ($createdAt && $createdAt > $end) {
+                // Joined after this election ended → not eligible here
                 continue;
             }
 
-            // If election has specific allowed_courses, filter by course code
-            if (!empty($allowedCodesNorm)) {
+            // Scope-specific additional filters
+
+            // Academic-Student → respect allowed_courses (existing behaviour)
+            if (!empty($allowedCourseCodes)) {
                 $courseName = $v['course'] ?? '';
                 if ($courseName === '') {
                     continue;
                 }
-
-                // map election course codes -> full names
-                $fullAllowed = mapCourseCodesToFullNames($allowedCodesNorm);
+                // Map course codes → full names, then match against users.course
+                $fullAllowed = mapCourseCodesToFullNames($allowedCourseCodes);
                 if (!in_array($courseName, $fullAllowed, true)) {
                     continue;
                 }
             }
 
+            // Academic-Faculty → respect allowed_status if set
+            if ($scopeType === SCOPE_ACAD_FACULTY && $restrictStatus) {
+                $vStatus = strtoupper(trim($v['status'] ?? ''));
+                if (!in_array($vStatus, $allowedStatusCodes, true)) {
+                    continue;
+                }
+            }
+
+            // Non-Academic-Employee → respect allowed_departments + allowed_status
+            if ($scopeType === SCOPE_NONACAD_EMPLOYEE) {
+                if ($restrictDept) {
+                    $deptCode = strtoupper(trim($v['department'] ?? ''));
+                    if (!in_array($deptCode, $allowedDeptCodes, true)) {
+                        continue;
+                    }
+                }
+                if ($restrictStatus) {
+                    $vStatus = strtoupper(trim($v['status'] ?? ''));
+                    if (!in_array($vStatus, $allowedStatusCodes, true)) {
+                        continue;
+                    }
+                }
+            }
+
+            // (Other scopes could be extended here later if needed.)
+
             $eligibleIds[] = (int)$v['user_id'];
         }
 
+        $eligibleIds   = array_values(array_unique($eligibleIds));
         $totalEligible = count($eligibleIds);
         $totalVoted    = 0;
         $abstainCount  = 0;
 
+        // 2b) Votes breakdown per eligible voter (with abstain logic)
         if ($totalEligible > 0) {
-            $ph = implode(',', array_fill(0, $totalEligible, '?'));
+            $placeholders = implode(',', array_fill(0, $totalEligible, '?'));
             $sqlVotes = "
                 SELECT
                     voter_id,
@@ -1805,7 +1880,7 @@ function computePerElectionStatsWithAbstain(
                     SUM(CASE WHEN is_abstain = 0 THEN 1 ELSE 0 END) AS normal_rows
                 FROM votes
                 WHERE election_id = ?
-                  AND voter_id IN ($ph)
+                  AND voter_id IN ($placeholders)
                 GROUP BY voter_id
             ";
             $params = array_merge([$eid], $eligibleIds);
@@ -1813,12 +1888,15 @@ function computePerElectionStatsWithAbstain(
             $stmtV->execute($params);
             $rowsV = $stmtV->fetchAll();
 
+            // totalVoted = distinct eligible voters who have ANY row (abstain or normal)
             $totalVoted = count($rowsV);
 
+            // Abstainer definition:
+            //   - has at least one abstain row
+            //   - has zero normal rows (did not vote for any candidate)
             foreach ($rowsV as $vr) {
                 $abRows   = (int)($vr['abstain_rows'] ?? 0);
                 $normRows = (int)($vr['normal_rows'] ?? 0);
-                // Abstained = may abstain row, walang normal row (walang binotong candidate)
                 if ($abRows > 0 && $normRows === 0) {
                     $abstainCount++;
                 }
