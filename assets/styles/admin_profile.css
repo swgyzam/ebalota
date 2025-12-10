@@ -1,0 +1,408 @@
+/* ========== COLOR VARIABLES (match CVSU palette) ========== */
+:root {
+    --cvsu-green-dark: #154734;
+    --cvsu-green: #1E6F46;
+    --cvsu-green-light: #37A66B;
+    --cvsu-yellow: #FFD166;
+  }
+  
+  /* ========== HEADER BAR (top of profile page) ========== */
+  .header-bar {
+    background: linear-gradient(135deg, var(--cvsu-green-dark), var(--cvsu-green));
+    padding: 18px 24px;
+    border-radius: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: white;
+  }
+  
+  .header-bar .title {
+    font-size: 1.7rem;
+    font-weight: 800;
+  }
+  
+  .header-bar .subtitle {
+    opacity: 0.9;
+    font-size: 0.9rem;
+  }
+  
+  .header-bar .icon-box {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+  }
+  
+  /* ========== MAIN CARD LAYOUT ========== */
+  .main-card {
+    background: #ffffff;
+    padding: 24px 24px 26px;
+    border-radius: 20px;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.15);
+  }
+  
+  /* 3 columns on large screens, stacks on small */
+  .grid-layout {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr 1fr;
+    gap: 24px;
+  }
+  
+  @media (max-width: 1024px) {
+    .grid-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+  
+  /* ========== PROFILE SECTION (LEFT) ========== */
+  .profile-section {
+    text-align: center;
+  }
+  
+  .picture-wrapper {
+    position: relative;
+    display: inline-block;
+  }
+  
+  .profile-img {
+    width: 128px;
+    height: 128px;
+    border-radius: 999px;
+    object-fit: cover;
+    border: 3px solid #e5e7eb;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+  }
+  
+  /* “Change” button on hover */
+  .edit-btn {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background: var(--cvsu-green);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    display: none;
+  }
+  
+  .picture-wrapper:hover .edit-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .profile-name {
+    font-size: 1.4rem;
+    font-weight: 800;
+    margin-top: 12px;
+    color: #111827;
+  }
+  
+  .profile-email {
+    color: #374151;
+    font-size: 0.9rem;
+    margin-top: 4px;
+  }
+  
+  .profile-email i {
+    color: var(--cvsu-green);
+    font-size: 0.85rem;
+  }
+
+  /* Initials overlay kapag walang profile picture */
+  .profile-initials-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: 800;
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--cvsu-green), var(--cvsu-green-light));
+  }
+  
+  .role-label {
+    color: #4b5563;
+    font-size: 0.85rem;
+    margin-top: 3px;
+  }
+  
+  /* ========== BADGES ========== */
+  .badges {
+    margin-top: 12px;
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .badge {
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+  
+  .badge.active {
+    background: #d1fae5;
+    color: #065f46;
+  }
+  
+  .badge.inactive {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  
+  .badge.scope {
+    background: #eefdf5;
+    color: #0b5b3f;
+    border: 1px solid #bfead3;
+  }
+  
+  /* ========== INFO BOXES (ACCOUNT / SECURITY) ========== */
+  .info-box {
+    background: #fafafa;
+    padding: 18px 18px 20px;
+    border-radius: 14px;
+    border: 1px solid #e5e7eb;
+  }
+  
+  .box-title {
+    font-weight: 700;
+    color: #374151;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  
+  .box-title i {
+    color: var(--cvsu-green);
+  }
+  
+  /* When security box, override icon color */
+  .info-box:nth-of-type(3) .box-title i {
+    color: #f59e0b;
+  }
+  
+  .info-label {
+    color: #6b7280;
+    font-size: 0.78rem;
+    margin-top: 10px;
+  }
+  
+  .info-value {
+    font-weight: 700;
+    color: #111827;
+    font-size: 0.9rem;
+    margin-top: 2px;
+  }
+  
+  /* ========== SCOPE BOX (FULL WIDTH) ========== */
+  .scope-box {
+    grid-column: 1 / span 3;
+    background: #fafafa;
+    padding: 20px;
+    border-radius: 14px;
+    border: 1px solid #e5e7eb;
+    margin-top: 10px;
+  }
+  
+  @media (max-width: 1024px) {
+    .scope-box {
+      grid-column: 1 / span 1;
+    }
+  }
+
+    /* 3-column layout for Scope & Permissions */
+  .scope-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+  }
+
+  .scope-grid-item .info-label {
+    margin-top: 0;        /* alisin yung malaking spacing sa loob ng column */
+  }
+
+  .scope-grid-item .info-value {
+    margin-top: 4px;
+  }
+
+  /* Medium screens (small laptops / tablets): 2 columns */
+  @media (max-width: 1200px) {
+    .scope-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /* Mas makitid pa (small tablet / mobile fallback): 1 column */
+  @media (max-width: 768px) {
+    .scope-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  
+  /* ========== ACTION BUTTONS ========== */
+  .actions {
+    margin-top: 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  
+  .btn-primary,
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  
+  .btn-primary {
+    background: var(--cvsu-green);
+    color: white;
+  }
+  
+  .btn-primary:hover {
+    background: var(--cvsu-green-dark);
+  }
+  
+  .btn-secondary {
+    background: #e5e7eb;
+    color: #111827;
+  }
+  
+  .btn-secondary:hover {
+    background: #d1d5db;
+  }
+  
+  /* ========== CROP MODAL ========== */
+  .modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: none;
+  }
+  
+  .modal.hidden {
+    display: none;
+  }
+  
+  .modal:not(.hidden) {
+    display: flex;
+  }
+  
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .modal-panel {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 18px 18px 20px;
+    width: 90%;
+    max-width: 420px;
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.25);
+  }
+  
+  .modal-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #111827;
+    display: flex;
+    align-items: center;
+  }
+  
+  .modal-body {
+    margin-top: 12px;
+  }
+  
+  .crop-img {
+    max-width: 100%;
+    display: block;
+    margin: 0 auto;
+  }
+  
+  .modal-helper-text {
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: #6b7280;
+  }
+  
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  
+  .btn-cancel,
+  .btn-save {
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  
+  .btn-cancel {
+    background: #e5e7eb;
+    color: #111827;
+  }
+  
+  .btn-save {
+    background: var(--cvsu-green);
+    color: white;
+  }
+  
+  /* ========== CROPPER.JS CIRCLE MASK ========== */
+  .cropper-view-box,
+  .cropper-face {
+    border-radius: 50% !important;
+  }
+  
+  .cropper-modal {
+    background: rgba(0, 0, 0, 0.35) !important;
+  }
+  
+  /* ========== RESPONSIVE TWEAKS ========== */
+  @media (max-width: 768px) {
+    .main-card {
+      padding: 18px 16px 20px;
+    }
+  
+    .header-bar {
+      padding: 14px 16px;
+    }
+  
+    .header-bar .title {
+      font-size: 1.4rem;
+    }
+  
+    .profile-section {
+      text-align: center;
+    }
+  }
+  

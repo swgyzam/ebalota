@@ -278,6 +278,52 @@ try {
                 
                 // Commit transaction
                 $pdo->commit();
+
+                // --- Activity Log: Candidate updated ---
+                try {
+                    $adminId  = (int)$userId;
+                    $fullName = trim(
+                        ($first_name ?? $candidate['first_name']) . ' ' .
+                        (($middle_name ?? $candidate['middle_name']) ?: '') . ' ' .
+                        ($last_name ?? $candidate['last_name'])
+                    );
+                    $fullName = $fullName !== '' ? $fullName : 'Unnamed Candidate';
+
+                    // Get election title for nicer log message
+                    $titleStmt = $pdo->prepare("SELECT title FROM elections WHERE election_id = ?");
+                    $titleStmt->execute([$election_id]);
+                    $titleRow      = $titleStmt->fetch();
+                    $electionTitle = $titleRow['title'] ?? ($candidate['election_name'] ?? '');
+
+                    // Build action text
+                    $actionText = 'Updated candidate: ' . $fullName .
+                                  ' (ID: ' . $candidate_id . ')';
+
+                    if (!empty($electionTitle)) {
+                        $actionText .= ' for election: ' . $electionTitle .
+                                       ' (Election ID: ' . $election_id . ')';
+                    } else {
+                        $actionText .= ' for election ID: ' . $election_id;
+                    }
+
+                    if (!empty($positionName)) {
+                        $actionText .= ' as position: ' . $positionName;
+                    }
+
+                    if ($adminId > 0) {
+                        $logStmt = $pdo->prepare("
+                            INSERT INTO activity_logs (user_id, action, timestamp)
+                            VALUES (:uid, :action, NOW())
+                        ");
+                        $logStmt->execute([
+                            ':uid'    => $adminId,
+                            ':action' => $actionText,
+                        ]);
+                    }
+                } catch (PDOException $logEx) {
+                    // Silent log failure, huwag i-echo sa user
+                    error_log('Activity log error (edit_candidate.php): ' . $logEx->getMessage());
+                }
                 
                 $success = "Candidate updated successfully.";
                 
@@ -291,7 +337,6 @@ try {
                 ");
                 $stmt->execute([$candidate_id, $userId]);
                 $candidate = $stmt->fetch();
-                
             } catch (PDOException $e) {
                 $pdo->rollBack();
                 $errors[] = "Error updating candidate: " . $e->getMessage();

@@ -692,6 +692,8 @@ $isImpersonate = function_exists('isSuperAdmin') && isSuperAdmin() && getImperso
       include 'sidebar.php';
   }
 ?>
+<?php include 'admin_change_password_modal.php'; ?>
+
 <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:var(--cvsu-green-dark);">
   <div class="flex flex-col">
     <h1 class="text-2xl font-bold text-white">

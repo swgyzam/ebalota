@@ -43,15 +43,36 @@ $userRow = $stmt->fetch();
 $role    = $userRow['role'] ?? '';
 
 /* ==========================================================
-   SHARED ELECTION SCOPE HELPER
+   SHARED ELECTION SCOPE / ANALYTICS HELPERS
    ========================================================== */
-require_once __DIR__ . '/includes/election_scope_helpers.php';
+   require_once __DIR__ . '/includes/auth_helpers.php';
+   require_once __DIR__ . '/includes/analytics_scopes.php';
+   require_once __DIR__ . '/includes/election_scope_helpers.php';   
 
 /* ==========================================================
-   FETCH SCOPED ELECTIONS (NEW MODEL + LEGACY FALLBACK)
+   FETCH SCOPED ELECTIONS
    ========================================================== */
+
+$now = date('Y-m-d H:i:s');
+
+// Default: per-admin elections (legacy helper)
 $elections = fetchScopedElections($pdo, $userId);
-$now       = date('Y-m-d H:i:s');
+
+// If SUPER ADMIN with scope impersonation, override with scope-based elections
+if (
+    ($role === 'super_admin') &&
+    isset($_GET['scope_type'], $_GET['scope_id']) &&
+    $_GET['scope_type'] !== '' &&
+    ctype_digit((string)$_GET['scope_id'])
+) {
+    $scopeTypeParam = $_GET['scope_type'];
+    $scopeIdParam   = (int)$_GET['scope_id'];
+
+    // Use analytics_scopes helper: getScopedElections(PDO $pdo, string $scopeType, ?int $scopeId, array $options = [])
+    $elections = getScopedElections($pdo, $scopeTypeParam, $scopeIdParam, [
+        // optional filters dito kung gusto mo ng year range, status, etc.
+    ]);
+}
 
 /* ==========================================================
    TOAST NOTIFICATION
@@ -94,7 +115,15 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
 
 <div class="flex min-h-screen">
 
-<?php include 'sidebar.php'; ?>
+<?php
+  if (($role === 'super_admin') && isset($_GET['scope_id']) && ctype_digit((string)$_GET['scope_id'])) {
+      // Super admin impersonating a scope seat
+      include 'super_admin_sidebar.php';
+  } else {
+      include 'sidebar.php';
+  }
+?>
+<?php include 'admin_change_password_modal.php'; ?>
 
 <!-- Top Bar -->
 <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center px-6" style="background-color:rgb(25, 72, 49);"> 
@@ -200,22 +229,27 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
                   <?= htmlspecialchars($election['title']) ?>
                 </h2>
                 
-                <p class="election-description text-gray-700 text-sm mb-4 line-clamp-2">
-                  <?= nl2br(htmlspecialchars($election['description'] ?? '')) ?>
-                </p>
-                
                 <div class="space-y-2 text-sm">
-                  <div class="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <!-- Start Date -->
+                  <div class="flex items-center text-[11px] md:text-xs whitespace-nowrap">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2z" />
                     </svg>
-                    <span><strong class="text-gray-700">Start:</strong> <?= date("M d, Y h:i A", strtotime($start)) ?></span>
+                    <span>
+                      <strong class="text-gray-700 mr-1">Start:</strong>
+                      <?= date("M d, Y h:i A", strtotime($start)) ?>
+                    </span>
                   </div>
-                  <div class="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2z" />
+
+                  <!-- End Date -->
+                  <div class="flex items-center text-[11px] md:text-xs whitespace-nowrap mt-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2 2H5a2 2 0 00-2 2z" />
                     </svg>
-                    <span><strong class="text-gray-700">End:</strong> <?= date("M d, Y h:i A", strtotime($end)) ?></span>
+                    <span>
+                      <strong class="text-gray-700 mr-1">End:</strong>
+                      <?= date("M d, Y h:i A", strtotime($end)) ?>
+                    </span>
                   </div>
                   <!-- Status Indicator -->
                   <div class="flex items-center">
@@ -238,10 +272,23 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
             <div class="mt-auto p-4 bg-gray-50 border-t">
               <div class="flex flex-col sm:flex-row gap-3">
                 <!-- Only Analytics Button -->
-                <a href="admin_analytics_redirect.php?id=<?= $election['election_id'] ?>" 
+                <?php
+                  // Dalhin scope params kung galing sa super admin dashboard
+                  $scopeTypeParam = $_GET['scope_type'] ?? null;
+                  $scopeIdParam   = (isset($_GET['scope_id']) && ctype_digit((string)$_GET['scope_id']))
+                      ? (int)$_GET['scope_id']
+                      : null;
+
+                  $analyticsUrl = 'admin_analytics_redirect.php?id=' . (int)$election['election_id'];
+                  if ($scopeTypeParam && $scopeIdParam !== null) {
+                      $analyticsUrl .= '&scope_type=' . urlencode($scopeTypeParam) . '&scope_id=' . $scopeIdParam;
+                  }
+                ?>
+                <a href="<?= htmlspecialchars($analyticsUrl) ?>" 
                   class="flex-1 bg-[var(--cvsu-green)] hover:bg-[var(--cvsu-green-dark)] text-white py-2 px-4 rounded-lg font-semibold transition text-center flex items-center justify-center">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2z" />
                   </svg>
                   View Analytics
                 </a>

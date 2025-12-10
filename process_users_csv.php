@@ -1344,6 +1344,59 @@ fclose($file);
 // Delete the CSV file
 unlink($csvFilePath);
 
+// --- Activity Log: CSV Users Upload Summary ---
+try {
+    $adminId = (int)($_SESSION['user_id'] ?? 0);
+    if ($adminId > 0) {
+        // Short description of what kind of upload this was
+        $contextParts = [];
+
+        if (!empty($adminType)) {
+            $contextParts[] = "adminType: {$adminType}";
+        }
+        if (!empty($scopeCategoryForCsv)) {
+            $contextParts[] = "scopeCategory: {$scopeCategoryForCsv}";
+        }
+        if (!empty($assignedScope) && $assignedScope !== '') {
+            $contextParts[] = "assignedScope: {$assignedScope}";
+        }
+
+        $contextText = '';
+        if (!empty($contextParts)) {
+            $contextText = ' [' . implode(' | ', $contextParts) . ']';
+        }
+
+        // Stats summary
+        $summaryParts = [];
+        $summaryParts[] = "total rows: {$totalRows}";
+        $summaryParts[] = "added: {$inserted}";
+        $summaryParts[] = "duplicates: {$duplicates}";
+        $summaryParts[] = "errors: {$errors}";
+        $summaryParts[] = "restricted: {$restrictedRows}";
+        $summaryParts[] = "emails sent: {$emailSent}";
+        $summaryParts[] = "emails failed: {$emailFailed}";
+        if (isset($claimedExisting)) {
+            $summaryParts[] = "existing claimed: {$claimedExisting}";
+        }
+
+        $summaryText = implode(', ', $summaryParts);
+
+        $actionText = "Processed users CSV upload{$contextText}. Summary: {$summaryText}.";
+
+        $stmtLog = $pdo->prepare("
+            INSERT INTO activity_logs (user_id, action, timestamp)
+            VALUES (:uid, :action, NOW())
+        ");
+        $stmtLog->execute([
+            ':uid'    => $adminId,
+            ':action' => $actionText,
+        ]);
+    }
+} catch (PDOException $e) {
+    // Silent fail – huwag ipakita sa user
+    error_log('Activity log error (process_users_csv.php): ' . $e->getMessage());
+}
+
 // Now, show the result
 ?>
 <!DOCTYPE html>

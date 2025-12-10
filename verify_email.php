@@ -41,16 +41,36 @@ $success = false;
 try {
     $pdo->beginTransaction();
 
-    $position       = $user['position'];
-    $is_coop_member = $user['is_coop_member'];
+    $position            = $user['position'];
+    $is_coop_member      = $user['is_coop_member'];
+    $year_level          = $user['year_level_at_registration'] ?? null;
+    $account_expires_at  = $user['account_expires_at'] ?? null;
 
     // Insert into users table
     $insertStmt = $pdo->prepare("
         INSERT INTO users 
-            (first_name, last_name, email, position, is_coop_member, department, department1, course, status, password, is_verified, student_number, employee_number, force_password_change) 
+            (
+                first_name,
+                last_name,
+                email,
+                position,
+                is_coop_member,
+                department,
+                department1,
+                course,
+                status,
+                password,
+                is_verified,
+                student_number,
+                employee_number,
+                force_password_change,
+                year_level_at_registration,
+                account_expires_at
+            ) 
         VALUES 
-            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
+
     $insertStmt->execute([
         $user['first_name'],
         $user['last_name'],
@@ -65,7 +85,9 @@ try {
         true,
         $user['student_number'],
         $user['employee_number'],
-        0 // registration users: no forced password change
+        0,                  // registration users: no forced password change
+        $year_level,        // from pending_users.year_level_at_registration
+        $account_expires_at // from pending_users.account_expires_at
     ]);
 
     // Delete from pending_users table

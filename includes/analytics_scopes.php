@@ -1226,7 +1226,7 @@ function getScopedElections(PDO $pdo, string $scopeType, ?int $scopeId = null, a
     $where  = ["e.election_scope_type = :scope_type"];
 
     if ($scopeId !== null) {
-        $where[]            = 'e.owner_scope_id = :scope_id';
+        $where[]             = 'e.owner_scope_id = :scope_id';
         $params[':scope_id'] = $scopeId;
     }
 
@@ -1254,6 +1254,8 @@ function getScopedElections(PDO $pdo, string $scopeType, ?int $scopeId = null, a
             e.assigned_admin_id,
             e.target_position,
             e.status,
+            e.creation_stage,   -- IMPORTANT para sa 'Launched to Voters'
+            e.logo_path,        -- IMPORTANT para sa logo sa card
             e.start_datetime,
             e.end_datetime
         FROM elections e
@@ -1275,6 +1277,8 @@ function getScopedElections(PDO $pdo, string $scopeType, ?int $scopeId = null, a
             'assigned_admin_id'   => $r['assigned_admin_id'] !== null ? (int)$r['assigned_admin_id'] : null,
             'target_position'     => $r['target_position'],
             'status'              => $r['status'],
+            'creation_stage'      => $r['creation_stage'],   // dagdag
+            'logo_path'           => $r['logo_path'],        // dagdag
             'start_datetime'      => $r['start_datetime'],
             'end_datetime'        => $r['end_datetime'],
         ];

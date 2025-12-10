@@ -169,7 +169,7 @@
         </div>
 
         <form action="login.php" method="POST" class="space-y-4" id="loginForm">
-          <div id="error-message" class="hidden bg-red-50 border border-red-400 text-red-700 px-4 py-2.5 rounded-xl text-sm"></div>
+          <div id="error-message" class="hidden bg-red-50 border border-red-400 text-red-700 px-4 py-2.5 rounded-xl text-sm text-center"></div>
 
           <!-- Email -->
           <div class="space-y-1">
@@ -181,6 +181,7 @@
                 id="email"
                 placeholder="yourname@cvsu.edu.ph"
                 required
+                autocomplete="email"
                 class="form-input w-full rounded-xl border border-gray-300 bg-slate-50 px-3 py-2.5 pr-9 text-sm placeholder-gray-400 focus:outline-none focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
               >
               <span class="absolute right-3 top-2.5 text-gray-400">
@@ -199,6 +200,7 @@
                 id="loginPassword"
                 placeholder="Enter your password"
                 required
+                autocomplete="current-password"
                 class="form-input w-full rounded-xl border border-gray-300 bg-slate-50 px-3 py-2.5 pr-9 text-sm placeholder-gray-400 focus:outline-none focus:border-cvsu-primary focus:ring-2 focus:ring-cvsu-primary/40"
               >
               <span class="absolute right-3 top-2.5 text-gray-400 cursor-pointer toggle-password" data-target="loginPassword">
@@ -210,7 +212,12 @@
           <!-- Remember + Forgot -->
           <div class="flex items-center justify-between text-sm mt-1">
             <label class="flex items-center text-gray-600">
-              <input type="checkbox" id="remember" class="mr-2 rounded border-gray-300 text-cvsu-primary focus:ring-cvsu-primary">
+              <input
+                type="checkbox"
+                id="remember"
+                name="remember"
+                class="mr-2 rounded border-gray-300 text-cvsu-primary focus:ring-cvsu-primary"
+              >
               <span>Remember me</span>
             </label>
             <a href="forgot_password.html" id="forgotLink" class="text-cvsu-primary hover:underline">
@@ -304,35 +311,92 @@
       });
     });
 
-    // Load saved email if 'remember me' is checked
     window.addEventListener('DOMContentLoaded', () => {
-      const savedEmail = localStorage.getItem('rememberedEmail');
-      if (savedEmail) {
-        document.getElementById('email').value = savedEmail;
-        document.getElementById('remember').checked = true;
-      }
-
-      // Check for success parameter in URL
       const urlParams = new URLSearchParams(window.location.search);
-      const success = urlParams.get('success');
-      const redirect = urlParams.get('redirect');
-      
-      if (success === 'true') {
-        const successModal = document.getElementById('successModal');
-        successModal.classList.remove('hidden');
-        
-        // Redirect after 3 seconds
-        setTimeout(() => {
-          window.location.href = redirect || 'voters_dashboard.php';
-        }, 3000);
+      const success       = urlParams.get('success');
+      const redirect      = urlParams.get('redirect');
+      const error         = urlParams.get('error');
+      const lockUntilParam = urlParams.get('lock_until');
+      const emailParam    = urlParams.get('email');
+
+      const emailInput       = document.getElementById('email');
+      const rememberCheckbox = document.getElementById('remember');
+      const loginBtn         = document.querySelector('button[type="submit"]');
+      const errorDiv         = document.getElementById('error-message');
+
+      // Load saved email OR email from URL
+      const savedEmail = localStorage.getItem('rememberedEmail');
+      if (emailParam) {
+        emailInput.value = emailParam;
+      } else if (savedEmail) {
+        emailInput.value = savedEmail;
+        rememberCheckbox.checked = true;
       }
 
       // Show error from URL (if any)
-      const error = urlParams.get('error');
-      if (error) {
-        const errorDiv = document.getElementById('error-message');
-        errorDiv.textContent = decodeURIComponent(error);
+      if (error && errorDiv) {
+        errorDiv.textContent = error;
         errorDiv.classList.remove('hidden');
+      }
+
+      // SUCCESS MODAL + safe redirect
+      if (success === 'true') {
+        const successModal = document.getElementById('successModal');
+        successModal.classList.remove('hidden');
+
+        const allowedRedirects = [
+          'super_admin/dashboard.php',
+          'admin_dashboard_redirect.php',
+          'voters_dashboard.php'
+        ];
+
+        let target = 'voters_dashboard.php';
+        if (redirect && allowedRedirects.includes(redirect)) {
+          target = redirect;
+        }
+
+        setTimeout(() => {
+          window.location.href = target;
+        }, 3000);
+      }
+
+      // 🔹 COOLDOWN HANDLING (disable button + countdown based on lock_until timestamp)
+      if (lockUntilParam && loginBtn) {
+        const lockUntilMs = parseInt(lockUntilParam, 10) * 1000;
+
+        if (!isNaN(lockUntilMs)) {
+          loginBtn.disabled = true;
+          loginBtn.classList.add('opacity-60', 'cursor-not-allowed');
+
+          const originalHtml = loginBtn.innerHTML;
+
+          const intervalId = setInterval(() => {
+            const nowMs = Date.now();
+            const remainingMs = lockUntilMs - nowMs;
+
+            if (remainingMs <= 0) {
+              clearInterval(intervalId);
+              loginBtn.disabled = false;
+              loginBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+              loginBtn.innerHTML = originalHtml;
+
+              // optional: remove lock_until & error from URL
+              const params = new URLSearchParams(window.location.search);
+              params.delete('lock_until');
+              params.delete('error');
+              const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+              window.history.replaceState({}, '', newUrl);
+
+              if (errorDiv) errorDiv.classList.add('hidden');
+            } else {
+              const remainingSec = Math.ceil(remainingMs / 1000);
+              const mins = Math.floor(remainingSec / 60);
+              const secs = remainingSec % 60;
+              const formatted = `${mins}:${secs.toString().padStart(2, '0')}`;
+              loginBtn.innerHTML = `Locked (${formatted})`;
+            }
+          }, 1000);
+        }
       }
     });
 

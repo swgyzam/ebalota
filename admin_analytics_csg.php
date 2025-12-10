@@ -24,6 +24,7 @@ try {
 }
 
 // --- Shared scope / analytics helpers ---
+require_once __DIR__ . '/includes/auth_helpers.php';
 require_once __DIR__ . '/includes/analytics_scopes.php';
 
 // --- Auth check ---
@@ -46,31 +47,44 @@ if ($role !== 'admin' && $role !== 'super_admin') {
     exit();
 }
 
-/* ==========================================================
-   FIND THIS ADMIN'S CSG SCOPE SEAT (Special-Scope)
-   ========================================================== */
-
 $mySeat = null;
 
-// If super_admin, we *might* later support impersonation via ?scope_id=,
-// but for now, just pick the CSG seat of the logged-in user.
+// Lahat ng CSG seats
 $csgSeats = getScopeSeats($pdo, SCOPE_SPECIAL_CSG);
 
-foreach ($csgSeats as $seat) {
-    if ((int) $seat['admin_user_id'] === $userId) {
-        $mySeat = $seat;
-        break;
+// 1) Kung SUPER ADMIN at may impersonation via ?scope_id=, unahin 'yon
+if ($role === 'super_admin') {
+    $impersonatedScopeId = getImpersonatedScopeId(); // from auth_helpers.php
+
+    if ($impersonatedScopeId !== null) {
+        foreach ($csgSeats as $seat) {
+            if ((int)$seat['scope_id'] === (int)$impersonatedScopeId) {
+                $mySeat = $seat;
+                break;
+            }
+        }
+    }
+}
+
+// 2) Fallback: kung wala pa ring $mySeat, gamitin CSG seat talaga ng user (admin_user_id)
+if ($mySeat === null) {
+    foreach ($csgSeats as $seat) {
+        if ((int)$seat['admin_user_id'] === $userId) {
+            $mySeat = $seat;
+            break;
+        }
     }
 }
 
 if (!$mySeat) {
-    // This admin has no CSG scope seat
+    // Walang CSG scope seat para sa user / impersonation
     header('Location: admin_analytics.php');
     exit();
 }
 
-$scopeId   = (int) $mySeat['scope_id'];   // owner_scope_id for elections
-$scopeType = $mySeat['scope_type'];       // 'Special-Scope'
+$scopeId   = (int)$mySeat['scope_id'];   // owner_scope_id for elections
+$scopeType = $mySeat['scope_type'];      // 'Special-Scope'
+
 
 /* ==========================================================
    ELECTION SELECTION & SCOPE GUARD (NEW MODEL)
@@ -531,7 +545,18 @@ foreach ($abstainYears as $y) {
 
 $pageTitle = 'CSG Election Analytics';
 
-include 'sidebar.php';
+// flag: super admin impersonating a CSG seat?
+$scopeDisplay  = 'CSG – Global Students';
+$isImpersonate = function_exists('isSuperAdmin')
+    && isSuperAdmin()
+    && getImpersonatedScopeId() !== null;
+
+// Sidebar: super admin impersonation → super_admin_sidebar, else normal admin sidebar
+if ($isImpersonate) {
+    include 'super_admin_sidebar.php';
+} else {
+    include 'sidebar.php';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
@@ -698,9 +723,17 @@ include 'sidebar.php';
                   <h1 class="text-3xl font-bold text-white leading-tight">
                     <?= htmlspecialchars($pageTitle) ?>
                   </h1>
+
                   <p class="text-green-100 text-lg font-medium">
                     <?= htmlspecialchars($election['title']) ?>
                   </p>
+
+                  <?php if ($isImpersonate): ?>
+                    <span class="inline-flex items-center max-w-fit mt-2 px-3 py-1 rounded-full 
+                                text-xs font-semibold bg-yellow-300 text-gray-900 shadow-sm">
+                      View as CSG Admin
+                    </span>
+                  <?php endif; ?>
                 </div>
               </div>
             </div>

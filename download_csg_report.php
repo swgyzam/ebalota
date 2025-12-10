@@ -46,7 +46,7 @@ $userId = (int) $_SESSION['user_id'];
 $stmt = $pdo->prepare("SELECT role FROM users WHERE user_id = ?");
 $stmt->execute([$userId]);
 $userInfo = $stmt->fetch();
-$role = $userInfo['role'] ?? '';
+$role     = $userInfo['role'] ?? '';
 
 if ($role !== 'admin' && $role !== 'super_admin') {
     header('Location: admin_analytics.php');
@@ -54,31 +54,7 @@ if ($role !== 'admin' && $role !== 'super_admin') {
 }
 
 /* ==========================================================
-   FIND THIS ADMIN'S CSG SCOPE SEAT (Special-Scope)
-   ========================================================== */
-
-$mySeat = null;
-$csgSeats = getScopeSeats($pdo, SCOPE_SPECIAL_CSG);
-
-foreach ($csgSeats as $seat) {
-    if ((int) $seat['admin_user_id'] === $userId) {
-        $mySeat = $seat;
-        break;
-    }
-}
-
-if (!$mySeat) {
-    // This admin has no CSG scope seat
-    $_SESSION['toast_message'] = 'You are not assigned as a CSG admin.';
-    $_SESSION['toast_type']    = 'error';
-    header('Location: admin_analytics.php');
-    exit();
-}
-
-$scopeId = (int) $mySeat['scope_id']; // owner_scope_id for CSG elections
-
-/* ==========================================================
-   ELECTION SELECTION & SCOPE GUARD
+   ELECTION ID
    ========================================================== */
 
 $electionId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
@@ -89,15 +65,94 @@ if ($electionId <= 0) {
     exit();
 }
 
-// Make sure this election belongs to this CSG scope seat
-$scopedElections    = getScopedElections($pdo, SCOPE_SPECIAL_CSG, $scopeId);
-$allowedElectionIds = array_map('intval', array_column($scopedElections, 'election_id'));
+/* ==========================================================
+   LOAD ELECTION + BASIC GUARDS
+   ========================================================== */
 
-if (!in_array($electionId, $allowedElectionIds, true)) {
-    $_SESSION['toast_message'] = 'You are not allowed to generate a report for this CSG election.';
+$stmt = $pdo->prepare("SELECT * FROM elections WHERE election_id = ?");
+$stmt->execute([$electionId]);
+$election = $stmt->fetch();
+
+if (!$election) {
+    $_SESSION['toast_message'] = 'Election not found.';
     $_SESSION['toast_type']    = 'error';
     header('Location: admin_analytics.php');
     exit();
+}
+
+if (($election['election_scope_type'] ?? '') !== 'Special-Scope') {
+    $_SESSION['toast_message'] = 'This election is not a CSG (Special-Scope) election.';
+    $_SESSION['toast_type']    = 'error';
+    header('Location: admin_analytics.php');
+    exit();
+}
+
+$scopeId = (int)($election['owner_scope_id'] ?? 0);
+if ($scopeId <= 0) {
+    $_SESSION['toast_message'] = 'This CSG election is missing its scope assignment.';
+    $_SESSION['toast_type']    = 'error';
+    header('Location: admin_analytics.php');
+    exit();
+}
+
+/* ==========================================================
+   PERMISSION CHECK
+   - admin  -> must be the seat admin for this scope_id
+   - super_admin -> allowed for any CSG election
+   ========================================================== */
+
+$mySeat   = null;
+$csgSeats = getScopeSeats($pdo, SCOPE_SPECIAL_CSG);
+
+if ($role === 'admin') {
+    // admin must match BOTH admin_user_id and scope_id
+    foreach ($csgSeats as $seat) {
+        if ((int)$seat['scope_id'] === $scopeId && (int)$seat['admin_user_id'] === $userId) {
+            $mySeat = $seat;
+            break;
+        }
+    }
+
+    if (!$mySeat) {
+        $_SESSION['toast_message'] = 'You are not assigned as the CSG admin for this election.';
+        $_SESSION['toast_type']    = 'error';
+        header('Location: admin_analytics.php');
+        exit();
+    }
+} else {
+    // super_admin: find the seat only by scope_id (for nicer logging / signatory),
+    // but do NOT block if we can't find it
+    foreach ($csgSeats as $seat) {
+        if ((int)$seat['scope_id'] === $scopeId) {
+            $mySeat = $seat;
+            break;
+        }
+    }
+}
+
+/* ==========================================================
+   ACTIVITY LOG – REPORT GENERATION (CSG)
+   ========================================================== */
+
+try {
+    $electionTitle = $election['title'] ?? 'Unknown Title';
+
+    $actionText = 'Generated CSG election report for election: ' .
+                  $electionTitle .
+                  ' (ID: ' . $electionId . '), scope_id: ' . $scopeId;
+
+    $logStmt = $pdo->prepare("
+        INSERT INTO activity_logs (user_id, action, timestamp)
+        VALUES (:uid, :action, NOW())
+    ");
+    $logStmt->execute([
+        ':uid'    => $userId,
+        ':action' => $actionText
+    ]);
+
+} catch (Exception $e) {
+    // Silent fail so PDF still downloads
+    error_log('[LOG ERROR] CSG Report Generation: ' . $e->getMessage());
 }
 
 /* ==========================================================
@@ -106,6 +161,8 @@ if (!in_array($electionId, $allowedElectionIds, true)) {
 
 require_once __DIR__ . '/includes/pdf/csg_election_report_pdf.php';
 
+// Note: we pass $scopeId taken from the election (owner_scope_id)
+// so both admins and super_admin can generate the correct report.
 generateCSGElectionReportPDF($pdo, $electionId, $userId, $scopeId);
 
 // No further output – TCPDF will send the PDF and exit.

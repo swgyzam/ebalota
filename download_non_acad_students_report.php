@@ -99,6 +99,37 @@ if (!in_array($electionId, $allowedElectionIds, true)) {
 }
 
 /* ==========================================================
+   ACTIVITY LOG — NON-ACADEMIC STUDENT REPORT GENERATION
+   ========================================================== */
+try {
+
+    // Find election title for readable logging
+    $electionTitle = '';
+    foreach ($scopedElections as $el) {
+        if ((int)$el['election_id'] === $electionId) {
+            $electionTitle = $el['title'] ?? '';
+            break;
+        }
+    }
+
+    $actionText = 'Generated Non-Academic Student election report for election: ' .
+                  ($electionTitle ?: 'Unknown Title') .
+                  ' (ID: ' . $electionId . '), scope_id: ' . $scopeId;
+
+    $logStmt = $pdo->prepare("
+        INSERT INTO activity_logs (user_id, action, timestamp)
+        VALUES (:uid, :action, NOW())
+    ");
+    $logStmt->execute([
+        ':uid'    => $userId,
+        ':action' => $actionText
+    ]);
+
+} catch (Exception $e) {
+    error_log('[LOG ERROR] NAS Report Generation: ' . $e->getMessage());
+}
+
+/* ==========================================================
    GENERATE PDF
    ========================================================== */
 

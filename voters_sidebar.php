@@ -4,7 +4,7 @@
 <!-- Sidebar -->
 <aside 
     id="sidebar"
-    class="w-64 bg-[var(--cvsu-green-dark)] text-white fixed top-0 left-0 h-full shadow-lg overflow-y-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300 z-30"
+    class="w-64 bg-[var(--cvsu-green-dark)] text-white fixed top-0 left-0 h-full shadow-lg overflow-y-auto transform -translate-x-full lg:translate-x-0 transition-transform duration-300 z-30"
 >
     <div class="p-6 flex items-center gap-3 font-extrabold text-2xl tracking-wide border-b border-[var(--cvsu-green)]">
         <img src="assets/img/ebalota_logo.png" alt="eBalota Logo" class="h-10 w-auto" />
@@ -38,7 +38,7 @@
 </aside>
 
 <!-- Overlay for mobile -->
-<div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-40 z-20 hidden md:hidden transition-opacity duration-300"></div>
+<div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-40 z-20 hidden transition-opacity duration-300"></div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -78,21 +78,21 @@ document.addEventListener('DOMContentLoaded', function () {
 
     navLinks.forEach(link => {
         link.addEventListener('click', function () {
-            if (window.innerWidth < 768) {
+            if (window.innerWidth < 1024) {
                 closeSidebar();
             }
         });
     });
 
     function handleResize() {
-        if (window.innerWidth >= 768) {
-            // Desktop: sidebar always visible
+        if (window.innerWidth >= 1024) {
             sidebar.classList.remove('-translate-x-full');
             if (overlay) overlay.classList.add('hidden');
             document.body.style.overflow = '';
         } else {
-            // Mobile: hidden by default
             sidebar.classList.add('-translate-x-full');
+            if (overlay) overlay.classList.add('hidden');
+            document.body.style.overflow = '';
         }
     }
 

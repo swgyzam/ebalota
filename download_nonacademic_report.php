@@ -102,6 +102,38 @@ if (!in_array($electionId, $allowedElectionIds, true)) {
 }
 
 /* ==========================================================
+   5.1 ACTIVITY LOG — NON-ACADEMIC-EMPLOYEE REPORT GENERATION
+   ========================================================== */
+try {
+
+    // Find election title for readable logging
+    $electionTitle = '';
+    foreach ($scopedElections as $el) {
+        if ((int)$el['election_id'] === $electionId) {
+            $electionTitle = $el['title'] ?? '';
+            break;
+        }
+    }
+
+    $actionText = 'Generated Non-Academic Employee election report for election: ' .
+                  ($electionTitle ?: 'Unknown Title') .
+                  ' (ID: ' . $electionId . '), scope_id: ' . $scopeId;
+
+    $logStmt = $pdo->prepare("
+        INSERT INTO activity_logs (user_id, action, timestamp)
+        VALUES (:uid, :action, NOW())
+    ");
+    $logStmt->execute([
+        ':uid'    => $userId,
+        ':action' => $actionText
+    ]);
+
+} catch (Exception $e) {
+    error_log('[LOG ERROR] NON-ACAD EMPLOYEE REPORT GENERATION: ' . $e->getMessage());
+}
+
+
+/* ==========================================================
    6. GENERATE PDF
    ========================================================== */
 require_once __DIR__ . '/includes/pdf/nonacademic_election_report_pdf.php';

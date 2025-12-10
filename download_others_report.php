@@ -103,6 +103,37 @@ if (!in_array($electionId, $allowedElectionIds, true)) {
 }
 
 /* ==========================================================
+   5.1 ACTIVITY LOG — OTHERS REPORT GENERATION
+   ========================================================== */
+   try {
+
+    // Try to get election title for cleaner logs
+    $electionTitle = '';
+    foreach ($scopedElections as $el) {
+        if ((int)$el['election_id'] === $electionId) {
+            $electionTitle = $el['title'] ?? '';
+            break;
+        }
+    }
+
+    $actionText = 'Generated OTHERS group election report for election: ' .
+                  ($electionTitle ?: 'Unknown Title') .
+                  ' (ID: ' . $electionId . '), scope_id: ' . $scopeId;
+
+    $logStmt = $pdo->prepare("
+        INSERT INTO activity_logs (user_id, action, timestamp)
+        VALUES (:uid, :action, NOW())
+    ");
+    $logStmt->execute([
+        ':uid'    => $userId,
+        ':action' => $actionText
+    ]);
+
+} catch (Exception $e) {
+    error_log('[LOG ERROR] OTHERS REPORT GENERATION: ' . $e->getMessage());
+}
+
+/* ==========================================================
    GENERATE PDF
    ========================================================== */
 

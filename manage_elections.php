@@ -88,15 +88,135 @@ $currentDateTime = date('Y-m-d\TH:i');
       --cvsu-green-light: #37A66B;
       --cvsu-yellow: #FFD166;
     }
-    .modal-backdrop { background-color: rgba(0,0,0,0.5); }
+
+    .modal-backdrop {
+      background-color: rgba(0,0,0,0.55);
+    }
+
     .input-error {
       border-color: #ef4444 !important;
       background-color: #fef2f2 !important;
+    }
+
+    /* Modern CVSU modal styling */
+    .e-modal-panel {
+      width: 100%;
+      max-width: 900px;
+      max-height: 90vh;
+      background: #ffffff;
+      border-radius: 1rem;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .e-modal-header {
+      padding: 1rem 1.5rem;
+      background: linear-gradient(135deg, var(--cvsu-green-dark), var(--cvsu-green));
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .e-modal-header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .e-modal-icon {
+      width: 2.25rem;
+      height: 2.25rem;
+      border-radius: 9999px;
+      background: rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.35rem;
+    }
+
+    .e-modal-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .e-modal-subtitle {
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.85);
+    }
+
+    .e-modal-close {
+      font-size: 1.8rem;
+      line-height: 1;
+      color: rgba(255,255,255,0.85);
+    }
+
+    .e-modal-close:hover {
+      color: #ffffff;
+    }
+
+    .e-modal-body {
+      padding: 1.5rem;
+      overflow-y: auto;
+    }
+
+    .e-modal-footer {
+      padding: 0.75rem 1.5rem;
+      border-top: 1px solid #e5e7eb;
+      background: #ffffff;
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+    }
+
+    .e-section-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #6b7280;
+      margin-bottom: 0.25rem;
+    }
+
+    .e-field-card {
+      border-radius: 0.75rem;
+      border: 1px solid #e5e7eb;
+      background-color: #f9fafb;
+      padding: 0.85rem 1rem;
+    }
+
+    .e-input {
+      width: 100%;
+      padding: 0.5rem 0.7rem;
+      border-radius: 0.5rem;
+      border: 1px solid #d1d5db;
+      font-size: 0.875rem;
+    }
+
+    .e-input:focus {
+      outline: none;
+      border-color: var(--cvsu-green);
+      box-shadow: 0 0 0 2px rgba(30,111,70,0.25);
+    }
+
+    .e-note {
+      font-size: 0.7rem;
+      color: #6b7280;
     }
   </style>
 </head>
 <body class="bg-gray-50 font-sans min-h-screen flex">
 <?php include 'super_admin_sidebar.php'; ?>
+<?php
+$role = $_SESSION['role'] ?? '';
+if ($role === 'super_admin') {
+    include 'super_admin_change_password_modal.php';
+} else {
+    include 'admin_change_password_modal.php';
+}
+?>
 
 <main class="flex-1 p-8 ml-64">
   <!-- Header -->
@@ -106,6 +226,22 @@ $currentDateTime = date('Y-m-d\TH:i');
       + Create Election
     </button>
   </header>
+
+  <!-- Flash messages -->
+  <?php if (!empty($_SESSION['success_message'])): ?>
+    <div class="mb-4 px-4 py-3 rounded bg-green-100 border border-green-300 text-green-800 text-sm">
+      <?= htmlspecialchars($_SESSION['success_message']) ?>
+    </div>
+    <?php unset($_SESSION['success_message']); ?>
+  <?php endif; ?>
+
+  <?php if (!empty($_SESSION['error_message'])): ?>
+    <div class="mb-4 px-4 py-3 rounded bg-red-100 border border-red-300 text-red-800 text-sm">
+      <?= htmlspecialchars($_SESSION['error_message']) ?>
+    </div>
+    <?php unset($_SESSION['error_message']); ?>
+  <?php endif; ?>
+
 
   <!-- Filter Buttons -->
   <div class="flex justify-center mb-6">
@@ -119,6 +255,7 @@ $currentDateTime = date('Y-m-d\TH:i');
             : 'bg-transparent text-gray-700 hover:bg-green-100';
       ?>
         <a href="?status=<?= htmlspecialchars($key) ?>"
+
            class="px-4 py-2 rounded-full font-medium transition-colors duration-200 <?= $btnClass ?>">
            <?= htmlspecialchars($label) ?>
         </a>
@@ -151,7 +288,6 @@ $currentDateTime = date('Y-m-d\TH:i');
           } elseif ($tp_l === 'others') {
               $displayVoters = 'Others (custom uploaded voters)';
           } elseif ($tp_l === 'coop') {
-              // Legacy COOP – you can treat this the same as Others now
               $displayVoters = 'Others (COOP – legacy)';
           } else {
               $displayVoters = 'All Voters';
@@ -171,7 +307,6 @@ $currentDateTime = date('Y-m-d\TH:i');
                 <p><strong class="text-gray-700">Start:</strong> <?= date('M d, Y h:i A', strtotime($election['start_datetime'])) ?></p>
                 <p><strong class="text-gray-700">End:</strong> <?= date('M d, Y h:i A', strtotime($election['end_datetime'])) ?></p>
                 <p><strong class="text-gray-700">Status:</strong> <?= ucfirst($status) ?></p>
-                <p><strong class="text-gray-700">Partial Results:</strong> <?= $election['realtime_results'] ? 'Yes' : 'No' ?></p>
                 <p><strong class="text-gray-700">Allowed Voters:</strong> <?= htmlspecialchars($displayVoters) ?></p>
 
                 <?php
@@ -254,402 +389,573 @@ $currentDateTime = date('Y-m-d\TH:i');
 
 <!-- CREATE ELECTION MODAL -->
 <div id="modal" class="fixed inset-0 hidden z-50 flex items-center justify-center modal-backdrop">
-  <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl p-8 relative max-h-[90vh] overflow-y-auto">
-    <button id="closeModalBtn" class="absolute top-3 right-3 text-gray-600 hover:text-gray-900 text-2xl font-bold">&times;</button>
-    <h2 class="text-2xl font-bold mb-4 text-[var(--cvsu-green-dark)]">Create Election</h2>
-
-    <div id="createFormError" class="hidden mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded text-sm"></div>
-
-    <form id="createElectionForm" enctype="multipart/form-data">
-      <!-- Election Name -->
-      <div class="mb-4">
-        <label class="block mb-2 font-semibold">Election Name *</label>
-        <input type="text" name="election_name" required class="w-full p-2 border rounded" />
-      </div>
-
-      <!-- Election Logo -->
-      <div class="mb-4">
-        <label class="block mb-2 font-semibold">Election Logo</label>
-        <input type="file" name="election_logo" accept="image/*" class="w-full p-2 border rounded">
-        <p class="text-xs text-gray-500">Upload a JPG or PNG image (max 2MB).</p>
-      </div>
-      
-      <!-- Description -->
-      <div class="mb-4">
-        <label class="block mb-2 font-semibold">Description</label>
-        <textarea name="description" class="w-full p-2 border rounded"></textarea>
-      </div>
-
-      <!-- Start & End DateTime -->
-      <div class="mb-4">
-        <label class="block mb-2 font-semibold">Start and End Date *</label>
-        <div class="flex gap-2">
-          <input type="datetime-local" name="start_datetime" id="create_start_datetime" required 
-                 class="w-1/2 p-2 border rounded"
-                 min="<?= $currentDateTime ?>" max="2100-12-31T23:59">
-          <input type="datetime-local" name="end_datetime" id="create_end_datetime" required 
-                 class="w-1/2 p-2 border rounded"
-                 min="<?= $currentDateTime ?>" max="2100-12-31T23:59">
-        </div>
-        <p class="text-xs text-gray-500 mt-1">Start date must be in the future. End date must be after start date.</p>
-      </div>
-
-      <!-- Target Voters (CREATE) -->
-      <div class="mb-4">
-        <label class="block mb-2 font-semibold">Target Voters *</label>
-        <div class="flex flex-wrap gap-4">
-          <label class="flex items-center gap-1">
-            <input type="radio" name="target_voter" value="student" required> Student
-          </label>
-          <label class="flex items-center gap-1">
-            <input type="radio" name="target_voter" value="academic" required> Academic (Faculty)
-          </label>
-          <label class="flex items-center gap-1">
-            <input type="radio" name="target_voter" value="non_academic" required> Non-Academic Employees
-          </label>
-          <label class="flex items-center gap-1">
-            <input type="radio" name="target_voter" value="others" required> Others
-          </label>
-        </div>
-
-        <!-- Note for Others: shown only when "Others" is selected -->
-        <p id="create_othersNote" class="text-xs text-gray-500 mt-1 hidden">
-          <strong>Others:</strong> Special elections that are not tied to colleges or departments
-          (e.g. COOP, Alumni, Retired). Voters are defined entirely by the list you upload
-          for the assigned admin.
-        </p>
-      </div>
-
-      <!-- Student Fields (CREATE) -->
-      <div id="studentFields" class="hidden space-y-4 mb-4">
+  <div class="e-modal-panel">
+    <!-- HEADER -->
+    <div class="e-modal-header">
+      <div class="e-modal-header-left">
+        <div class="e-modal-icon">🗳️</div>
         <div>
-          <label class="block mb-2 font-semibold">Allowed Colleges (Student)</label>
-          <select name="allowed_colleges_student" id="studentCollegeSelect" class="w-full p-2 border rounded">
-            <option value="all">All Colleges</option>
-            <?php foreach ($colleges as $college): ?>
-              <option value="<?= htmlspecialchars($college) ?>"><?= htmlspecialchars($college) ?></option>
+          <div class="e-modal-title">Create Election</div>
+          <div class="e-modal-subtitle">
+            Fill in basic details, schedule, target voters and assigned admin.
+          </div>
+        </div>
+      </div>
+      <button id="closeModalBtn" class="e-modal-close">&times;</button>
+    </div>
+
+    <!-- BODY -->
+    <div class="e-modal-body">
+      <div id="createFormError"
+           class="hidden mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded text-sm"></div>
+
+      <form id="createElectionForm" enctype="multipart/form-data" class="space-y-4">
+        <!-- 1. NAME + LOGO (side by side) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Election Name -->
+          <div class="md:col-span-2 e-field-card">
+            <p class="e-section-label">Basic details</p>
+            <label class="block text-sm font-semibold mb-1">Election Name *</label>
+            <input type="text" name="election_name" required class="e-input" />
+            <p class="e-note mt-1">Example: CEIT CSG Election 2025</p>
+          </div>
+
+          <!-- Election Logo + preview -->
+          <div class="e-field-card">
+            <p class="e-section-label">Logo</p>
+            <label class="block text-sm font-semibold mb-1">Election Logo</label>
+            <input type="file"
+                   name="election_logo"
+                   id="create_election_logo"
+                   accept="image/*"
+                   class="w-full text-sm border rounded-lg px-2 py-1.5">
+
+            <div class="mt-2 w-20 h-20 rounded-full bg-gray-100 border border-gray-300 overflow-hidden flex items-center justify-center">
+              <img id="create_logo_preview"
+                   src=""
+                   alt="Logo preview"
+                   class="hidden w-full h-full object-cover">
+              <span id="create_logo_placeholder" class="text-[11px] text-gray-400">
+                Preview
+              </span>
+            </div>
+
+            <p class="e-note mt-1">JPG/PNG up to 2MB. Square image works best.</p>
+          </div>
+        </div>
+
+        <!-- 2. DESCRIPTION -->
+        <div class="e-field-card">
+          <p class="e-section-label">Description</p>
+          <label class="block text-sm font-semibold mb-1">Description</label>
+          <textarea name="description" rows="3" class="e-input"></textarea>
+        </div>
+
+        <!-- 3. SCHEDULE (start left, end right) -->
+        <div class="e-field-card">
+          <p class="e-section-label">Schedule</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold mb-1">Start Date &amp; Time *</label>
+              <input type="datetime-local"
+                     name="start_datetime"
+                     id="create_start_datetime"
+                     required
+                     class="e-input"
+                     min="<?= $currentDateTime ?>" max="2100-12-31T23:59">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-1">End Date &amp; Time *</label>
+              <input type="datetime-local"
+                     name="end_datetime"
+                     id="create_end_datetime"
+                     required
+                     class="e-input"
+                     min="<?= $currentDateTime ?>" max="2100-12-31T23:59">
+            </div>
+          </div>
+          <p class="e-note mt-1">
+            Start must be today or in the future. End must be after start.
+          </p>
+        </div>
+
+        <!-- 4. TARGET VOTERS + CONDITIONAL FIELDS -->
+        <div class="e-field-card">
+          <p class="e-section-label">Target voters</p>
+          <label class="block text-sm font-semibold mb-1">Target Voters *</label>
+          <div class="flex flex-wrap gap-4 text-sm mb-1">
+            <label class="flex items-center gap-1">
+              <input type="radio" name="target_voter" value="student" required> Student
+            </label>
+            <label class="flex items-center gap-1">
+              <input type="radio" name="target_voter" value="academic" required> Academic (Faculty)
+            </label>
+            <label class="flex items-center gap-1">
+              <input type="radio" name="target_voter" value="non_academic" required> Non-Academic Employees
+            </label>
+            <label class="flex items-center gap-1">
+              <input type="radio" name="target_voter" value="others" required> Others
+            </label>
+          </div>
+          <p id="create_othersNote" class="e-note mt-1 hidden">
+            <strong>Others:</strong> elections not tied to colleges/departments
+            (e.g. COOP, Alumni). Voters are based on the admin’s uploaded list.
+          </p>
+
+          <!-- Student Fields (CREATE) -->
+          <div id="studentFields" class="hidden space-y-4 mt-4">
+            <div>
+              <label class="block mb-2 font-semibold">Allowed Colleges (Student)</label>
+              <select name="allowed_colleges_student" id="studentCollegeSelect" class="w-full p-2 border rounded">
+                <option value="all">All Colleges</option>
+                <?php foreach ($colleges as $college): ?>
+                  <option value="<?= htmlspecialchars($college) ?>"><?= htmlspecialchars($college) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+
+            <div id="studentCoursesContainer" class="hidden">
+              <label class="block mb-2 font-semibold">Allowed Courses (Student)</label>
+              <div id="studentCoursesList" class="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto border p-2 rounded text-sm"></div>
+              <div class="mt-1">
+                <button type="button" onclick="toggleAllCheckboxes('allowed_courses_student[]')" class="text-xs text-blue-600 hover:text-blue-800">
+                  Select All
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Academic (Faculty) Fields (CREATE) -->
+          <div id="academicFields" class="hidden space-y-4 mt-4">
+            <div>
+              <label class="block mb-2 font-semibold">Allowed Colleges (Academic)</label>
+              <select name="allowed_colleges_academic" id="academicCollegeSelect" class="w-full p-2 border rounded">
+                <option value="all">All Colleges</option>
+                <?php foreach ($colleges as $college): ?>
+                  <option value="<?= htmlspecialchars($college) ?>"><?= htmlspecialchars($college) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+
+            <div id="academicDepartmentsContainer" class="hidden">
+              <label class="block mb-2 font-semibold">Allowed Departments (Faculty)</label>
+              <div id="academicDepartmentsList" class="space-y-1 max-h-40 overflow-y-auto border p-2 rounded text-sm"></div>
+              <div class="mt-1 flex items-center justify-between">
+                <button type="button" onclick="toggleAllCheckboxes('allowed_departments_faculty[]')" class="text-xs text-blue-600 hover:text-blue-800">
+                  Select All Departments
+                </button>
+                <span class="text-[10px] text-gray-500">Leave all unchecked = All departments in this college</span>
+              </div>
+            </div>
+
+            <div>
+              <label class="block mb-2 font-semibold">Allowed Status (Academic)</label>
+              <div class="flex gap-6 text-sm border p-2 rounded">
+                <label class="flex items-center"><input type="checkbox" name="allowed_status_academic[]" value="Regular" class="mr-1">Regular</label>
+                <label class="flex items-center"><input type="checkbox" name="allowed_status_academic[]" value="Part-time" class="mr-1">Part-time</label>
+                <label class="flex items-center"><input type="checkbox" name="allowed_status_academic[]" value="Contractual" class="mr-1">Contractual</label>
+              </div>
+              <div class="mt-1">
+                <button type="button" onclick="toggleAllCheckboxes('allowed_status_academic[]')" class="text-xs text-blue-600 hover:text-blue-800">
+                  Select All Status
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Non-Academic Fields (CREATE) -->
+          <div id="nonAcademicFields" class="hidden space-y-4 mt-4">
+            <div>
+              <label class="block mb-2 font-semibold">Allowed Departments (Non-Academic)</label>
+              <select name="allowed_departments_nonacad" class="w-full p-2 border rounded">
+                <option value="all">All Departments</option>
+                <?php foreach ($nonAcadDepartments as $dept): ?>
+                  <option value="<?= htmlspecialchars($dept) ?>"><?= htmlspecialchars($dept) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+
+            <div>
+              <label class="block mb-2 font-semibold">Allowed Status (Non-Academic)</label>
+              <div class="flex gap-6 text-sm border p-2 rounded">
+                <label class="flex items-center"><input type="checkbox" name="allowed_status_nonacad[]" value="Regular" class="mr-1">Regular</label>
+                <label class="flex items-center"><input type="checkbox" name="allowed_status_nonacad[]" value="Part-time" class="mr-1">Part-time</label>
+                <label class="flex items-center"><input type="checkbox" name="allowed_status_nonacad[]" value="Contractual" class="mr-1">Contractual</label>
+              </div>
+              <div class="mt-1">
+                <button type="button" onclick="toggleAllCheckboxes('allowed_status_nonacad[]')" class="text-xs text-blue-600 hover:text-blue-800">
+                  Select All
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. LAST SECTION: ASSIGN ADMIN -->
+        <div class="e-field-card">
+          <p class="e-section-label">Assign admin</p>
+          <label class="block text-sm font-semibold mb-1">Assign Admin *</label>
+          <select name="assigned_admin_id"
+                  id="create_assigned_admin_id"
+                  required
+                  class="e-input bg-white">
+            <option value="">-- Select Admin --</option>
+            <?php foreach ($adminsByCategory as $cat => $list):
+              $label = $scopeCategoryLabels[$cat] ?? ($cat ?: 'Uncategorized');
+            ?>
+              <optgroup label="<?= htmlspecialchars($label) ?>">
+                <?php foreach ($list as $row):
+                  $pieces = [];
+                  if (!empty($row['admin_title']))      $pieces[] = $row['admin_title'];
+                  if (!empty($row['assigned_scope']))   $pieces[] = $row['assigned_scope'];
+                  if (!empty($row['assigned_scope_1'])) $pieces[] = $row['assigned_scope_1'];
+                  $tail = $pieces ? ' - '.implode(' | ', $pieces) : '';
+                ?>
+                  <option value="<?= (int)$row['user_id'] ?>"
+                          data-scope="<?= htmlspecialchars($row['scope_category'] ?? '') ?>">
+                    <?= htmlspecialchars($row['first_name'].' '.$row['last_name'].$tail) ?>
+                  </option>
+                <?php endforeach; ?>
+              </optgroup>
             <?php endforeach; ?>
           </select>
+          <p class="e-note mt-1">
+            Only admins with a matching scope (students / faculty / non-academic / others) should be assigned.
+          </p>
         </div>
+      </form>
+    </div>
 
-        <div id="studentCoursesContainer" class="hidden">
-          <label class="block mb-2 font-semibold">Allowed Courses (Student)</label>
-          <div id="studentCoursesList" class="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto border p-2 rounded text-sm"></div>
-          <div class="mt-1">
-            <button type="button" onclick="toggleAllCheckboxes('allowed_courses_student[]')" class="text-xs text-blue-600 hover:text-blue-800">
-              Select All
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Academic (Faculty) Fields (CREATE) -->
-      <div id="academicFields" class="hidden space-y-4 mb-4">
-        <div>
-          <label class="block mb-2 font-semibold">Allowed Colleges (Academic)</label>
-          <select name="allowed_colleges_academic" id="academicCollegeSelect" class="w-full p-2 border rounded">
-            <option value="all">All Colleges</option>
-            <?php foreach ($colleges as $college): ?>
-              <option value="<?= htmlspecialchars($college) ?>"><?= htmlspecialchars($college) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-
-        <div id="academicDepartmentsContainer" class="hidden">
-          <label class="block mb-2 font-semibold">Allowed Departments (Faculty)</label>
-          <div id="academicDepartmentsList" class="space-y-1 max-h-40 overflow-y-auto border p-2 rounded text-sm"></div>
-          <div class="mt-1 flex items-center justify-between">
-            <button type="button" onclick="toggleAllCheckboxes('allowed_departments_faculty[]')" class="text-xs text-blue-600 hover:text-blue-800">
-              Select All Departments
-            </button>
-            <span class="text-[10px] text-gray-500">Leave all unchecked = All departments in this college</span>
-          </div>
-        </div>
-
-        <div>
-          <label class="block mb-2 font-semibold">Allowed Status (Academic)</label>
-          <div class="flex gap-6 text-sm border p-2 rounded">
-            <label class="flex items-center"><input type="checkbox" name="allowed_status_academic[]" value="Regular" class="mr-1">Regular</label>
-            <label class="flex items-center"><input type="checkbox" name="allowed_status_academic[]" value="Part-time" class="mr-1">Part-time</label>
-            <label class="flex items-center"><input type="checkbox" name="allowed_status_academic[]" value="Contractual" class="mr-1">Contractual</label>
-          </div>
-          <div class="mt-1">
-            <button type="button" onclick="toggleAllCheckboxes('allowed_status_academic[]')" class="text-xs text-blue-600 hover:text-blue-800">
-              Select All Status
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Non-Academic Fields (CREATE) -->
-      <div id="nonAcademicFields" class="hidden space-y-4 mb-4">
-        <div>
-          <label class="block mb-2 font-semibold">Allowed Departments (Non-Academic)</label>
-          <select name="allowed_departments_nonacad" class="w-full p-2 border rounded">
-            <option value="all">All Departments</option>
-            <?php foreach ($nonAcadDepartments as $dept): ?>
-              <option value="<?= htmlspecialchars($dept) ?>"><?= htmlspecialchars($dept) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-
-        <div>
-          <label class="block mb-2 font-semibold">Allowed Status (Non-Academic)</label>
-          <div class="flex gap-6 text-sm border p-2 rounded">
-            <label class="flex items-center"><input type="checkbox" name="allowed_status_nonacad[]" value="Regular" class="mr-1">Regular</label>
-            <label class="flex items-center"><input type="checkbox" name="allowed_status_nonacad[]" value="Part-time" class="mr-1">Part-time</label>
-            <label class="flex items-center"><input type="checkbox" name="allowed_status_nonacad[]" value="Contractual" class="mr-1">Contractual</label>
-          </div>
-          <div class="mt-1">
-            <button type="button" onclick="toggleAllCheckboxes('allowed_status_nonacad[]')" class="text-xs text-blue-600 hover:text-blue-800">
-              Select All
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Assign Admin (CREATE) -->
-      <div class="mb-4">
-        <label class="block font-semibold mb-1">Assign Admin *</label>
-        <select name="assigned_admin_id" id="create_assigned_admin_id" required class="w-full p-2 border rounded">
-          <option value="">-- Select Admin --</option>
-          <?php foreach ($adminsByCategory as $cat => $list): 
-            $label = $scopeCategoryLabels[$cat] ?? ($cat ?: 'Uncategorized');
-          ?>
-            <optgroup label="<?= htmlspecialchars($label) ?>">
-              <?php foreach ($list as $row):
-                $pieces = [];
-                if (!empty($row['admin_title']))      $pieces[] = $row['admin_title'];
-                if (!empty($row['assigned_scope']))   $pieces[] = $row['assigned_scope'];
-                if (!empty($row['assigned_scope_1'])) $pieces[] = $row['assigned_scope_1'];
-                $tail = $pieces ? ' - '.implode(' | ', $pieces) : '';
-              ?>
-                <option value="<?= (int)$row['user_id'] ?>">
-                  <?= htmlspecialchars($row['first_name'].' '.$row['last_name'].$tail) ?>
-                </option>
-              <?php endforeach; ?>
-            </optgroup>
-          <?php endforeach; ?>
-        </select>
-      </div>
-
-      <!-- Buttons (CREATE) -->
-      <div class="flex justify-end gap-3 mt-6">
-        <button type="button" id="clearFormBtn" 
-                class="bg-yellow-500 text-white px-6 py-2 rounded hover:bg-yellow-600 transition">
-          Clear
-        </button>
-        <button type="submit" 
-                class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 transition">
-          Create Election
-        </button>
-      </div>
-    </form>
+    <!-- FOOTER BUTTONS -->
+    <div class="e-modal-footer">
+      <button type="button" id="clearFormBtn"
+              class="bg-yellow-500 text-white px-5 py-2 rounded-lg text-sm hover:bg-yellow-600 transition">
+        Clear
+      </button>
+      <button type="submit" form="createElectionForm"
+              class="bg-green-600 text-white px-5 py-2 rounded-lg text-sm hover:bg-green-700 transition">
+        Create Election
+      </button>
+    </div>
   </div>
 </div>
 
-<!-- UPDATE ELECTION MODAL -->
+<!-- ====================== UPDATE ELECTION MODAL ====================== -->
 <div id="updateModal" class="fixed inset-0 hidden z-50 flex items-center justify-center modal-backdrop">
-  <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl p-8 relative max-h-[90vh] overflow-y-auto">
-    <button id="closeUpdateModalBtn" class="absolute top-3 right-3 text-gray-600 hover:text-gray-900 text-2xl font-bold">&times;</button>
-    <h2 class="text-2xl font-bold mb-4 text-[var(--cvsu-green-dark)]">Update Election</h2>
+  <div class="e-modal-panel">
 
-    <div id="updateFormError" class="hidden mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded text-sm"></div>
-
-    <form id="updateElectionForm" action="update_election.php" method="POST" enctype="multipart/form-data" class="space-y-4">
-      <input type="hidden" name="election_id" id="update_election_id">
-
-      <!-- Election Name -->
-      <div>
-        <label class="block mb-2 font-semibold">Election Name *</label>
-        <input type="text" name="election_name" id="update_election_name" required class="w-full p-2 border rounded" />
-      </div>
-
-      <!-- Election Logo -->
-      <div>
-        <label class="block mb-2 font-semibold">Election Logo</label>
-        <input type="file" name="update_logo" id="update_logo" class="w-full p-2 border rounded" accept="image/*">
-      </div>
-
-      <!-- Description -->
-      <div>
-        <label class="block mb-2 font-semibold">Description</label>
-        <textarea name="description" id="update_description" class="w-full p-2 border rounded"></textarea>
-      </div>
-
-      <!-- Start & End Dates -->
-      <div>
-        <label class="block mb-2 font-semibold">Start and End Date *</label>
-        <div class="flex gap-2">
-          <input type="datetime-local" name="start_datetime" id="update_start_datetime" required 
-                 class="w-1/2 p-2 border rounded"
-                 min="<?= $currentDateTime ?>" max="2100-12-31T23:59">
-          <input type="datetime-local" name="end_datetime" id="update_end_datetime" required 
-                 class="w-1/2 p-2 border rounded"
-                 min="<?= $currentDateTime ?>" max="2100-12-31T23:59">
-        </div>
-        <p class="text-xs text-gray-500 mt-1">Start date must be in the future. End date must be after start date.</p>
-      </div>
-
-      <!-- Target Voters (UPDATE) -->
-      <div class="mb-4">
-        <label class="block mb-2 font-semibold">Target Voters *</label>
-        <div class="flex flex-wrap gap-4">
-          <label class="flex items-center gap-1">
-            <input type="radio" name="target_voter" value="student" id="update_target_student" required> Student
-          </label>
-          <label class="flex items-center gap-1">
-            <input type="radio" name="target_voter" value="faculty" id="update_target_faculty" required> Faculty
-          </label>
-          <label class="flex items-center gap-1">
-            <input type="radio" name="target_voter" value="non_academic" id="update_target_non_academic" required> Non-Academic
-          </label>
-          <label class="flex items-center gap-1">
-            <input type="radio" name="target_voter" value="others" id="update_target_others" required> Others
-          </label>
-        </div>
-
-        <!-- (Optional) Note for Others – if you want it in update too -->
-        <p id="update_othersNote" class="text-xs text-gray-500 mt-1 hidden">
-          <strong>Others:</strong> Special elections that are not tied to colleges or departments
-          (e.g. COOP, Alumni, Retired). Voters are defined entirely by the list you upload
-          for the assigned admin.
-        </p>
-      </div>
-
-      <!-- Student Fields (UPDATE) -->
-      <div id="update_studentFields" class="hidden space-y-4">
+    <!-- HEADER -->
+    <div class="e-modal-header">
+      <div class="e-modal-header-left">
+        <div class="e-modal-icon">✏️</div>
         <div>
-          <label class="block mb-2 font-semibold">Allowed Colleges (Student)</label>
-          <select name="allowed_colleges" id="update_allowed_colleges" class="w-full p-2 border rounded">
-            <option value="all">All Colleges</option>
-            <?php foreach ($colleges as $college): ?>
-              <option value="<?= htmlspecialchars($college) ?>"><?= htmlspecialchars($college) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-
-        <div id="update_studentCoursesContainer" class="hidden">
-          <label class="block mb-2 font-semibold">Allowed Courses (Student)</label>
-          <div id="update_studentCoursesList" class="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto border p-2 rounded text-sm"></div>
-          <div class="mt-1">
-            <button type="button" id="update_selectAllStudentCourses" class="text-xs text-blue-600 hover:text-blue-800">
-              Select All
-            </button>
-          </div>
+          <div class="e-modal-title">Update Election</div>
+          <div class="e-modal-subtitle">Edit details, schedule, target voters and assigned admin.</div>
         </div>
       </div>
+      <button id="closeUpdateModalBtn" class="e-modal-close">&times;</button>
+    </div>
 
-      <!-- Faculty Fields (UPDATE) -->
-      <div id="update_facultyFields" class="hidden space-y-4">
-        <div>
-          <label class="block mb-2 font-semibold">Allowed Colleges (Faculty)</label>
-          <select name="allowed_colleges_faculty" id="update_allowed_colleges_faculty" class="w-full p-2 border rounded">
-            <option value="all">All Colleges</option>
-            <?php foreach ($colleges as $college): ?>
-              <option value="<?= htmlspecialchars($college) ?>"><?= htmlspecialchars($college) ?></option>
-            <?php endforeach; ?>
-          </select>
+    <!-- BODY -->
+    <div class="e-modal-body">
+
+      <div id="updateFormError"
+           class="hidden mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded text-sm"></div>
+
+      <form id="updateElectionForm" action="update_election.php" method="POST"
+            enctype="multipart/form-data" class="space-y-4">
+        <input type="hidden" name="election_id" id="update_election_id">
+
+        <!-- === BASIC DETAILS + LOGO PREVIEW === -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+          <!-- Election Name -->
+          <div class="md:col-span-2 e-field-card">
+            <p class="e-section-label">Basic Details</p>
+            <label class="block text-sm font-semibold mb-1">Election Name *</label>
+            <input type="text" name="election_name" id="update_election_name" required class="e-input">
+          </div>
+
+          <!-- Logo + Preview -->
+          <div class="e-field-card">
+            <p class="e-section-label">Logo</p>
+            <label class="block text-sm font-semibold mb-1">Election Logo</label>
+
+            <input type="file" name="update_logo" id="update_logo"
+                   accept="image/*"
+                   class="w-full text-sm border rounded-lg px-2 py-1.5">
+
+            <!-- Preview Container -->
+            <div class="mt-2 w-20 h-20 rounded-full bg-gray-100 border border-gray-300 overflow-hidden flex items-center justify-center">
+              <img id="update_logo_preview"
+                   src=""
+                   alt="Logo preview"
+                   class="hidden w-full h-full object-cover">
+              <span id="update_logo_placeholder" class="text-[11px] text-gray-400">
+                Preview
+              </span>
+            </div>
+
+            <p class="e-note mt-1">Leave empty to keep the existing logo.</p>
+          </div>
+
         </div>
 
-        <div id="update_facultyDepartmentsContainer" class="hidden">
-          <label class="block mb-2 font-semibold">Allowed Departments (Faculty)</label>
-          <div id="update_facultyDepartmentsList" class="space-y-1 max-h-40 overflow-y-auto border p-2 rounded text-sm"></div>
-          <div class="mt-1 flex items-center justify-between">
-            <button type="button" id="update_selectAllFacultyDepartments" class="text-xs text-blue-600 hover:text-blue-800">
-              Select All Departments
-            </button>
-            <span class="text-[10px] text-gray-500">Leave all unchecked = All departments in this college</span>
-          </div>
-        </div>
-        
-        <div>
-          <label class="block mb-2 font-semibold">Allowed Status (Faculty)</label>
-          <div class="flex gap-6 text-sm border p-2 rounded">
-            <label class="flex items-center"><input type="checkbox" name="allowed_status_faculty[]" value="Regular" class="mr-1">Regular</label>
-            <label class="flex items-center"><input type="checkbox" name="allowed_status_faculty[]" value="Part-time" class="mr-1">Part-time</label>
-            <label class="flex items-center"><input type="checkbox" name="allowed_status_faculty[]" value="Contractual" class="mr-1">Contractual</label>
-          </div>
-          <div class="mt-1">
-            <button type="button" id="update_selectAllFacultyStatus" class="text-xs text-blue-600 hover:text-blue-800">
-              Select All Status
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Non-Academic Fields (UPDATE) -->
-      <div id="update_nonAcademicFields" class="hidden space-y-4">
-        <div>
-          <label class="block mb-2 font-semibold">Allowed Departments (Non-Academic)</label>
-          <select name="allowed_departments_nonacad" id="update_allowed_departments_nonacad" class="w-full p-2 border rounded">
-            <option value="all">All Departments</option>
-            <?php
-            $departments2 = ['NAEA','ADMIN','FINANCE','HR','IT','MAINTENANCE','SECURITY','LIBRARY'];
-            foreach ($departments2 as $dept): ?>
-              <option value="<?= htmlspecialchars($dept) ?>"><?= htmlspecialchars($dept) ?></option>
-            <?php endforeach; ?>
-          </select>
+        <!-- === DESCRIPTION === -->
+        <div class="e-field-card">
+          <p class="e-section-label">Description</p>
+          <label class="block text-sm font-semibold mb-1">Description</label>
+          <textarea name="description" id="update_description" rows="3" class="e-input"></textarea>
         </div>
 
-        <div>
-          <label class="block mb-2 font-semibold">Allowed Status (Non-Academic)</label>
-          <div class="flex gap-6 text-sm border p-2 rounded">
-            <label class="flex items-center"><input type="checkbox" name="allowed_status_nonacad[]" value="Regular" class="mr-1">Regular</label>
-            <label class="flex items-center"><input type="checkbox" name="allowed_status_nonacad[]" value="Part-time" class="mr-1">Part-time</label>
-            <label class="flex items-center"><input type="checkbox" name="allowed_status_nonacad[]" value="Contractual" class="mr-1">Contractual</label>
+        <!-- === SCHEDULE (Side-by-side) === -->
+        <div class="e-field-card">
+          <p class="e-section-label">Schedule</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold mb-1">Start Date & Time *</label>
+              <input type="datetime-local" name="start_datetime" id="update_start_datetime"
+                     required class="e-input" min="<?= $currentDateTime ?>" max="2100-12-31T23:59">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-1">End Date & Time *</label>
+              <input type="datetime-local" name="end_datetime" id="update_end_datetime"
+                     required class="e-input" min="<?= $currentDateTime ?>" max="2100-12-31T23:59">
+            </div>
           </div>
-          <div class="mt-1">
-            <button type="button" id="update_selectAllNonAcadStatus" class="text-xs text-blue-600 hover:text-blue-800">
-              Select All
-            </button>
-          </div>
+          <p class="e-note mt-1">End date/time must be after the start date/time.</p>
         </div>
-      </div>
 
-      <!-- Assign Admin (UPDATE) -->
-      <div class="mb-4">
-        <label class="block font-semibold mb-1">Assign Admin *</label>
-        <select name="assigned_admin_id" id="update_assigned_admin_id" required class="w-full p-2 border rounded">
-          <option value="">-- Select Admin --</option>
-          <?php foreach ($adminsByCategory as $cat => $list): 
-            $label = $scopeCategoryLabels[$cat] ?? ($cat ?: 'Uncategorized');
-          ?>
-            <optgroup label="<?= htmlspecialchars($label) ?>">
-              <?php foreach ($list as $row):
-                $pieces = [];
-                if (!empty($row['admin_title']))      $pieces[] = $row['admin_title'];
-                if (!empty($row['assigned_scope']))   $pieces[] = $row['assigned_scope'];
-                if (!empty($row['assigned_scope_1'])) $pieces[] = $row['assigned_scope_1'];
-                $tail = $pieces ? ' - '.implode(' | ', $pieces) : '';
+        <!-- === TARGET VOTERS === -->
+        <div class="e-field-card">
+          <p class="e-section-label">Target voters</p>
+          <label class="block text-sm font-semibold mb-1">Target Voters *</label>
+
+          <div class="flex flex-wrap gap-4 text-sm mb-1">
+            <label class="flex items-center gap-1">
+              <input type="radio" name="target_voter" value="student" id="update_target_student"> Student
+            </label>
+            <label class="flex items-center gap-1">
+              <input type="radio" name="target_voter" value="faculty" id="update_target_faculty"> Faculty
+            </label>
+            <label class="flex items-center gap-1">
+              <input type="radio" name="target_voter" value="non_academic" id="update_target_non_academic"> Non-Academic
+            </label>
+            <label class="flex items-center gap-1">
+              <input type="radio" name="target_voter" value="others" id="update_target_others"> Others
+            </label>
+          </div>
+
+          <p id="update_othersNote" class="e-note mt-1 hidden">
+            <strong>Others:</strong> Not tied to colleges or departments. Voters are controlled by admin uploads.
+          </p>
+
+          <!-- CONDITIONAL FIELDS (hidden until needed) -->
+          <div id="update_studentFields" class="hidden space-y-4 mt-4">
+            <div>
+              <label class="block mb-2 font-semibold">Allowed Colleges (Student)</label>
+              <select name="allowed_colleges" id="update_allowed_colleges" class="w-full p-2 border rounded">
+                <option value="all">All Colleges</option>
+                <?php foreach ($colleges as $college): ?>
+                  <option value="<?= $college ?>"><?= $college ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+
+            <div id="update_studentCoursesContainer" class="hidden">
+              <label class="block mb-2 font-semibold">Allowed Courses (Student)</label>
+              <div id="update_studentCoursesList"
+                   class="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto border p-2 rounded text-sm"></div>
+
+              <button type="button" id="update_selectAllStudentCourses"
+                      class="text-xs text-blue-600 hover:text-blue-800 mt-1">
+                Select All
+              </button>
+            </div>
+          </div>
+
+          <div id="update_facultyFields" class="hidden space-y-4 mt-4">
+            <label class="block mb-2 font-semibold">Allowed Colleges (Faculty)</label>
+            <select name="allowed_colleges_faculty" id="update_allowed_colleges_faculty"
+                    class="w-full p-2 border rounded">
+              <option value="all">All Colleges</option>
+              <?php foreach ($colleges as $college): ?>
+                <option value="<?= $college ?>"><?= $college ?></option>
+              <?php endforeach; ?>
+            </select>
+
+            <div id="update_facultyDepartmentsContainer" class="hidden">
+              <label class="block mb-2 font-semibold">Allowed Departments (Faculty)</label>
+              <div id="update_facultyDepartmentsList"
+                   class="space-y-1 max-h-40 overflow-y-auto border p-2 rounded text-sm"></div>
+
+              <div class="mt-1 flex justify-between text-xs">
+                <button type="button" id="update_selectAllFacultyDepartments"
+                        class="text-blue-600 hover:text-blue-800">Select All Departments</button>
+                <span class="text-gray-500">Leave unchecked = All departments</span>
+              </div>
+            </div>
+
+            <label class="block mb-2 font-semibold">Allowed Status</label>
+            <div class="flex gap-6 text-sm border p-2 rounded">
+              <label><input type="checkbox" name="allowed_status_faculty[]" value="Regular"> Regular</label>
+              <label><input type="checkbox" name="allowed_status_faculty[]" value="Part-time"> Part-time</label>
+              <label><input type="checkbox" name="allowed_status_faculty[]" value="Contractual"> Contractual</label>
+            </div>
+          </div>
+
+          <div id="update_nonAcademicFields" class="hidden space-y-4 mt-4">
+            <label class="block mb-2 font-semibold">Allowed Departments (Non-Academic)</label>
+            <select name="allowed_departments_nonacad" id="update_allowed_departments_nonacad"
+                    class="w-full p-2 border rounded">
+              <option value="all">All Departments</option>
+              <?php foreach ($nonAcadDepartments as $dept): ?>
+                <option value="<?= $dept ?>"><?= $dept ?></option>
+              <?php endforeach; ?>
+            </select>
+
+            <label class="block mb-2 font-semibold">Allowed Status</label>
+            <div class="flex gap-6 text-sm border p-2 rounded">
+              <label><input type="checkbox" name="allowed_status_nonacad[]" value="Regular"> Regular</label>
+              <label><input type="checkbox" name="allowed_status_nonacad[]" value="Part-time"> Part-time</label>
+              <label><input type="checkbox" name="allowed_status_nonacad[]" value="Contractual"> Contractual</label>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- === ASSIGN ADMIN === -->
+        <div class="e-field-card">
+          <p class="e-section-label">Assign admin</p>
+
+          <label class="block text-sm font-semibold mb-1">Assign Admin *</label>
+          <select name="assigned_admin_id" id="update_assigned_admin_id"
+                  class="e-input bg-white" required>
+            <option value="">-- Select Admin --</option>
+            <?php foreach ($adminsByCategory as $cat => $list): ?>
+            <optgroup label="<?= $scopeCategoryLabels[$cat] ?>">
+              <?php foreach ($list as $a):
+                $desc = trim($a['admin_title'] . ' ' . $a['assigned_scope'] . ' ' . $a['assigned_scope_1']);
               ?>
-                <option value="<?= (int)$row['user_id'] ?>">
-                  <?= htmlspecialchars($row['first_name'].' '.$row['last_name'].$tail) ?>
-                </option>
+              <option value="<?= $a['user_id'] ?>" data-scope="<?= $a['scope_category'] ?>">
+                <?= $a['first_name'] . ' ' . $a['last_name'] ?> <?= $desc ? ' - '.$desc : '' ?>
+              </option>
               <?php endforeach; ?>
             </optgroup>
-          <?php endforeach; ?>
-        </select>
-      </div>
+            <?php endforeach; ?>
+          </select>
 
-      <!-- Buttons (UPDATE) -->
-      <div class="flex justify-end gap-3 mt-6">
-        <button type="button" id="clearUpdateFormBtn" 
-                class="bg-yellow-500 text-white px-6 py-2 rounded hover:bg-yellow-600 transition">
-          Clear
-        </button>
-        <button type="submit" 
-                class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 transition">
-          Update Election
-        </button>
-      </div>
-    </form>
+          <p class="e-note mt-1">
+            Only admins with matching voter scope are shown.
+          </p>
+        </div>
+
+      </form>
+
+    </div>
+
+    <!-- FOOTER -->
+    <div class="e-modal-footer">
+      <button id="clearUpdateFormBtn"
+              class="bg-yellow-500 text-white px-5 py-2 rounded-lg text-sm hover:bg-yellow-600 transition">
+        Clear
+      </button>
+      <button type="submit" form="updateElectionForm"
+              class="bg-green-600 text-white px-5 py-2 rounded-lg text-sm hover:bg-green-700 transition">
+        Update Election
+      </button>
+    </div>
+
   </div>
 </div>
+<!-- ====================== END UPDATE MODAL ====================== -->
 
-<!-- External JS (no inline JS logic now) -->
+<!-- External JS -->
 <script src="create_election.js"></script>
 <script src="update_election.js"></script>
+
+<!-- Small helpers: logo preview + admin filtering -->
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // === Logo preview ===
+  const logoInput       = document.getElementById('create_election_logo');
+  const logoPreview     = document.getElementById('create_logo_preview');
+  const logoPlaceholder = document.getElementById('create_logo_placeholder');
+
+  function resetLogoPreview() {
+    if (logoPreview) {
+      logoPreview.src = '';
+      logoPreview.classList.add('hidden');
+    }
+    if (logoPlaceholder) {
+      logoPlaceholder.classList.remove('hidden');
+    }
+  }
+
+  if (logoInput && logoPreview) {
+    logoInput.addEventListener('change', () => {
+      const file = logoInput.files && logoInput.files[0];
+      if (!file) {
+        resetLogoPreview();
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      logoPreview.src = url;
+      logoPreview.classList.remove('hidden');
+      if (logoPlaceholder) logoPlaceholder.classList.add('hidden');
+    });
+  }
+
+  // === Admin filtering by target_voter ===
+  const targetRadios = document.querySelectorAll('#createElectionForm input[name="target_voter"]');
+  const adminSelect  = document.getElementById('create_assigned_admin_id');
+
+  function filterAdminsByTarget(target) {
+    if (!adminSelect) return;
+
+    const map = {
+      student:      ['Academic-Student', 'Special-Scope'],
+      academic:     ['Academic-Faculty'],
+      non_academic:['Non-Academic-Employee'],
+      others:       ['Others']
+    };
+
+    const allowedScopes = map[target] || null;
+
+    Array.from(adminSelect.options).forEach((opt, idx) => {
+      if (idx === 0) {
+        opt.disabled = false;
+        opt.hidden   = false;
+        return;
+      }
+      const scope = opt.dataset.scope || '';
+      if (!allowedScopes) {
+        opt.disabled = false;
+        opt.hidden   = false;
+      } else {
+        const ok = allowedScopes.includes(scope);
+        opt.disabled = !ok;
+        opt.hidden   = !ok;
+      }
+    });
+
+    // clear invalid selection
+    if (adminSelect.selectedOptions.length &&
+        adminSelect.selectedOptions[0].hidden) {
+      adminSelect.value = '';
+    }
+  }
+
+  targetRadios.forEach(radio => {
+    radio.addEventListener('change', e => {
+      filterAdminsByTarget(e.target.value);
+    });
+  });
+
+  // initial state: no filter until user chooses target
+  filterAdminsByTarget(null);
+});
+</script>
 
 </body>
 </html>

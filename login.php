@@ -2,14 +2,14 @@
 session_start();
 date_default_timezone_set('Asia/Manila');
 
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
 $host = 'localhost';
 $db = 'evoting_system';
 $user = 'root';
 $pass = '';
 $charset = 'utf8mb4';
-
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
 
 require 'phpmailer/src/PHPMailer.php';
 require 'phpmailer/src/SMTP.php';
@@ -38,12 +38,93 @@ function logActivity(PDO $pdo, int $userId, string $action): void {
             ':uid'    => $userId,
             ':action' => $action,
         ]);
-    } catch (PDOException $e) {
+    } catch (\PDOException $e) {
         // Huwag i-echo sa user, log lang
         error_log('Activity log insert failed: ' . $e->getMessage());
     }
 }
 
+/**
+ * Log lifetime events into user_lifetime_logs for AUTO DURATION rule.
+ */
+function logLifetimeDurationDeactivation(PDO $pdo, int $userId, string $reasonText): void {
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO user_lifetime_logs
+                (user_id, action, trigger_type, reason_code, reason_text, admin_id, created_at)
+            VALUES
+                (:user_id, :action, :trigger_type, :reason_code, :reason_text, :admin_id, NOW())
+        ");
+        $stmt->execute([
+            ':user_id'      => $userId,
+            ':action'       => 'DEACTIVATE',
+            ':trigger_type' => 'auto_duration',
+            ':reason_code'  => 'DURATION_EXPIRED',
+            ':reason_text'  => $reasonText,
+            ':admin_id'     => null,   // system-triggered (no specific admin)
+        ]);
+    } catch (\Exception $e) {
+        error_log('user_lifetime_logs insert failed (auto_duration): ' . $e->getMessage());
+    }
+}
+
+/**
+ * Send email for student account expiry (duration rule).
+ */
+function sendStudentExpiryEmail(array $user, string $expiryDateStr): bool
+{
+    $mail = new PHPMailer(true);
+    try {
+        $loginUrl = "http://localhost/ebalota/login.html";
+
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'krpmab@gmail.com';
+        $mail->Password   = 'ghdumnwrjbphujbs';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+
+        $mail->setFrom('makimaki.maki123567@gmail.com', 'eBalota | Cavite State University');
+        $mail->addAddress($user['email'], $user['first_name'] . ' ' . $user['last_name']);
+
+        $mail->isHTML(true);
+        $mail->Subject = 'Your eBalota student voting account has expired';
+
+        $firstName = htmlspecialchars($user['first_name'], ENT_QUOTES, 'UTF-8');
+        $expiryEsc = htmlspecialchars($expiryDateStr, ENT_QUOTES, 'UTF-8');
+
+        $mail->Body = "
+            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
+                <h2 style='color: #0a5f2d;'>eBalota Account Expiry</h2>
+                <p>Dear {$firstName},</p>
+                <p>Your <strong>student voting account</strong> in eBalota has <strong>expired</strong> based on the duration assigned to your year level.</p>
+                <p><strong>Expiry date recorded in the system:</strong> {$expiryEsc}</p>
+                <p>After this date, your account is automatically deactivated and you will no longer be able to log in or vote as a student.</p>
+                <p>If you believe you should still be an eligible student voter (e.g. extended enrollment or special cases), please contact your college/CSG/OSAS office to request reactivation.</p>
+                <p style='margin: 20px 0;'>
+                    <a href='{$loginUrl}' style='
+                        display: inline-block;
+                        padding: 10px 20px;
+                        background-color: #0a5f2d;
+                        color: #ffffff;
+                        text-decoration: none;
+                        border-radius: 5px;
+                        font-weight: bold;
+                    '>Open eBalota</a>
+                </p>
+                <p>Regards,<br>eBalota | Cavite State University</p>
+            </div>
+        ";
+        $mail->AltBody = "Your eBalota student voting account has expired as of {$expiryDateStr}. If you believe this is incorrect, please contact your college/CSG/OSAS office.";
+
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        error_log('Student expiry email error: ' . $mail->ErrorInfo);
+        return false;
+    }
+}
 
 // Function to send super admin verification email
 function sendSuperAdminVerificationEmail($email, $first_name, $last_name, $token) {
@@ -60,7 +141,7 @@ function sendSuperAdminVerificationEmail($email, $first_name, $last_name, $token
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
 
-        $mail->setFrom('makimaki.maki1234567@gmail.com', 'eBalota System');
+        $mail->setFrom('makimaki.maki123567@gmail.com', 'eBalota System');
         $mail->addAddress($email, "$first_name $last_name");
 
         $mail->isHTML(true);
@@ -109,7 +190,7 @@ function sendAdminVerificationEmail($email, $first_name, $last_name, $token) {
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
 
-        $mail->setFrom('makimaki.maki1234567@gmail.com', 'eBalota');
+        $mail->setFrom('makimaki.maki123567@gmail.com', 'eBalota');
         $mail->addAddress($email, "$first_name $last_name");
 
         $mail->isHTML(true);
@@ -160,14 +241,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     try {
-        // Updated query - added owner_scope_id, is_other_member
+        // Updated query - includes cooldown fields
         $stmt = $pdo->prepare("SELECT 
-                user_id, first_name, last_name, email, password, role, 
+                user_id, first_name, last_name, email, password, role, admin_title,
                 position, is_coop_member, department, course, status, 
                 assigned_scope, scope_category, assigned_scope_1, admin_status,
-                owner_scope_id, is_other_member
+                owner_scope_id, is_other_member,
+                profile_picture,
+                year_level_at_registration,
+                account_expires_at,
+                is_active,
+                failed_attempts,
+                last_failed_login
             FROM users 
             WHERE email = ?");
+
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
@@ -176,9 +264,125 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        $failedAttempts = (int)($user['failed_attempts'] ?? 0);
+        $lastFailedStr  = $user['last_failed_login'] ?? null;
+
+        // 🔹 3-ATTEMPT / 3-MIN COOLDOWN CHECK (before password_verify)
+        try {
+            if ($failedAttempts >= 3 && !empty($lastFailedStr)) {
+                $now        = new DateTime('now', new DateTimeZone('Asia/Manila'));
+                $lastFailed = new DateTime($lastFailedStr, new DateTimeZone('Asia/Manila'));
+                $diffSeconds = $now->getTimestamp() - $lastFailed->getTimestamp();
+
+                // 180 seconds = 3 minutes
+                if ($diffSeconds < 180) {
+                    $lockUntilTs = $lastFailed->getTimestamp() + 180;
+
+                    $msg = "Too many failed attempts. Please wait a few minutes before trying again, or just use the Forgot Password link to reset your password.";
+
+                    header(
+                        "Location: login.html?error=" . urlencode($msg) .
+                        "&lock_until=" . $lockUntilTs .
+                        "&email=" . urlencode($email)
+                    );
+                    exit;
+                } else {
+                    // Lumipas na ang cooldown → reset counter
+                    $failedAttempts = 0;
+                    $resetStmt = $pdo->prepare("UPDATE users SET failed_attempts = 0, last_failed_login = NULL WHERE user_id = ?");
+                    $resetStmt->execute([$user['user_id']]);
+                }
+            }
+        } catch (\Exception $e) {
+            error_log('Cooldown date error: ' . $e->getMessage());
+        }
+
+        // 🔹 PASSWORD CHECK + ATTEMPT INCREMENT
         if (!password_verify($password, $user['password'])) {
-            header("Location: login.html?error=Incorrect password.&email=" . urlencode($email));
+            $failedAttemptsBefore = (int)($failedAttempts ?? 0);
+            $failedAttemptsAfter = $failedAttemptsBefore + 1;
+
+            try {
+                $upd = $pdo->prepare("UPDATE users SET failed_attempts = ?, last_failed_login = NOW() WHERE user_id = ?");
+                $upd->execute([$failedAttemptsAfter, $user['user_id']]);
+            } catch (\PDOException $e) {
+                error_log('Failed to update failed_attempts: ' . $e->getMessage());
+            }
+
+            if ($failedAttemptsAfter >= 3) {
+                $lockUntilTs = time() + 180;
+                $msg = "Too many failed attempts. Login is locked for 3 minutes. You can also use the Forgot Password link to reset your password.";
+
+                header(
+                    "Location: login.html?error=" . urlencode($msg) .
+                    "&lock_until=" . $lockUntilTs .
+                    "&email=" . urlencode($email)
+                );
+                exit;
+            }
+
+            $attemptsLeft = 3 - $failedAttemptsAfter; // 2 or 1
+            $msg = "Incorrect password. You have {$attemptsLeft} attempt(s) remaining before login is locked for 3 minutes.";
+
+            header("Location: login.html?error=" . urlencode($msg) . "&email=" . urlencode($email));
             exit;
+        }
+
+        // 🔹 PASSWORD OK – RESET FAILED ATTEMPTS
+        try {
+            $reset = $pdo->prepare("UPDATE users SET failed_attempts = 0, last_failed_login = NULL WHERE user_id = ?");
+            $reset->execute([$user['user_id']]);
+        } catch (\PDOException $e) {
+            error_log("Failed to reset failed_attempts: " . $e->getMessage());
+        }
+
+        // 🔹 STUDENT ACCOUNT LIFETIME CHECKS (DURATION RULE)
+        if ($user['position'] === 'student') {
+
+            // 1. If already inactive, respect that (could be auto_missed, manual, or duration)
+            if (isset($user['is_active']) && (int)$user['is_active'] === 0) {
+                header("Location: login.html?error=" . urlencode("Your student voting account is deactivated. Please contact the election administrator for reactivation.") . "&email=" . urlencode($email));
+                exit;
+            }
+
+            // 2. Check if account has expired based on account_expires_at
+            if (!empty($user['account_expires_at'])) {
+                try {
+                    $now    = new DateTime('now', new DateTimeZone('Asia/Manila'));
+                    $expiry = new DateTime($user['account_expires_at'], new DateTimeZone('Asia/Manila'));
+
+                    if ($now > $expiry) {
+                        try {
+                            $pdo->beginTransaction();
+
+                            // Mark inactive
+                            $upd = $pdo->prepare("UPDATE users SET is_active = 0 WHERE user_id = ?");
+                            $upd->execute([$user['user_id']]);
+
+                            // Log lifetime deactivation (auto_duration)
+                            $reasonText = 'Student voting account expired based on the assigned year-level duration rule.';
+                            logLifetimeDurationDeactivation($pdo, (int)$user['user_id'], $reasonText);
+
+                            $pdo->commit();
+                        } catch (\PDOException $e) {
+                            $pdo->rollBack();
+                            error_log('Failed to auto-deactivate expired student (login): ' . $e->getMessage());
+                        }
+
+                        // Send email notification (best-effort; errors are logged only)
+                        try {
+                            sendStudentExpiryEmail($user, $user['account_expires_at']);
+                        } catch (\Exception $e) {
+                            error_log('Failed to send student expiry email: ' . $e->getMessage());
+                        }
+
+                        header("Location: login.html?error=" . urlencode("Your student voting account has expired. Please contact the election administrator for reactivation.") . "&email=" . urlencode($email));
+                        exit;
+                    }
+                } catch (\Exception $e) {
+                    error_log('Student expiry date parse error: ' . $e->getMessage());
+                }
+            }
         }
 
         // Check if admin account is inactive
@@ -205,22 +409,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($success) {
                 // Store pending admin data with scope information
                 $_SESSION['pending_admin_auth'] = $user['user_id'];
-                $_SESSION['pending_auth_role'] = $user['role'];
+                $_SESSION['pending_auth_role']  = $user['role'];
+                $_SESSION['pending_admin_title'] = $user['admin_title'] ?? null;
                 
-                // Store scope data for pending admin
                 if ($user['role'] === 'admin') {
                     $_SESSION['pending_scope_category'] = $user['scope_category'];
                     $_SESSION['pending_assigned_scope'] = $user['assigned_scope'];
                     $_SESSION['pending_assigned_scope_1'] = $user['assigned_scope_1'];
                     
-                    // Fetch scope_details from admin_scopes table
                     try {
                         $scopeStmt = $pdo->prepare("SELECT scope_details FROM admin_scopes WHERE user_id = ?");
                         $scopeStmt->execute([$user['user_id']]);
                         $scopeData = $scopeStmt->fetch();
                         $_SESSION['pending_scope_details'] = !empty($scopeData['scope_details']) ? 
                             json_decode($scopeData['scope_details'], true) : [];
-                    } catch (PDOException $e) {
+                    } catch (\PDOException $e) {
                         error_log("Error fetching scope details: " . $e->getMessage());
                         $_SESSION['pending_scope_details'] = [];
                     }
@@ -236,12 +439,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // Normal user login
-        $_SESSION['user_id']  = $user['user_id'];
+        // Normal user login (no extra email step)
+        $_SESSION['user_id']    = $user['user_id'];
         $_SESSION['first_name'] = $user['first_name'];
         $_SESSION['last_name']  = $user['last_name'];
-        $_SESSION['email']    = $user['email'];
-        $_SESSION['role']     = $user['role'];
+        $_SESSION['email']      = $user['email'];
+        $_SESSION['role']       = $user['role'];
 
         $_SESSION['position']       = $user['position'];
         $_SESSION['is_coop_member'] = (bool)$user['is_coop_member']; // legacy / can be unused later
@@ -249,9 +452,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['course']         = $user['course'] ?? '';
         $_SESSION['status']         = $user['status'] ?? '';
 
-        // 🔹 NEW: Others-related flags
+        // Others-related flags
         $_SESSION['is_other_member'] = (bool)$user['is_other_member'];
         $_SESSION['owner_scope_id']  = $user['owner_scope_id'];
+        
+        $_SESSION['profile_picture'] = $user['profile_picture'] ?? null;
 
         logActivity(
             $pdo,
@@ -290,7 +495,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header("Location: login.html?success=true&redirect=" . urlencode($redirectUrl));
         exit;
 
-    } catch (PDOException $e) {
+    } catch (\PDOException $e) {
         error_log("Login error: " . $e->getMessage());
         header("Location: login.html?error=System error. Please try again.");
         exit;
@@ -300,4 +505,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header("Location: login.html");
     exit;
 }
-?>

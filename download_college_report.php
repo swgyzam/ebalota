@@ -100,6 +100,44 @@ if (!in_array($electionId, $allowedElectionIds, true)) {
     exit();
 }
 
+// Find election title from scoped list (for logging)
+$electionTitle = '';
+foreach ($scopedElections as $el) {
+    if ((int)$el['election_id'] === $electionId) {
+        $electionTitle = $el['title'] ?? '';
+        break;
+    }
+}
+
+/* ==========================================================
+   ACTIVITY LOG: REPORT GENERATION
+   ========================================================== */
+
+try {
+    $adminId = $userId;
+
+    $titleForLog = $electionTitle !== '' ? $electionTitle : 'Unknown election';
+
+    $actionText = 'Generated college election report for election: ' .
+                  $titleForLog . ' (ID: ' . $electionId . '), ' .
+                  'college: ' . ($collegeCode ?: 'N/A') .
+                  ' (scope_id: ' . $scopeId . ')';
+
+    if ($adminId > 0) {
+        $logStmt = $pdo->prepare("
+            INSERT INTO activity_logs (user_id, action, timestamp)
+            VALUES (:uid, :action, NOW())
+        ");
+        $logStmt->execute([
+            ':uid'    => $adminId,
+            ':action' => $actionText,
+        ]);
+    }
+} catch (PDOException $e) {
+    // silent fail – huwag i-break ang PDF download
+    error_log('Activity log error (download_college_report.php): ' . $e->getMessage());
+}
+
 /* ==========================================================
    GENERATE PDF
    ========================================================== */

@@ -65,12 +65,35 @@ try {
                              WHERE election_id = :id");
     $update->execute([':id' => $electionId]);
 
+    // --- Activity Log: election launched to voters ---
+    try {
+        $adminId       = (int)$userId;
+        $electionTitle = $election['title'] ?? 'Untitled Election';
+
+        if ($adminId > 0) {
+            $logStmt = $pdo->prepare("
+                INSERT INTO activity_logs (user_id, action, timestamp)
+                VALUES (:uid, :action, NOW())
+            ");
+            $logStmt->execute([
+                ':uid'    => $adminId,
+                ':action' => 'Launched election to voters: ' . $electionTitle .
+                             ' (ID: ' . $election['election_id'] . ')',
+            ]);
+        }
+    } catch (PDOException $logError) {
+        // silent fail for logging, just record in PHP error log
+        error_log('Activity log error (launch_election.php): ' . $logError->getMessage());
+    }
+
     $_SESSION['toast_message'] = "Election \"{$election['title']}\" successfully launched to voters!";
-    $_SESSION['toast_type'] = "success";
+    $_SESSION['toast_type']    = "success";
+
 } catch (Exception $e) {
     $_SESSION['toast_message'] = "Failed to launch election: " . $e->getMessage();
-    $_SESSION['toast_type'] = "error";
+    $_SESSION['toast_type']    = "error";
 }
 
 header("Location: admin_view_elections.php");
 exit();
+

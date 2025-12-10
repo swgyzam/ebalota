@@ -143,16 +143,13 @@ foreach ($scopedElectionsAll as $erow) {
 $elections = $scopedElectionsAll;
 
 // =========================
-// BASIC DATES & NEW/LAST MONTH
+// BASIC DATES & NEW THIS MONTH
 // =========================
 
 $currentMonthStart = date('Y-m-01');
 $currentMonthEnd   = date('Y-m-t 23:59:59');
-$lastMonthStart    = date('Y-m-01', strtotime('-1 month'));
-$lastMonthEnd      = date('Y-m-t 23:59:59', strtotime('-1 month'));
 
-$newVoters       = 0;
-$lastMonthVoters = 0;
+$newVoters = 0;
 
 foreach ($scopedNAS as $v) {
     $created = $v['created_at'] ?? null;
@@ -160,9 +157,6 @@ foreach ($scopedNAS as $v) {
 
     if ($created >= $currentMonthStart && $created <= $currentMonthEnd) {
         $newVoters++;
-    }
-    if ($created >= $lastMonthStart && $created <= $lastMonthEnd) {
-        $lastMonthVoters++;
     }
 }
 
@@ -227,6 +221,14 @@ foreach ($scopedNAS as $v) {
     $courseAgg[$key]['count']++;
 }
 $collegeCourseBar = array_values($courseAgg);
+
+// --- Totals for summary cards (Non-Academic Students analytics) ---
+$totalColleges    = count($votersByCollegeArr);
+$totalDepartments = count(array_unique(array_map(
+    fn($row) => $row['department_name'] ?? '',
+    $collegeDepartmentBar
+)));
+$totalCourses     = count($collegeCourseBar);
 
 // =========================
 // TURNOUT BY YEAR (analytics_scopes)
@@ -834,6 +836,8 @@ $isImpersonate = function_exists('isSuperAdmin') && isSuperAdmin() && getImperso
       include 'sidebar.php';
   }
 ?>
+<?php include 'admin_change_password_modal.php'; ?>
+
 <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:var(--cvsu-green-dark);">
   <div class="flex flex-col">
     <h1 class="text-2xl font-bold text-white">
@@ -954,7 +958,7 @@ $isImpersonate = function_exists('isSuperAdmin') && isSuperAdmin() && getImperso
             <div>
               <p class="text-sm text-blue-600">Colleges</p>
               <p class="text-2xl font-bold text-blue-800">
-                <?= count($votersByCollegeArr) ?>
+                <?= number_format($totalColleges) ?>
               </p>
             </div>
           </div>
@@ -966,9 +970,9 @@ $isImpersonate = function_exists('isSuperAdmin') && isSuperAdmin() && getImperso
               <i class="fas fa-graduation-cap text-white text-xl"></i>
             </div>
             <div>
-              <p class="text-sm text-purple-600">Courses</p>
+              <p class="text-sm text-purple-600">Departments</p>
               <p class="text-2xl font-bold text-purple-800">
-                <?= count($collegeCourseBar) ?>
+                <?= number_format($totalDepartments) ?>
               </p>
             </div>
           </div>
@@ -977,19 +981,12 @@ $isImpersonate = function_exists('isSuperAdmin') && isSuperAdmin() && getImperso
         <div class="p-4 rounded-lg border" style="background-color:rgba(245,158,11,0.05);border-color:var(--cvsu-yellow);">
           <div class="flex items-center">
             <div class="p-3 rounded-lg mr-4 bg-[var(--cvsu-yellow)]">
-              <i class="fas fa-chart-line text-white text-xl"></i>
+              <i class="fas fa-book text-white text-xl"></i>
             </div>
             <div>
-              <p class="text-sm text-[var(--cvsu-yellow)]">Growth Rate</p>
-              <p class="text-2xl font-bold text-[#D97706]">
-                <?php
-                if ($lastMonthVoters > 0) {
-                    $growthRate = round((($newVoters - $lastMonthVoters) / $lastMonthVoters) * 100, 1);
-                    echo ($growthRate > 0 ? '+' : '') . $growthRate . '%';
-                } else {
-                    echo $newVoters > 0 ? '+∞%' : '0%';
-                }
-                ?>
+              <p class="text-sm font-semibold" style="color:#B45309;">Courses</p>
+              <p class="text-2xl font-bold" style="color:#92400E;">
+                <?= number_format($totalCourses) ?>
               </p>
             </div>
           </div>

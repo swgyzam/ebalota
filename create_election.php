@@ -121,7 +121,7 @@ $target_position      = 'All';   // enum: 'student','faculty','non-academic','co
 $target_department    = 'All';
 $realtime_results     = isset($_POST['realtime_results']) ? 1 : 0;
 
-// === NEW: Resolve admin scope → election_scope_type + owner_scope_id ===
+// === NEW: Resolve admin scope → election_scope_type + owner_scope_id + VALIDATE ===
 $election_scope_type = null;
 $owner_scope_id      = null;
 
@@ -131,30 +131,52 @@ try {
     $adminStmt->execute([':uid' => $assigned_admin_id]);
     $adminRow = $adminStmt->fetch();
 
-    if ($adminRow) {
-        // e.g. 'Academic-Faculty', 'Others', etc.
-        $election_scope_type = $adminRow['scope_category'];
+    if (!$adminRow) {
+        echo json_encode(['status' => 'error', 'message' => 'Selected admin not found.']);
+        exit;
+    }
 
-        // 2) Get admin_scope row for this admin + category
-        $scopeStmt = $pdo->prepare("
-            SELECT scope_id, scope_type, scope_details
-            FROM admin_scopes
-            WHERE user_id = :uid
-              AND scope_type = :stype
-            LIMIT 1
-        ");
-        $scopeStmt->execute([
-            ':uid'   => $assigned_admin_id,
-            ':stype' => $election_scope_type
+    $adminScope = $adminRow['scope_category'] ?? '';
+
+    // 2) Allowed scope categories per target voter
+    $allowedScopesByTarget = [
+        'student'      => ['Academic-Student', 'Special-Scope'],
+        'academic'     => ['Academic-Faculty'],
+        'non_academic' => ['Non-Academic-Employee'],
+        'others'       => ['Others'],
+    ];
+
+    if (isset($allowedScopesByTarget[$target_voter]) &&
+        !in_array($adminScope, $allowedScopesByTarget[$target_voter], true)) {
+
+        echo json_encode([
+            'status'  => 'error',
+            'message' => "Selected admin has scope '{$adminScope}', which does not match this election target. Please choose an admin with the correct scope."
         ]);
-        $scopeRow = $scopeStmt->fetch();
-        if ($scopeRow) {
-            $owner_scope_id = (int)$scopeRow['scope_id'];
-        }
+        exit;
+    }
+
+    // 3) Set election_scope_type + owner_scope_id from admin_scopes
+    $election_scope_type = $adminScope;
+
+    $scopeStmt = $pdo->prepare("
+        SELECT scope_id, scope_type, scope_details
+        FROM admin_scopes
+        WHERE user_id = :uid
+          AND scope_type = :stype
+        LIMIT 1
+    ");
+    $scopeStmt->execute([
+        ':uid'   => $assigned_admin_id,
+        ':stype' => $election_scope_type
+    ]);
+    $scopeRow = $scopeStmt->fetch();
+    if ($scopeRow) {
+        $owner_scope_id = (int)$scopeRow['scope_id'];
     }
 } catch (PDOException $e) {
     error_log("Error resolving admin scope in create_election.php: " . $e->getMessage());
-    // Do not hard-fail; election can still be created but without scope linking
+    // optional: you can hard-fail here if you want
 }
 
 // === MAP target_voter + form fields → DB columns ===

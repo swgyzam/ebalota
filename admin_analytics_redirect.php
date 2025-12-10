@@ -68,54 +68,93 @@ if ($electionId <= 0) {
     exit();
 }
 
+// Optional scope impersonation (mainly for super admin coming from Super Admin Dashboard)
+$scopeTypeParam = $_GET['scope_type'] ?? null;
+$scopeIdParam   = (isset($_GET['scope_id']) && ctype_digit((string)$_GET['scope_id']))
+    ? (int)$_GET['scope_id']
+    : null;
+
 /* ==========================================================
    DETERMINE REDIRECT BASED ON SCOPE CATEGORY (NEW MODEL)
    ========================================================== */
 
 $redirectUrl = '';
 
-// Super admin: always allowed to see global analytics
+// SUPER ADMIN
 if ($role === 'super_admin') {
-    $redirectUrl = "admin_analytics_all.php?id={$electionId}";
-} elseif ($role === 'admin') {
+
+    // Kung may scope impersonation (galing sa Super Admin Dashboard)
+    if ($scopeTypeParam && $scopeIdParam !== null) {
+        switch ($scopeTypeParam) {
+            case 'Special-Scope':          // CSG
+                $redirectUrl = "admin_analytics_csg.php?id={$electionId}&scope_type=" . urlencode($scopeTypeParam) . "&scope_id={$scopeIdParam}";
+                break;
+
+            case 'Academic-Student':
+                $redirectUrl = "admin_analytics_college.php?id={$electionId}&scope_type=" . urlencode($scopeTypeParam) . "&scope_id={$scopeIdParam}";
+                break;
+
+            case 'Academic-Faculty':
+                $redirectUrl = "admin_analytics_faculty.php?id={$electionId}&scope_type=" . urlencode($scopeTypeParam) . "&scope_id={$scopeIdParam}";
+                break;
+
+            case 'Non-Academic-Employee':
+                $redirectUrl = "admin_analytics_nonacademic.php?id={$electionId}&scope_type=" . urlencode($scopeTypeParam) . "&scope_id={$scopeIdParam}";
+                break;
+
+            case 'Non-Academic-Student':
+                $redirectUrl = "admin_analytics_non_acad_students.php?id={$electionId}&scope_type=" . urlencode($scopeTypeParam) . "&scope_id={$scopeIdParam}";
+                break;
+
+            case 'Others':
+                $redirectUrl = "admin_analytics_default.php?id={$electionId}&scope_type=" . urlencode($scopeTypeParam) . "&scope_id={$scopeIdParam}";
+                break;
+
+            default:
+                // Unknown scope → safe global analytics
+                $redirectUrl = "admin_analytics_all.php?id={$electionId}";
+                break;
+        }
+    } else {
+        // Walang scope_id/scope_type → global view
+        $redirectUrl = "admin_analytics_all.php?id={$electionId}";
+    }
+
+}
+// ADMIN
+elseif ($role === 'admin') {
     switch ($scopeCategory) {
         case 'Special-Scope':
-            // CSG Admin – system-wide student org management
             $redirectUrl = "admin_analytics_csg.php?id={$electionId}";
             break;
 
         case 'Academic-Student':
-            // College / program-based student elections
             $redirectUrl = "admin_analytics_college.php?id={$electionId}";
             break;
 
         case 'Academic-Faculty':
-            // Faculty elections by college + department
             $redirectUrl = "admin_analytics_faculty.php?id={$electionId}";
             break;
 
         case 'Non-Academic-Employee':
-            // Non-academic employees (HR, ADMIN, LIBRARY, etc.)
             $redirectUrl = "admin_analytics_nonacademic.php?id={$electionId}";
             break;
 
         case 'Non-Academic-Student':
-            // Non-academic student org admins (esports, bands, etc.)
             $redirectUrl = "admin_analytics_non_acad_students.php?id={$electionId}";
             break;
 
         case 'Others':
-            // Unified Others scope – faculty/non-ac/external members under an Others seat
             $redirectUrl = "admin_analytics_default.php?id={$electionId}";
             break;
 
         default:
-            // Very old admins or unknown scope → safe global-ish analytics
             $redirectUrl = "admin_analytics_all.php?id={$electionId}";
             break;
     }
+
+// ANY OTHER ROLE (fallback)
 } else {
-    // Voters or any other unexpected role – fallback
     $redirectUrl = "admin_analytics_all.php?id={$electionId}";
 }
 

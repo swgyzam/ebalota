@@ -492,6 +492,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $userId        = (int)$row['user_id'];
     $password_hash = password_hash($password, PASSWORD_DEFAULT);
 
+    // Get user role (for role-specific logging)
+    $roleStmt = $pdo->prepare("SELECT role FROM users WHERE user_id = ?");
+    $roleStmt->execute([$userId]);
+    $roleRow = $roleStmt->fetch();
+    $userRole = $roleRow['role'] ?? null;
+
     try {
         $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE user_id = ?");
         $stmt->execute([$password_hash, $userId]);
@@ -499,7 +505,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("DELETE FROM password_reset_tokens WHERE token = ?");
         $stmt->execute([$token]);
 
-        logActivity($pdo, $userId, 'Password reset via email reset link');
+        // Role-aware activity log
+        $actionText = in_array($userRole, ['admin','super_admin'], true)
+            ? 'Admin password reset via email reset link'
+            : 'User password reset via email reset link';
+
+        logActivity($pdo, $userId, $actionText);
 
         // Success page
         ?>

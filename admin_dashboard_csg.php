@@ -287,6 +287,15 @@ if ($isCSGAdmin) {
     $collegeCourseBar = array_values($agg);
 }
 
+// --- Totals for summary cards (CSG analytics) ---
+$totalColleges    = count($allColleges);
+$totalDepartments = count(array_unique(array_map(
+    fn($row) => $row['department_name'] ?? '',
+    $collegeDepartmentBar
+)));
+$totalCourses     = count($collegeCourseBar);
+
+
 // --- Fetch Voter Turnout Analytics Data (NEW: analytics_scopes) ---
 
 // Use computeTurnoutByYear with scoped CSG voters
@@ -1151,6 +1160,8 @@ $isImpersonate  = function_exists('isSuperAdmin') && isSuperAdmin() && getImpers
       include 'sidebar.php';
   }
 ?>
+<?php include 'admin_change_password_modal.php'; ?>
+
 <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:var(--cvsu-green-dark);">
   <div class="flex flex-col">
     <h1 class="text-2xl font-bold text-white">
@@ -1282,8 +1293,8 @@ $isImpersonate  = function_exists('isSuperAdmin') && isSuperAdmin() && getImpers
               <i class="fas fa-building-columns text-white text-xl"></i>
             </div>
             <div>
-              <p class="text-sm text-blue-600">Departments</p>
-              <p class="text-2xl font-bold text-blue-800"><?= count($isCSGAdmin ? $votersByCollege : $votersByDepartment) ?></p>
+              <p class="text-sm text-blue-600">Colleges</p>
+              <p class="text-2xl font-bold text-blue-800"><?= number_format($totalColleges) ?></p>
             </div>
           </div>
         </div>
@@ -1294,8 +1305,8 @@ $isImpersonate  = function_exists('isSuperAdmin') && isSuperAdmin() && getImpers
               <i class="fas fa-graduation-cap text-white text-xl"></i>
             </div>
             <div>
-              <p class="text-sm text-purple-600">Courses</p>
-              <p class="text-2xl font-bold text-purple-800"><?= count($collegeCourseBar) ?></p>
+              <p class="text-sm text-purple-600">Departments</p>
+              <p class="text-2xl font-bold text-purple-800"><?= number_format($totalDepartments) ?></p>
             </div>
           </div>
         </div>
@@ -1303,30 +1314,12 @@ $isImpersonate  = function_exists('isSuperAdmin') && isSuperAdmin() && getImpers
         <div class="p-4 rounded-lg border" style="background-color: rgba(245,158,11,0.05); border-color: var(--cvsu-yellow);">
           <div class="flex items-center">
             <div class="p-3 rounded-lg mr-4" style="background-color: var(--cvsu-yellow);">
-              <i class="fas fa-chart-line text-white text-xl"></i>
+              <i class="fas fa-book text-white text-xl"></i>
             </div>
             <div>
-              <p class="text-sm" style="color: var(--cvsu-yellow);">Growth Rate</p>
-              <p class="text-2xl font-bold" style="color: #D97706;">
-                <?php
-                $lastMonthStart = date('Y-m-01', strtotime('-1 month'));
-                $lastMonthEnd = date('Y-m-t', strtotime('-1 month'));
-                
-                if ($isCSGAdmin) {
-                    $stmt = $pdo->prepare("SELECT COUNT(*) as last_month_voters FROM users WHERE role = 'voter' AND position = 'student' AND created_at BETWEEN ? AND ?");
-                    $stmt->execute([$lastMonthStart, $lastMonthEnd]);
-                    $lastMonthVoters = $stmt->fetch()['last_month_voters'];
-                } else {
-                    $stmt = $pdo->prepare("SELECT COUNT(*) as last_month_voters FROM users WHERE created_at BETWEEN ? AND ? AND UPPER(TRIM(department)) = ?");
-                    $stmt->execute([$lastMonthStart, $lastMonthEnd, $scope]);
-                    $lastMonthVoters = $stmt->fetch()['last_month_voters'];
-                }
-                
-                if ($lastMonthVoters > 0) {
-                    $displayGrowthRate = round((($newVoters - $lastMonthVoters) / $lastMonthVoters) * 100, 1);
-                    echo ($displayGrowthRate > 0 ? '+' : '') . $displayGrowthRate . '%';
-                } else { echo '0%'; }
-                ?>
+              <p class="text-sm" style="color: #B45309;">Courses</p>
+              <p class="text-2xl font-bold" style="color: #92400E;">
+                  <?= number_format($totalCourses) ?>
               </p>
             </div>
           </div>

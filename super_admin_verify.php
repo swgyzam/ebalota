@@ -30,7 +30,15 @@ if (!isset($_GET['token'])) {
 
 $token = filter_input(INPUT_GET, 'token', FILTER_SANITIZE_STRING);
 $stmt = $pdo->prepare("
-    SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, u.is_verified
+    SELECT 
+        u.user_id,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.role,
+        u.is_verified,
+        u.profile_picture,
+        u.admin_title
     FROM admin_login_tokens alt
     JOIN users u ON alt.user_id = u.user_id
     WHERE alt.token = ? AND alt.expires_at > NOW()
@@ -57,12 +65,36 @@ $_SESSION['is_verified'] = (bool)$user['is_verified'];
 $_SESSION['CREATED'] = time();
 $_SESSION['LAST_ACTIVITY'] = time();
 
+// para sa sidebar / profile
+$_SESSION['profile_picture'] = $user['profile_picture'] ?? null;
+$_SESSION['admin_title']     = $user['admin_title'] ?: 'Super Administrator';
+
+// super admin scope info – laging system-wide
+$_SESSION['scope_category']   = 'System-wide';
+$_SESSION['assigned_scope']   = 'System-wide';
+$_SESSION['assigned_scope_1'] = 'System-wide';
+$_SESSION['scope_details']    = [];
+
 // Update DB to verified if not yet
 if (!$user['is_verified']) {
     $pdo->prepare("UPDATE users SET is_verified = 1 WHERE user_id = ?")
        ->execute([$user['user_id']]);
     $_SESSION['is_verified'] = true;
 }
+
+try {
+  $logStmt = $pdo->prepare("
+      INSERT INTO activity_logs (user_id, action, timestamp)
+      VALUES (:uid, :action, NOW())
+  ");
+  $logStmt->execute([
+      ':uid'    => $user['user_id'],
+      ':action' => 'Super admin logged in',
+  ]);
+} catch (PDOException $e) {
+  error_log('Activity log error (super_admin_verify.php): ' . $e->getMessage());
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">

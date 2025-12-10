@@ -111,7 +111,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const studentDepartment = document.getElementById('studentDepartment');
     const studentDepartment1 = document.getElementById('studentDepartment1');
     const studentCourse = document.getElementById('studentCourse');
-    
+    const yearLevel = document.getElementById('yearLevel');
+        
     const academicCollege = document.getElementById('academicCollege');
     const academicDepartment = document.getElementById('academicDepartment');
     const academicStatus = document.getElementById('academicStatus');
@@ -173,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ===== Position change handler =====
     position.addEventListener('change', function() {
       const value = this.value;
-  
+
       // Hide all groups
       studentFields.classList.add('hidden');
       academicFields.classList.add('hidden');
@@ -181,37 +182,39 @@ document.addEventListener('DOMContentLoaded', function() {
       positionDetails.classList.add('hidden');
       studentNumberField.classList.add('hidden');
       employeeNumberField.classList.add('hidden');
-  
+
       // Clear required
       studentDepartment.required = false;
       studentDepartment1.required = false;
       studentCourse.required = false;
       studentNumberInput.required = false;
+      if (yearLevel) yearLevel.required = false;
       academicCollege.required = false;
       academicDepartment.required = false;
       academicStatus.required = false;
       nonAcademicDept.required = false;
       nonAcademicStatus.required = false;
       employeeNumberInput.required = false;
-  
+
       // Reset email helper
       emailErrorInline.classList.add('hidden');
       emailErrorInline.textContent = '';
-  
+
       // Update step indicator
       step2.classList.add('active');
-      
+          
       if (value === 'student') {
         studentFields.classList.remove('hidden');
         positionDetails.classList.remove('hidden');
         studentNumberField.classList.remove('hidden');
         detailsTitle.textContent = 'Student Details';
-  
+
         studentDepartment.required = true;
         studentDepartment1.required = true;
         studentCourse.required = true;
         studentNumberInput.required = true;
-  
+        if (yearLevel) yearLevel.required = true;
+
         emailHelp.textContent = 'For Students, use your CvSU email (@cvsu.edu.ph).';
         step3.classList.add('active');
       } else if (value === 'academic') {
@@ -219,12 +222,12 @@ document.addEventListener('DOMContentLoaded', function() {
         positionDetails.classList.remove('hidden');
         employeeNumberField.classList.remove('hidden');
         detailsTitle.textContent = 'Academic Details';
-  
+
         academicCollege.required = true;
         academicDepartment.required = true;
         academicStatus.required = true;
         employeeNumberInput.required = true;
-  
+
         emailHelp.textContent = 'For Academic (Faculty), use your CvSU email (@cvsu.edu.ph).';
         step3.classList.add('active');
       } else if (value === 'non-academic') {
@@ -232,11 +235,11 @@ document.addEventListener('DOMContentLoaded', function() {
         positionDetails.classList.remove('hidden');
         employeeNumberField.classList.remove('hidden');
         detailsTitle.textContent = 'Non-Academic Details';
-  
+
         nonAcademicDept.required = true;
         nonAcademicStatus.required = true;
         employeeNumberInput.required = true;
-  
+
         emailHelp.textContent = 'For Non-Academic, any valid email (e.g. Gmail) is allowed.';
         step3.classList.add('active');
       } else {
@@ -432,6 +435,14 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         return false;
       }
+
+      if (positionValue === 'student' && !yearLevel.value.trim()) {
+          e.preventDefault();
+          emailErrorInline.textContent = 'Year level is required.';
+          emailErrorInline.classList.remove('hidden');
+          return false;
+      }
+
   
       if ((positionValue === 'academic' || positionValue === 'non-academic') && !employeeNumberInput.value.trim()) {
         e.preventDefault();

@@ -205,15 +205,12 @@ $stmt->execute([
 $elections = $stmt->fetchAll();
 
 /***************************************************
- * NEW VOTERS THIS MONTH / LAST MONTH (SUMMARY CARD)
+ * NEW VOTERS THIS MONTH (SUMMARY CARD)
  ***************************************************/
 $currentMonthStart = date('Y-m-01 00:00:00');
 $currentMonthEnd   = date('Y-m-t 23:59:59');
-$lastMonthStart    = date('Y-m-01 00:00:00', strtotime('-1 month'));
-$lastMonthEnd      = date('Y-m-t 23:59:59', strtotime('-1 month'));
 
-$newVoters       = 0;
-$lastMonthVoters = 0;
+$newVoters = 0;
 
 foreach ($scopedOthers as $v) {
     $created = $v['created_at'] ?? null;
@@ -221,9 +218,6 @@ foreach ($scopedOthers as $v) {
 
     if ($created >= $currentMonthStart && $created <= $currentMonthEnd) {
         $newVoters++;
-    }
-    if ($created >= $lastMonthStart && $created <= $lastMonthEnd) {
-        $lastMonthVoters++;
     }
 }
 
@@ -767,17 +761,6 @@ $collegeFullName = "All Colleges/Departments"; // used by UI; safe generic
     .password-strength-bar {
       transition: width 0.3s ease;
     }
-
-    .no-data-overlay {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: #9CA3AF;          /* gray-400 */
-      font-size: 14px;
-      text-align: center;
-      pointer-events: none;    /* para hindi makaistorbo sa hover/click */
-    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
@@ -934,6 +917,12 @@ $collegeFullName = "All Colleges/Departments"; // used by UI; safe generic
       include 'sidebar.php';
   }
 ?>
+<?php 
+if ($force_password_flag !== 1) {
+  include 'admin_change_password_modal.php';
+}
+?>
+
 <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:var(--cvsu-green-dark);">
   <div class="flex flex-col">
     <h1 class="text-2xl font-bold text-white">
@@ -1028,7 +1017,7 @@ $collegeFullName = "All Colleges/Departments"; // used by UI; safe generic
     
     <div class="p-6">
       <!-- Summary Cards -->
-      <div class="p-6 grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div class="p-4 rounded-lg border" style="background-color: rgba(30,111,70,0.05); border-color: var(--cvsu-green-light);">
           <div class="flex items-center">
             <div class="p-3 rounded-lg mr-4" style="background-color: var(--cvsu-green-light);">
@@ -1077,27 +1066,6 @@ $collegeFullName = "All Colleges/Departments"; // used by UI; safe generic
                   } else {
                       echo 0;
                   }
-                ?>
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div class="p-4 rounded-lg border" style="background-color: rgba(245,158,11,0.05); border-color: var(--cvsu-yellow);">
-          <div class="flex items-center">
-            <div class="p-3 rounded-lg mr-4" style="background-color: var(--cvsu-yellow);">
-              <i class="fas fa-chart-line text-white text-xl"></i>
-            </div>
-            <div>
-              <p class="text-sm" style="color: var(--cvsu-yellow);">Growth Rate</p>
-              <p class="text-2xl font-bold" style="color: #D97706;">
-                <?php
-                if ($lastMonthVoters > 0) {
-                    $growthRate = round((($newVoters - $lastMonthVoters) / $lastMonthVoters) * 100, 1);
-                    echo ($growthRate > 0 ? '+' : '') . $growthRate . '%';
-                } else {
-                    echo $newVoters > 0 ? '+∞%' : '0%';
-                }
                 ?>
               </p>
             </div>
@@ -1337,49 +1305,6 @@ $collegeFullName = "All Colleges/Departments"; // used by UI; safe generic
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-// ======================
-// No-data helpers
-// ======================
-
-// Show centered "No data" text inside the chart container and hide canvas
-function showNoDataOnCanvas(canvasId, message) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-
-  const container = canvas.parentElement; // .chart-container
-  if (!container) return;
-
-  // Hide the actual chart canvas
-  canvas.style.display = 'none';
-
-  // Reuse or create overlay element
-  let overlay = container.querySelector('.no-data-overlay');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.className = 'no-data-overlay';
-    container.appendChild(overlay);
-  }
-
-  overlay.textContent = message;
-  overlay.style.display = 'block';
-}
-
-// Clear no-data overlay and show canvas again
-function clearNoDataOverlay(canvasId) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-
-  const container = canvas.parentElement;
-  if (!container) return;
-
-  const overlay = container.querySelector('.no-data-overlay');
-  if (overlay) {
-    overlay.style.display = 'none';
-  }
-
-  canvas.style.display = 'block';
-}
-
 document.addEventListener('DOMContentLoaded', function () {
   /* =========================================
    * 1. FORCE PASSWORD CHANGE (ADMIN)
@@ -1648,6 +1573,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const fromYearJS          = <?= (int)$fromYear ?>;
   const toYearJS            = <?= (int)$toYear ?>;
 
+  // Abstain data (from PHP computeAbstainByYear)
   const abstainYearsJS      = <?= json_encode($abstainYears) ?>;
   const abstainCountsYearJS = <?= json_encode($abstainCountsYear) ?>;
   const abstainRatesYearJS  = <?= json_encode($abstainRatesYear) ?>;
@@ -1731,69 +1657,60 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   /* =========================================
-   * 5. TURNOUT TREND LINE CHART (with no-data)
+   * 5. TURNOUT TREND LINE CHART
    * =======================================*/
   let turnoutTrendChartInstance = null;
   const turnoutTrendCtx = document.getElementById('turnoutTrendChart');
   if (turnoutTrendCtx) {
-    const noTurnoutData =
-      !turnoutYears || turnoutYears.length === 0 ||
-      (turnoutRates || []).every(v => Number(v || 0) === 0);
-
-    if (noTurnoutData) {
-      showNoDataOnCanvas('turnoutTrendChart', 'No turnout data available');
-    } else {
-      clearNoDataOverlay('turnoutTrendChart');
-      turnoutTrendChartInstance = new Chart(turnoutTrendCtx, {
-        type: 'line',
-        data: {
-          labels: turnoutYears,
-          datasets: [{
-            label: 'Turnout Rate (%)',
-            data: turnoutRates,
-            borderColor: '#1E6F46',
-            backgroundColor: 'rgba(30,111,70,0.1)',
-            borderWidth: 3,
-            pointBackgroundColor: '#1E6F46',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 5,
-            pointHoverRadius: 7,
-            fill: true,
-            tension: 0.4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              backgroundColor: 'rgba(0,0,0,0.8)',
-              titleFont: { size: 14 },
-              bodyFont:  { size: 13 },
-              padding: 12,
-              callbacks: {
-                label: c => `Turnout: ${c.raw}%`
-              }
+    turnoutTrendChartInstance = new Chart(turnoutTrendCtx, {
+      type: 'line',
+      data: {
+        labels: turnoutYears,
+        datasets: [{
+          label: 'Turnout Rate (%)',
+          data: turnoutRates,
+          borderColor: '#1E6F46',
+          backgroundColor: 'rgba(30,111,70,0.1)',
+          borderWidth: 3,
+          pointBackgroundColor: '#1E6F46',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          fill: true,
+          tension: 0.4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            titleFont: { size: 14 },
+            bodyFont:  { size: 13 },
+            padding: 12,
+            callbacks: {
+              label: c => `Turnout: ${c.raw}%`
             }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              max: 100,
-              ticks: { callback: v => v + '%' },
-              grid: { color: 'rgba(0,0,0,0.05)' }
-            },
-            x: { grid: { display: false } }
           }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 100,
+            ticks: { callback: v => v + '%' },
+            grid: { color: 'rgba(0,0,0,0.05)' }
+          },
+          x: { grid: { display: false } }
         }
-      });
-    }
+      }
+    });
   }
 
   /* =========================================
-   * 6. ELECTIONS vs TURNOUT / VOTERS / ABSTAINED
+   * 6. ELECTIONS vs TURNOUT / VOTERS vs TURNOUT / ABSTAINED
    * =======================================*/
   const chartData = {
     elections: {
@@ -1809,6 +1726,7 @@ document.addEventListener('DOMContentLoaded', function () {
         total_eligible: e.total_eligible || 0
       }))
     },
+
     voters: {
       year: {
         labels: Object.keys(turnoutRangeData),
@@ -1825,6 +1743,7 @@ document.addEventListener('DOMContentLoaded', function () {
         turnout_rate:   e.turnout_rate   || 0
       }))
     },
+
     abstained: {
       year: {
         labels: abstainYearsJS || [],
@@ -1900,16 +1819,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (electionsVsTurnoutChartInstance) {
       electionsVsTurnoutChartInstance.destroy();
-      electionsVsTurnoutChartInstance = null;
     }
 
     const selectedCollege = (turnoutCollegeSelect && turnoutCollegeSelect.value)
       ? turnoutCollegeSelect.value
       : 'all';
 
-    let data;
-    let titleText = '';
-    let leftLabel = '';
+    let data, titleText = '', leftLabel = '';
 
     if (currentDataSeries === 'elections') {
       if (currentBreakdown === 'year') {
@@ -2025,7 +1941,7 @@ document.addEventListener('DOMContentLoaded', function () {
         leftLabel = 'Number of Voters';
 
       } else if (currentBreakdown === 'college') {
-        let filtered = chartData.voters.college || [];
+        let filtered = chartData.voters.college;
         if (selectedCollege !== 'all') {
           filtered = filtered.filter(r => r.college === selectedCollege);
         }
@@ -2210,25 +2126,6 @@ document.addEventListener('DOMContentLoaded', function () {
         leftLabel = 'Abstained Voters';
       }
     }
-
-    const noDataForSelection =
-      !data ||
-      !data.labels ||
-      data.labels.length === 0 ||
-      (data.datasets || []).every(ds =>
-        !ds.data || ds.data.length === 0 || ds.data.every(v => Number(v || 0) === 0)
-      );
-
-    if (noDataForSelection) {
-      showNoDataOnCanvas('electionsVsTurnoutChart', 'No data for this selection');
-      const container = document.getElementById('turnoutBreakdownTable');
-      if (container) {
-        container.innerHTML = '<div class="text-center text-gray-500 text-sm py-4">No data available for this selection.</div>';
-      }
-      return;
-    }
-
-    clearNoDataOverlay('electionsVsTurnoutChart');
 
     const options = {
       responsive: true,
@@ -2493,7 +2390,6 @@ document.addEventListener('DOMContentLoaded', function () {
     container.appendChild(table);
   }
 
-  // Event handlers for series/breakdown/college
   if (dataSeriesSelect) {
     dataSeriesSelect.addEventListener('change', () => {
       currentDataSeries = dataSeriesSelect.value;
@@ -2560,7 +2456,7 @@ document.addEventListener('DOMContentLoaded', function () {
   renderElectionsVsTurnout();
 
   /* =========================================
-   * 7. DETAILED ANALYTICS (Donut + Bar + Table)
+   * 7. DETAILED ANALYTICS (DONUT + BAR + TABLE)
    * =======================================*/
   const donutData = {
     labels: <?= json_encode(array_column($votersByCollege, 'college_name')) ?>,
@@ -2574,54 +2470,51 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const donutCtx = document.getElementById('donutChart');
   if (donutCtx) {
-    const totalDonut = (donutData.counts || []).reduce((a, b) => a + Number(b || 0), 0);
-    const noDonutData =
-      !donutData.labels || donutData.labels.length === 0 || totalDonut === 0;
-
-    if (noDonutData) {
-      showNoDataOnCanvas('donutChart', 'No voter data available for this group');
-    } else {
-      clearNoDataOverlay('donutChart');
-      new Chart(donutCtx, {
-        type: 'doughnut',
-        data: {
-          labels: donutData.labels.map(label => getPositionAbbrevJS(label)),
-          datasets: [{
-            data: donutData.counts,
-            backgroundColor: [
-              '#1E6F46', '#37A66B', '#FFD166', '#154734', '#2D5F3F',
-              '#4A7C59', '#5A8F6A', '#6A9F7A', '#7AAFAA', '#8ABFBA'
-            ],
-            borderWidth: 1
-          }]
+    new Chart(donutCtx, {
+      type: 'doughnut',
+      data: {
+        labels: donutData.labels.map(label => getPositionAbbrevJS(label)),
+        datasets: [{
+          data: donutData.counts,
+          backgroundColor: [
+            '#1E6F46', '#37A66B', '#FFD166', '#154734', '#2D5F3F',
+            '#4A7C59', '#5A8F6A', '#6A9F7A', '#7AAFAA', '#8ABFBA'
+          ],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: {
+          duration: 700,
+          easing: 'easeOutQuart'
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: { duration: 700, easing: 'easeOutQuart' },
-          plugins: {
-            legend: {
-              position: 'right',
-              labels: { font: { size: 12 }, padding: 10 }
-            },
-            tooltip: {
-              backgroundColor: 'rgba(0,0,0,0.8)',
-              titleFont: { size: 14 },
-              bodyFont:  { size: 13 },
-              padding: 12,
-              callbacks: {
-                label: ctx => {
-                  const label = ctx.label || '';
-                  const value = ctx.raw || 0;
-                  return `${label}: ${Number(value).toLocaleString()}`;
-                }
-              }
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: {
+              font: { size: 12 },
+              padding: 10
             }
           },
-          cutout: '55%'
-        }
-      });
-    }
+          tooltip: {
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            titleFont: { size: 14 },
+            bodyFont:  { size: 13 },
+            padding: 12,
+            callbacks: {
+              label: ctx => {
+                const label = ctx.label || '';
+                const value = ctx.raw || 0;
+                return `${label}: ${Number(value).toLocaleString()}`;
+              }
+            }
+          }
+        },
+        cutout: '55%'
+      }
+    });
   }
 
   const barCtx = document.getElementById('barChart');
@@ -2633,8 +2526,8 @@ document.addEventListener('DOMContentLoaded', function () {
       let counts = [];
 
       if (breakdownType === 'all') {
-        labels = (donutData.labels || []).map(label => getPositionAbbrevJS(label));
-        counts = donutData.counts || [];
+        labels = donutData.labels.map(label => getPositionAbbrevJS(label));
+        counts = donutData.counts;
       } else if (breakdownType === 'position') {
         if (college === 'all') {
           const agg = {};
@@ -2679,53 +2572,49 @@ document.addEventListener('DOMContentLoaded', function () {
     const initialBreakdown  = 'all';
     const initialBarData    = getBarChartDataDetailed(initialBreakdown, initialCollege);
 
-    const noBarData =
-      !initialBarData.labels ||
-      initialBarData.labels.length === 0 ||
-      (initialBarData.counts || []).every(v => Number(v || 0) === 0);
-
-    if (noBarData) {
-      showNoDataOnCanvas('barChart', 'No breakdown data available');
-    } else {
-      clearNoDataOverlay('barChart');
-      barChart = new Chart(barCtx, {
-        type: 'bar',
-        data: {
-          labels: initialBarData.labels,
-          datasets: [{
-            label: 'Number of Voters',
-            data: initialBarData.counts,
-            backgroundColor: '#1E6F46',
-            borderColor: '#154734',
-            borderWidth: 1,
-            borderRadius: 4
-          }]
+    barChart = new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: initialBarData.labels,
+        datasets: [{
+          label: 'Number of Voters',
+          data: initialBarData.counts,
+          backgroundColor: '#1E6F46',
+          borderColor: '#154734',
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: {
+          duration: 700,
+          easing: 'easeOutQuart'
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: { duration: 700, easing: 'easeOutQuart' },
-          plugins: {
-            legend: { display: false },
+        plugins: {
+          legend: { display: false },
+          title: {
+            display: true,
+            text: 'All Colleges/Departments',
+            font: { size: 16, weight: 'bold' }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'Number of Voters' }
+          },
+          x: {
             title: {
               display: true,
-              text: 'All Colleges/Departments',
-              font: { size: 16, weight: 'bold' }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              title: { display: true, text: 'Number of Voters' }
+              text: 'College/Department'
             },
-            x: {
-              title: { display: true, text: 'College/Department' },
-              ticks: { maxRotation: 0, autoSkip: false }
-            }
+            ticks: { maxRotation: 0, autoSkip: false }
           }
         }
-      });
-    }
+      }
+    });
 
     function updateDetailedTable(breakdownType, college) {
       if (!detailedTableHeader || !detailedTableBody) return;
@@ -2738,16 +2627,6 @@ document.addEventListener('DOMContentLoaded', function () {
           <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Voters</th>
         `;
         const data = votersByCollege || [];
-        if (!data.length) {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td colspan="2" class="px-6 py-4 text-center text-gray-500 text-sm">
-              No data available for this selection.
-            </td>
-          `;
-          detailedTableBody.appendChild(tr);
-          return;
-        }
         data.forEach(r => {
           const tr = document.createElement('tr');
           tr.className = 'hover:bg-gray-50';
@@ -2769,18 +2648,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!agg[name]) agg[name] = 0;
             agg[name] += r.count;
           });
-          const names = Object.keys(agg);
-          if (!names.length) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td colspan="2" class="px-6 py-4 text-center text-gray-500 text-sm">
-                No data available for this selection.
-              </td>
-            `;
-            detailedTableBody.appendChild(tr);
-            return;
-          }
-          names.forEach(name => {
+          Object.keys(agg).forEach(name => {
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-gray-50';
             tr.innerHTML = `
@@ -2795,27 +2663,18 @@ document.addEventListener('DOMContentLoaded', function () {
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Voters</th>
           `;
-          const filtered = (barDataDetailed.position || []).filter(r => r.college_name === college);
-          if (!filtered.length) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td colspan="3" class="px-6 py-4 text-center text-gray-500 text-sm">
-                No data available for this selection.
-              </td>
-            `;
-            detailedTableBody.appendChild(tr);
-            return;
-          }
-          filtered.forEach(r => {
-            const tr = document.createElement('tr');
-            tr.className = 'hover:bg-gray-50';
-            tr.innerHTML = `
-              <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">${getFullCollegeNameJS(r.college_name)}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-gray-700">${getPositionDisplayName(r.position)}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-gray-700">${(r.count || 0).toLocaleString()}</td>
-            `;
-            detailedTableBody.appendChild(tr);
-          });
+          (barDataDetailed.position || [])
+            .filter(r => r.college_name === college)
+            .forEach(r => {
+              const tr = document.createElement('tr');
+              tr.className = 'hover:bg-gray-50';
+              tr.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">${getFullCollegeNameJS(r.college_name)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-700">${getPositionDisplayName(r.position)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-700">${(r.count || 0).toLocaleString()}</td>
+              `;
+              detailedTableBody.appendChild(tr);
+            });
         }
       } else if (breakdownType === 'status') {
         if (college === 'all') {
@@ -2829,18 +2688,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!agg[name]) agg[name] = 0;
             agg[name] += r.count;
           });
-          const names = Object.keys(agg);
-          if (!names.length) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td colspan="2" class="px-6 py-4 text-center text-gray-500 text-sm">
-                No data available for this selection.
-              </td>
-            `;
-            detailedTableBody.appendChild(tr);
-            return;
-          }
-          names.forEach(name => {
+          Object.keys(agg).forEach(name => {
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-gray-50';
             tr.innerHTML = `
@@ -2855,27 +2703,18 @@ document.addEventListener('DOMContentLoaded', function () {
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Voters</th>
           `;
-          const filtered = (barDataDetailed.status || []).filter(r => r.college_name === college);
-          if (!filtered.length) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td colspan="3" class="px-6 py-4 text-center text-gray-500 text-sm">
-                No data available for this selection.
-              </td>
-            `;
-            detailedTableBody.appendChild(tr);
-            return;
-          }
-          filtered.forEach(r => {
-            const tr = document.createElement('tr');
-            tr.className = 'hover:bg-gray-50';
-            tr.innerHTML = `
-              <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">${getFullCollegeNameJS(r.college_name)}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-gray-700">${r.status}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-gray-700">${(r.count || 0).toLocaleString()}</td>
-            `;
-            detailedTableBody.appendChild(tr);
-          });
+          (barDataDetailed.status || [])
+            .filter(r => r.college_name === college)
+            .forEach(r => {
+              const tr = document.createElement('tr');
+              tr.className = 'hover:bg-gray-50';
+              tr.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">${getFullCollegeNameJS(r.college_name)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-700">${r.status}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-700">${(r.count || 0).toLocaleString()}</td>
+              `;
+              detailedTableBody.appendChild(tr);
+            });
         }
       }
     }
@@ -2883,11 +2722,6 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateDetailedAnalytics() {
       const breakdownType = detailedBreakdownSelect ? detailedBreakdownSelect.value : 'all';
       const college       = detailedCollegeSelect   ? detailedCollegeSelect.value   : 'all';
-
-      if (!barChart) {
-        updateDetailedTable(breakdownType, college);
-        return;
-      }
 
       const info = getBarChartDataDetailed(breakdownType, college);
       barChart.data.labels = info.labels;
@@ -2911,10 +2745,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function handleDetailedBreakdownChange() {
-      if (!detailedBreakdownSelect || !detailedCollegeSelect || !detailedCollegeLabel) {
-        updateDetailedAnalytics();
-        return;
-      }
+      if (!detailedBreakdownSelect || !detailedCollegeSelect || !detailedCollegeLabel) return;
       const val = detailedBreakdownSelect.value;
       if (val === 'position' || val === 'status') {
         detailedCollegeSelect.disabled = false;
@@ -2970,5 +2801,30 @@ function closePasswordModal() {
   document.body.style.pointerEvents = 'auto';
 }
 </script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const forceFlag = <?= $force_password_flag ?>;
+
+  // ❌ Kapag hindi na forced, huwag galawin si force modal.
+  //    Yung global admin_change_password_modal.php na ang bahala.
+  if (forceFlag !== 1) {
+    return;
+  }
+
+  // ✅ Kapag FIRST LOGIN (forceFlag === 1),
+  //    sidebar "Change Password" dapat mag-open ng SAME force modal.
+  const changeBtn     = document.getElementById('sidebarChangePasswordBtn');
+  const passwordModal = document.getElementById('forcePasswordChangeModal');
+
+  if (changeBtn && passwordModal) {
+    changeBtn.addEventListener('click', function () {
+      passwordModal.classList.remove('hidden');
+      document.body.style.pointerEvents = 'none';
+      passwordModal.style.pointerEvents = 'auto';
+    });
+  }
+});
+</script>
+
 </body>
 </html>

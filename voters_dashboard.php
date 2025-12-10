@@ -744,7 +744,8 @@ include 'voters_sidebar.php';
     }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-900 font-sans">
+<body class="bg-gray-50 text-gray-900 font-sans
+             text-[13px] sm:text-[14px] md:text-[15px] lg:text-[16px]">
   <!-- Loading Overlay -->
   <div id="loadingOverlay" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
     <div class="bg-white p-6 rounded-lg shadow-xl">
@@ -900,7 +901,7 @@ include 'voters_sidebar.php';
 
   <div class="flex">
     <!-- Main Content -->
-    <main class="flex-1 px-4 py-6 md:px-8 md:py-8 md:ml-64 pb-24">
+    <main class="flex-1 px-4 py-6 md:px-8 md:py-8 lg:ml-64 pb-24">
       <div class="w-full max-w-[1600px] mx-auto space-y-6">
         <!-- Header -->
         <header class="bg-[var(--cvsu-green-dark)] text-white p-4 md:p-6 flex justify-between items-center shadow-md rounded-lg">
@@ -1001,7 +1002,12 @@ include 'voters_sidebar.php';
       </div>
       <!-- Elections Grid -->
       <?php if (count($filtered_elections) > 0): ?>
-        <div class="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2 lg:grid-cols-3" id="electionsGrid">
+        <div
+          class="grid gap-4 sm:gap-6 lg:gap-8
+                grid-cols-1 sm:grid-cols-2 xl:grid-cols-3
+                auto-rows-fr"
+          id="electionsGrid"
+        >
           <?php 
           $nowDT = new DateTime();
           $nowString = $nowDT->format('Y-m-d H:i:s');
@@ -1245,7 +1251,11 @@ include 'voters_sidebar.php';
 
               $turnout = $totalVoters > 0 ? round(($votesCast / $totalVoters) * 100, 1) : 0;
             ?>
-            <div class="election-card bg-white rounded-lg shadow-md overflow-hidden border-l-4 <?= $statusColors[$status] ?> flex flex-col h-full transition-transform md:hover:scale-[1.02]" data-status="<?= $status ?>">
+            <div class="election-card bg-white rounded-lg shadow-md overflow-hidden
+                          border-l-4 <?= $statusColors[$status] ?>
+                          flex flex-col h-full transition-transform md:hover:scale-[1.02]
+                          text-[12px] sm:text-[13px] md:text-[14px]"
+                  data-status="<?= $status ?>">
               <!-- Card Header with Status and Menu -->
               <div class="p-4 pb-0 flex justify-between items-start">
                 <div>
@@ -1270,15 +1280,14 @@ include 'voters_sidebar.php';
                 </div>
               </div>
               
-              <div class="p-5 flex flex-grow">
+              <div class="p-4 sm:p-5 flex flex-grow items-start gap-3 sm:gap-4">
                 <!-- Logo Container -->
-                <div class="flex-shrink-0 w-32 h-32 mr-5">
-                  <!-- Logo -->
+                <div class="flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 mr-2 sm:mr-4">
                   <?php if (!empty($election['logo_path'])): ?>
                     <div class="w-full h-full rounded-full overflow-hidden border-4 border-white shadow-md flex items-center justify-center bg-white">
                       <img src="<?= htmlspecialchars($election['logo_path']) ?>" 
-                           alt="Election Logo" 
-                           class="w-full h-full object-cover">
+                          alt="Election Logo" 
+                          class="w-full h-full object-cover">
                     </div>
                   <?php else: ?>
                     <div class="w-full h-full rounded-full bg-gray-100 border-4 border-white shadow-md flex items-center justify-center bg-white">
@@ -1286,22 +1295,17 @@ include 'voters_sidebar.php';
                     </div>
                   <?php endif; ?>
                 </div>
-                
+
                 <!-- Info -->
-                <div class="flex-1">
-                  <h2 class="election-title text-lg font-bold text-[var(--cvsu-green-dark)] mb-2 truncate">
+                <div class="flex-1 min-w-0">
+                  <h2 class="election-title text-sm sm:text-base md:text-lg font-bold text-[var(--cvsu-green-dark)] mb-2 truncate">
                     <?= htmlspecialchars($election['title']) ?>
                   </h2>
-                  
-                  <p class="text-gray-700 text-sm mb-4 line-clamp-2">
-                    <?= nl2br(htmlspecialchars($election['description'])) ?>
-                  </p>
                   
                   <!-- Countdown Timer for Ongoing Elections -->
                   <?php if ($status === 'ongoing'): ?>
                     <?php
                       $interval = $nowDT->diff($endDateTime);
-                      
                       if ($interval->days > 0) {
                         $timeLeft = $interval->days . " day" . ($interval->days > 1 ? "s" : "") . " left";
                       } elseif ($interval->h > 0) {
@@ -1312,36 +1316,51 @@ include 'voters_sidebar.php';
                         $timeLeft = "Less than a minute left";
                       }
                     ?>
-                    <div class="text-sm text-orange-600 font-medium mb-2">
+                    <div class="text-[11px] sm:text-xs md:text-sm text-orange-600 font-medium mb-2">
                       <i class="fas fa-clock mr-1"></i> <?= $timeLeft ?>
                     </div>
                   <?php endif; ?>
                   
                   <!-- Voter Turnout Progress -->
                   <?php if ($status === 'ongoing'): ?>
-                    <div class="mb-3">
-                      <div class="flex justify-between text-sm text-gray-600 mb-1">
+                    <div class="mb-2 sm:mb-3">
+                      <div class="flex justify-between text-[11px] sm:text-xs md:text-sm text-gray-600 mb-1">
                         <span>Voter Turnout</span>
                         <span><?= $votesCast ?>/<?= $totalVoters ?> (<?= $turnout ?>%)</span>
                       </div>
-                      <div class="w-full bg-gray-200 rounded-full h-2">
-                        <div class="bg-green-600 h-2 rounded-full transition-all duration-500" style="width: <?= $turnout ?>%"></div>
+                      <div class="w-full bg-gray-200 rounded-full h-1.5 sm:h-2">
+                        <div class="bg-green-600 h-1.5 sm:h-2 rounded-full transition-all duration-500" style="width: <?= $turnout ?>%"></div>
                       </div>
                     </div>
                   <?php endif; ?>
                   
-                  <div class="space-y-2 text-sm">
-                    <div class="flex items-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  <div class="space-y-1 text-[11px] sm:text-xs md:text-sm">
+                    <!-- Start -->
+                    <div class="flex items-center text-[11px] sm:text-xs md:text-sm whitespace-nowrap">
+                      <svg xmlns="http://www.w3.org/2000/svg"
+                          class="h-3.5 w-3.5 mr-2 text-gray-500"
+                          fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2z" />
                       </svg>
-                      <span><strong class="text-gray-700">Start:</strong> <?= $startDateTime->format("M d, Y h:i A") ?></span>
+                      <span>
+                        <strong class="text-gray-700 mr-1">Start:</strong>
+                        <?= $startDateTime->format("M d, Y h:i A") ?>
+                      </span>
                     </div>
-                    <div class="flex items-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2z" />
+
+                    <!-- End -->
+                    <div class="flex items-center text-[11px] sm:text-xs md:text-sm whitespace-nowrap">
+                      <svg xmlns="http://www.w3.org/2000/svg"
+                          class="h-3.5 w-3.5 mr-2 text-gray-500"
+                          fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2z" />
                       </svg>
-                      <span><strong class="text-gray-700">End:</strong> <?= $endDateTime->format("M d, Y h:i A") ?></span>
+                      <span>
+                        <strong class="text-gray-700 mr-1">End:</strong>
+                        <?= $endDateTime->format("M d, Y h:i A") ?>
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1387,7 +1406,7 @@ include 'voters_sidebar.php';
       <?php include 'footer.php'; ?>
     </main>
   </div>
-  
+
   <!-- Privacy Modal -->
   <div id="privacyModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">

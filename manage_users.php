@@ -276,6 +276,15 @@ $users = $stmt->fetchAll();
 <body class="bg-white font-sans text-gray-900">
   <div class="flex min-h-screen">
     <?php include 'super_admin_sidebar.php'; ?>
+    <?php
+    $role = $_SESSION['role'] ?? '';
+    if ($role === 'super_admin') {
+        include 'super_admin_change_password_modal.php';
+    } else {
+        include 'admin_change_password_modal.php';
+    }
+    ?>
+
     <main class="flex-1 p-8 ml-64">
       <!-- Header -->
       <header class="gradient-bg text-white p-6 flex justify-between items-center shadow-xl rounded-xl mb-8">
@@ -405,11 +414,12 @@ $users = $stmt->fetchAll();
           </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200 table-hover">
+        <!-- fixed height, scroll sa loob -->
+        <div class="overflow-x-auto" style="max-height: 420px; overflow-y: auto;">
+          <table class="min-w-full divide-y divide-gray-200 table-hover text-sm">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verified</th>
@@ -433,7 +443,7 @@ $users = $stmt->fetchAll();
               <?php else: ?>
                 <?php foreach ($users as $user): ?>
                   <tr>
-                    <td class="px-6 py-4 whitespace-nowrap">
+                    <td class="px-4 py-2 whitespace-nowrap">
                       <div class="flex items-center">
                         <div class="flex-shrink-0 h-10 w-10">
                           <div class="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
@@ -473,12 +483,12 @@ $users = $stmt->fetchAll();
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                       <a href="?action=toggle&id=<?= (int) $user['user_id'] ?><?= !empty($filterPosition) ? '&position=' . urlencode($filterPosition) : '' ?>"
-                         class="btn-warning text-white px-3 py-1 rounded-lg mr-2 inline-flex items-center">
+                         class="btn-warning text-white px-2.5 py-1 rounded-md mr-2 inline-flex items-center text-xs">
                         <i class="fas fa-sync-alt mr-1"></i>
                         <?= !empty($user['is_verified']) ? 'Deactivate' : 'Activate' ?>
                       </a>
                       <a href="?action=delete&id=<?= (int) $user['user_id'] ?>"
-                         class="btn-danger text-white px-3 py-1 rounded-lg inline-flex items-center delete-btn"
+                         class="btn-danger text-white px-2.5 py-1 rounded-md inline-flex items-center delete-btn text-xs"
                          data-user-name="<?= htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) ?>">
                         <i class="fas fa-trash-alt mr-1"></i>Delete
                       </a>

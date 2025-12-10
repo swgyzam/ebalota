@@ -321,7 +321,7 @@ if (!function_exists('generateCSGElectionReportPDF')) {
         $pdf->Ln(4);
 
         /* ======================================================
-           8. ELECTION DETAILS (NEW ORDER, OLD SPACING)
+           8. ELECTION DETAILS
            ====================================================== */
 
         $start  = $election['start_datetime'] ?? '';
@@ -558,12 +558,15 @@ if (!function_exists('generateCSGElectionReportPDF')) {
         }
 
         /* ======================================================
-           11. CANDIDATE TABLES PER POSITION
-           ====================================================== */
+        11. CANDIDATE TABLES PER POSITION (WITH GREEN WINNERS)
+        ====================================================== */
 
         if (!empty($positions)) {
-            // Start candidate section on a NEW page
-            $pdf->AddPage();
+
+            // ✨ ADD SEPARATOR BEFORE STARTING CANDIDATES SECTION
+            $pdf->Ln(6); // double-space
+            $pdf->writeHTML('<hr style="height:1.2px;border:none;background-color:#333;">', true, false, true, false, '');
+            $pdf->Ln(3); // extra spacing
 
             // Section title
             $pdf->SetFont('helvetica', 'B', 12);
@@ -575,54 +578,81 @@ if (!function_exists('generateCSGElectionReportPDF')) {
             $firstPos = true;
 
             foreach ($positions as $posName => $cands) {
-                if ($firstPos) {
-                    $firstPos = false;
-                } else {
-                    // extra spacing between different positions
-                    $pdf->Ln(6);
-                }
 
-                $pdf->SetFont('helvetica', 'B', 11);
-                $pdf->SetTextColor(21, 71, 52); // dark green
-                $pdf->Cell(0, 7, 'Position: ' . $posName, 0, 1, 'L');
-                $pdf->Ln(1);
-
-                $pdf->SetFont('helvetica', '', 9.5);
-                $pdf->SetTextColor(0, 0, 0);
-
-                // Compute total votes for this position (for % of position votes)
+                // Compute total votes
                 $positionTotalVotes = 0;
                 foreach ($cands as $cand) {
                     $positionTotalVotes += (int)($cand['vote_count'] ?? 0);
                 }
 
-                // Candidate table header
+                // Sort
+                usort($cands, function($a, $b) {
+                    return ((int)$b['vote_count'] <=> (int)$a['vote_count']);
+                });
+
+                // Tie-aware ranking
+                $prevVoteCount = null;
+                $prevRank      = null;
+                foreach ($cands as $idx => &$cand) {
+                    $votes = (int)$cand['vote_count'];
+                    if ($votes > 0 && $prevVoteCount !== null && $votes === $prevVoteCount) {
+                        $cand['rank'] = $prevRank;
+                    } else {
+                        $cand['rank'] = $idx + 1;
+                        $prevRank     = $cand['rank'];
+                    }
+                    $prevVoteCount = $votes;
+                }
+                unset($cand);
+
+                if (!$firstPos) {
+                    $pdf->Ln(5); // spacing between positions
+                }
+                $firstPos = false;
+
+                // Title
+                $pdf->SetFont('helvetica', 'B', 11);
+                $pdf->SetTextColor(21, 71, 52);
+                $pdf->Cell(0, 7, 'Position: ' . $posName, 0, 1, 'L');
+                $pdf->Ln(1);
+                $pdf->SetFont('helvetica', '', 9.5);
+                $pdf->SetTextColor(0, 0, 0);
+
+                // Table header
                 $html = '
                 <table cellpadding="3" cellspacing="0" border="1" width="100%" style="font-size:9pt;border-color:#d1d5db;">
-                  <tr style="background-color:#154734;color:#ffffff;">
+                <tr style="background-color:#154734;color:#ffffff;">
                     <th width="8%"><b>Rank</b></th>
                     <th width="37%"><b>Candidate Name</b></th>
                     <th width="20%"><b>Total Votes</b></th>
                     <th width="17%"><b>% of Position Votes</b></th>
                     <th width="18%"><b>Did Not Vote<br/>for Candidate</b></th>
-                  </tr>
+                </tr>
                 ';
 
-                foreach ($cands as $cand) {
-                    $votes  = (int)$cand['vote_count'];
+                foreach ($cands as $candRow) {
+
+                    $votes  = (int)$candRow['vote_count'];
                     $noVote = max(0, $totalEligibleVoters - $votes);
                     $posPct = $positionTotalVotes > 0
                         ? round(($votes / $positionTotalVotes) * 100, 1)
                         : 0.0;
 
+                    // Winner highlight (rank 1 + votes > 0)
+                    $isWinner = ($candRow['rank'] === 1 && $votes > 0);
+
+                    $rowStyle = $isWinner
+                        ? ' style="background-color:#E6F4EA;"'
+                        : '';
+
                     $html .= '
-                      <tr>
-                        <td align="center">' . (int)$cand['rank'] . '</td>
-                        <td>' . htmlspecialchars($cand['candidate_name']) . '</td>
+                    <tr' . $rowStyle . '>
+                        <td align="center">' . (int)$candRow['rank'] . '</td>
+                        <td>' . htmlspecialchars($candRow['candidate_name']) . '</td>
                         <td align="right">' . number_format($votes) . '</td>
                         <td align="right">' . number_format($posPct, 1) . '%</td>
                         <td align="right">' . number_format($noVote) . '</td>
-                      </tr>
+                    </tr>
                     ';
                 }
 

@@ -1,16 +1,16 @@
-<?php
+<?php 
 session_start();
 date_default_timezone_set('Asia/Manila');
 
 // --- DB Connection ---
- $host    = 'localhost';
- $db      = 'evoting_system';
- $user    = 'root';
- $pass    = '';
- $charset = 'utf8mb4';
+$host    = 'localhost';
+$db      = 'evoting_system';
+$user    = 'root';
+$pass    = '';
+$charset = 'utf8mb4';
 
- $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
- $options = [
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
@@ -22,248 +22,216 @@ try {
     throw new \PDOException($e->getMessage(), (int)$e->getCode());
 }
 
+/**
+ * Manual deactivation reasons (for ALL positions).
+ * Codes will be sent to backend; labels used in dropdown + emails.
+ */
+$deactivationReasons = [
+    'GRADUATED'          => 'Graduated / no longer enrolled',
+    'TRANSFERRED'        => 'Transferred to another campus / institution',
+    'DUPLICATE_ACCOUNT'  => 'Duplicate or incorrect account',
+    'VIOLATION_TOS'      => 'Violation of Terms of Service / misuse of system',
+    'DISCIPLINARY_ACTION'=> 'Disciplinary or conduct-related decision',
+    'DATA_CORRECTION'    => 'Data correction / account migrated',
+    'OTHER'              => 'Other (please specify)',
+];
+
 // --- Comprehensive Mapping System ---
- $mappingSystem = [
+$mappingSystem = [
     // Department codes to full names
     'departments' => [
         'DCEE' => 'Department of Computer and Electronics Engineering',
         'DCET' => 'Department of Civil Engineering Technology',
         'DMET' => 'Department of Mechanical Engineering Technology',
         'DEET' => 'Department of Electrical Engineering Technology',
-        'DIT' => 'Department of Information Technology',
-        'DCS' => 'Department of Computer Science',
-        'DCE' => 'Department of Chemical Engineering',
-        'DN' => 'Department of Nursing',
+        'DIT'  => 'Department of Information Technology',
+        'DCS'  => 'Department of Computer Science',
+        'DCE'  => 'Department of Chemical Engineering',
+        'DN'   => 'Department of Nursing',
         'DTHM' => 'Department of Tourism and Hospitality Management',
-        'DED' => 'Department of Education',
-        'DAE' => 'Department of Agricultural Engineering',
-        'DAB' => 'Department of Agribusiness',
+        'DED'  => 'Department of Education',
+        'DAE'  => 'Department of Agricultural Engineering',
+        'DAB'  => 'Department of Agribusiness',
         'DAFS' => 'Department of Animal Science',
         'DCFS' => 'Department of Crop and Forest Science',
         'DEVS' => 'Department of Environmental Science',
-        'DFT' => 'Department of Food Technology',
-        'DF' => 'Department of Forestry',
-        'DBE' => 'Department of Biological Engineering',
-        'DAG' => 'Department of Agricultural Economics',
-        'DL' => 'Department of Languages',
-        'DSS' => 'Department of Social Sciences',
-        'DPS' => 'Department of Physical Sciences',
-        'DM' => 'Department of Mathematics',
-        'DPE' => 'Department of Physical Education',
-        'DCrim' => 'Department of Criminology',
+        'DFT'  => 'Department of Food Technology',
+        'DF'   => 'Department of Forestry',
+        'DBE'  => 'Department of Biological Engineering',
+        'DAG'  => 'Department of Agricultural Economics',
+        'DL'   => 'Department of Languages',
+        'DSS'  => 'Department of Social Sciences',
+        'DPS'  => 'Department of Physical Sciences',
+        'DM'   => 'Department of Mathematics',
+        'DPE'  => 'Department of Physical Education',
+        'DCrim'=> 'Department of Criminology',
         'DCom' => 'Department of Communication',
         'DPSY' => 'Department of Psychology',
         'DLib' => 'Department of Library and Information Science',
         'DHRM' => 'Department of Human Resource Management',
-        'DFM' => 'Department of Financial Management',
+        'DFM'  => 'Department of Financial Management',
         'DMKT' => 'Department of Marketing',
-        'DOA' => 'Department of Office Administration',
-        'DET' => 'Department of Educational Technology',
-        'DGE' => 'Department of Guidance and Counseling',
-        'DSE' => 'Department of Special Education',
-        'DVE' => 'Department of Vocational Education',
-        'DVM' => 'Department of Veterinary Medicine',
-        'DBS' => 'Department of Basic Sciences',
-        'DCL' => 'Department of Clinical Sciences',
-        'DVP' => 'Department of Veterinary Parasitology',
-        'DVPth' => 'Department of Veterinary Pathology',
+        'DOA'  => 'Department of Office Administration',
+        'DET'  => 'Department of Educational Technology',
+        'DGE'  => 'Department of Guidance and Counseling',
+        'DSE'  => 'Department of Special Education',
+        'DVE'  => 'Department of Vocational Education',
+        'DVM'  => 'Department of Veterinary Medicine',
+        'DBS'  => 'Department of Basic Sciences',
+        'DCL'  => 'Department of Clinical Sciences',
+        'DVP'  => 'Department of Veterinary Parasitology',
+        'DVPth'=> 'Department of Veterinary Pathology',
         'DVPH' => 'Department of Public Health',
-        'DVMed' => 'Department of Veterinary Medicine',
-        'DAN' => 'Department of Animal Nutrition',
-        'DVS' => 'Department of Veterinary Surgery',
+        'DVMed'=> 'Department of Veterinary Medicine',
+        'DAN'  => 'Department of Animal Nutrition',
+        'DVS'  => 'Department of Veterinary Surgery',
         'DVMicro' => 'Department of Veterinary Microbiology',
         'DVPharm' => 'Department of Veterinary Pharmacology',
-        'DVEpi' => 'Department of Veterinary Epidemiology',
-        'DVL' => 'Department of Veterinary Laboratory',
-        'DVTh' => 'Department of Veterinary Theriogenology',
-        'DVAn' => 'Department of Veterinary Anatomy',
-        'DVPhys' => 'Department of Veterinary Physiology',
-        'DVBio' => 'Department of Veterinary Biochemistry',
-        'DVPath' => 'Department of Veterinary Pathology',
-        'DVP' => 'Department of Veterinary Public Health',
-        'DVPr' => 'Department of Veterinary Preventive Medicine',
-        'DVC' => 'Department of Veterinary Clinical Sciences',
-        'DVSurg' => 'Department of Veterinary Surgery and Radiology',
-        'DVMed' => 'Department of Veterinary Medicine',
-        'DVPh' => 'Department of Veterinary Pharmacology and Toxicology',
-        'DVPar' => 'Department of Veterinary Parasitology',
-        'DVMic' => 'Department of Veterinary Microbiology',
-        'DVPath' => 'Department of Veterinary Pathology',
-        'DVEpi' => 'Department of Veterinary Epidemiology and Public Health',
-        'DVTh' => 'Department of Veterinary Theriogenology',
-        'DVAn' => 'Department of Veterinary Anatomy and Histology',
-        'DVPhys' => 'Department of Veterinary Physiology',
-        'DVBio' => 'Department of Veterinary Biochemistry',
-        'DVGen' => 'Department of Veterinary Genetics and Animal Breeding',
-        'DVLiv' => 'Department of Veterinary Livestock Products Technology',
-        'DVEth' => 'Department of Veterinary Ethics and Jurisprudence',
-        'DVExt' => 'Department of Veterinary Extension Education',
-        'DVEco' => 'Department of Veterinary Economics',
-        'DVStat' => 'Department of Veterinary Biostatistics',
-        'DVComp' => 'Department of Veterinary Computer Science',
-        'DVL' => 'Department of Veterinary Laboratory Diagnosis',
-        'DVClin' => 'Department of Veterinary Clinical Medicine',
-        'DVSurg' => 'Department of Veterinary Surgery',
-        'DVOph' => 'Department of Veterinary Ophthalmology',
-        'DVDerm' => 'Department of Veterinary Dermatology',
-        'DVCa' => 'Department of Veterinary Cardiology',
-        'DVNeu' => 'Department of Veterinary Neurology',
-        'DVEnd' => 'Department of Veterinary Endocrinology',
-        'DVGas' => 'Department of Veterinary Gastroenterology',
-        'DVResp' => 'Department of Veterinary Respiratory Medicine',
-        'DVUro' => 'Department of Veterinary Urology',
-        'DVNeph' => 'Department of Veterinary Nephrology',
-        'DVHem' => 'Department of Veterinary Hematology',
-        'DVImm' => 'Department of Veterinary Immunology',
-        'DVAll' => 'Department of Veterinary Allergy',
-        'DVRhe' => 'Department of Veterinary Rheumatology',
-        'DVInf' => 'Department of Veterinary Infectious Diseases',
-        'DVPed' => 'Department of Veterinary Pediatrics',
-        'DVGer' => 'Department of Veterinary Geriatrics',
-        'DVObs' => 'Department of Veterinary Obstetrics and Gynecology',
-        'DVAnd' => 'Department of Veterinary Andrology',
+        'DVEpi'   => 'Department of Veterinary Epidemiology',
+        'DVL'     => 'Department of Veterinary Laboratory',
+        'DVTh'    => 'Department of Veterinary Theriogenology',
+        'DVAn'    => 'Department of Veterinary Anatomy',
+        'DVPhys'  => 'Department of Veterinary Physiology',
+        'DVBio'   => 'Department of Veterinary Biochemistry',
+        'DVPath'  => 'Department of Veterinary Pathology',
+        'DVP'     => 'Department of Veterinary Public Health',
+        'DVPr'    => 'Department of Veterinary Preventive Medicine',
+        'DVC'     => 'Department of Veterinary Clinical Sciences',
+        'DVSurg'  => 'Department of Veterinary Surgery and Radiology',
+        'DVPh'    => 'Department of Veterinary Pharmacology and Toxicology',
+        'DVPar'   => 'Department of Veterinary Parasitology',
+        'DVMic'   => 'Department of Veterinary Microbiology',
+        'DVGen'   => 'Department of Veterinary Genetics and Animal Breeding',
+        'DVLiv'   => 'Department of Veterinary Livestock Products Technology',
+        'DVEth'   => 'Department of Veterinary Ethics and Jurisprudence',
+        'DVExt'   => 'Department of Veterinary Extension Education',
+        'DVEco'   => 'Department of Veterinary Economics',
+        'DVStat'  => 'Department of Veterinary Biostatistics',
+        'DVComp'  => 'Department of Veterinary Computer Science',
+        'DVL'     => 'Department of Veterinary Laboratory Diagnosis',
+        'DVClin'  => 'Department of Veterinary Clinical Medicine',
+        'DVOph'   => 'Department of Veterinary Ophthalmology',
+        'DVDerm'  => 'Department of Veterinary Dermatology',
+        'DVCa'    => 'Department of Veterinary Cardiology',
+        'DVNeu'   => 'Department of Veterinary Neurology',
+        'DVEnd'   => 'Department of Veterinary Endocrinology',
+        'DVGas'   => 'Department of Veterinary Gastroenterology',
+        'DVResp'  => 'Department of Veterinary Respiratory Medicine',
+        'DVUro'   => 'Department of Veterinary Urology',
+        'DVNeph'  => 'Department of Veterinary Nephrology',
+        'DVHem'   => 'Department of Veterinary Hematology',
+        'DVImm'   => 'Department of Veterinary Immunology',
+        'DVAll'   => 'Department of Veterinary Allergy',
+        'DVRhe'   => 'Department of Veterinary Rheumatology',
+        'DVInf'   => 'Department of Veterinary Infectious Diseases',
+        'DVPed'   => 'Department of Veterinary Pediatrics',
+        'DVGer'   => 'Department of Veterinary Geriatrics',
+        'DVObs'   => 'Department of Veterinary Obstetrics and Gynecology',
+        'DVAnd'   => 'Department of Veterinary Andrology',
         'DVRepro' => 'Department of Veterinary Reproduction',
-        'DVFert' => 'Department of Veterinary Fertility',
-        'DVArt' => 'Department of Veterinary Artificial Insemination',
-        'DVEmb' => 'Department of Veterinary Embryo Transfer',
-        'DVGyn' => 'Department of Veterinary Gynecology',
-        'DVObs' => 'Department of Veterinary Obstetrics',
-        'DVNeo' => 'Department of Veterinary Neonatology',
-        'DVMam' => 'Department of Veterinary Mammary Gland',
-        'DVLac' => 'Department of Veterinary Lactation',
-        'DVNut' => 'Department of Veterinary Nutrition',
-        'DVFeed' => 'Department of Veterinary Feed Technology',
-        'DVFor' => 'Department of Veterinary Forage Production',
-        'DVPas' => 'Department of Veterinary Pasture Management',
-        'DVGr' => 'Department of Veterinary Grassland Management',
-        'DVIrr' => 'Department of Veterinary Irrigation',
-        'DVSol' => 'Department of Veterinary Soil Science',
-        'DVMet' => 'Department of Veterinary Meteorology',
-        'DVAgro' => 'Department of Veterinary Agroforestry',
-        'DVEcol' => 'Department of Veterinary Ecology',
-        'DVEnv' => 'Department of Veterinary Environmental Science',
-        'DVPoll' => 'Department of Veterinary Pollution Control',
-        'DWW' => 'Department of Veterinary Wildlife',
-        'DZoo' => 'Department of Veterinary Zoology',
-        'DVMus' => 'Department of Veterinary Museum',
-        'DVL' => 'Department of Veterinary Library',
-        'DVCom' => 'Department of Veterinary Communication',
-        'DVStat' => 'Department of Veterinary Statistics',
-        'DVComp' => 'Department of Veterinary Computer',
-        // Add more as needed
+        'DVFert'  => 'Department of Veterinary Fertility',
+        'DVArt'   => 'Department of Veterinary Artificial Insemination',
+        'DVEmb'   => 'Department of Veterinary Embryo Transfer',
+        'DVGyn'   => 'Department of Veterinary Gynecology',
+        'DVNeo'   => 'Department of Veterinary Neonatology',
+        'DVMam'   => 'Department of Veterinary Mammary Gland',
+        'DVLac'   => 'Department of Veterinary Lactation',
+        'DVNut'   => 'Department of Veterinary Nutrition',
+        'DVFeed'  => 'Department of Veterinary Feed Technology',
+        'DVFor'   => 'Department of Veterinary Forage Production',
+        'DVPas'   => 'Department of Veterinary Pasture Management',
+        'DVGr'    => 'Department of Veterinary Grassland Management',
+        'DVIrr'   => 'Department of Veterinary Irrigation',
+        'DVSol'   => 'Department of Veterinary Soil Science',
+        'DVMet'   => 'Department of Veterinary Meteorology',
+        'DVAgro'  => 'Department of Veterinary Agroforestry',
+        'DVEcol'  => 'Department of Veterinary Ecology',
+        'DVEnv'   => 'Department of Veterinary Environmental Science',
+        'DVPoll'  => 'Department of Veterinary Pollution Control',
+        'DWW'     => 'Department of Veterinary Wildlife',
+        'DZoo'    => 'Department of Veterinary Zoology',
+        'DVMus'   => 'Department of Veterinary Museum',
+        'DVCom'   => 'Department of Veterinary Communication',
     ],
-    
+
     // Course codes to full names
     'courses' => [
-        'BSIT' => 'Bachelor of Science in Information Technology',
-        'BSCS' => 'Bachelor of Science in Computer Science',
-        'BSCpE' => 'Bachelor of Science in Computer Engineering',
-        'BSECE' => 'Bachelor of Science in Electronics Engineering',
-        'BSCE' => 'Bachelor of Science in Civil Engineering',
-        'BSME' => 'Bachelor of Science in Mechanical Engineering',
-        'BSEE' => 'Bachelor of Science in Electrical Engineering',
-        'BSIE' => 'Bachelor of Science in Industrial Engineering',
-        'BSN' => 'Bachelor of Science in Nursing',
-        'BSHM' => 'Bachelor of Science in Hospitality Management',
-        'BSTM' => 'Bachelor of Science in Tourism Management',
-        'BEED' => 'Bachelor of Elementary Education',
-        'BSED' => 'Bachelor of Secondary Education',
-        'BSAB' => 'Bachelor of Science in Agribusiness',
-        'BSAF' => 'Bachelor of Science in Agriculture',
-        'BSFT' => 'Bachelor of Science in Food Technology',
-        'BSFor' => 'Bachelor of Science in Forestry',
-        'BSA' => 'Bachelor of Science in Agriculture',
-        'BSABE' => 'Bachelor of Science in Agricultural and Biosystems Engineering',
-        'BSAE' => 'Bachelor of Science in Agricultural Engineering',
-        'BSAET' => 'Bachelor of Science in Agricultural Engineering Technology',
-        'BSAG' => 'Bachelor of Science in Agriculture',
-        'BSAN' => 'Bachelor of Science in Animal Nutrition',
-        'BSAS' => 'Bachelor of Science in Animal Science',
-        'BSC' => 'Bachelor of Science in Chemistry',
-        'BSBio' => 'Bachelor of Science in Biology',
+        'BSIT'   => 'Bachelor of Science in Information Technology',
+        'BSCS'   => 'Bachelor of Science in Computer Science',
+        'BSCpE'  => 'Bachelor of Science in Computer Engineering',
+        'BSECE'  => 'Bachelor of Science in Electronics Engineering',
+        'BSCE'   => 'Bachelor of Science in Civil Engineering',
+        'BSME'   => 'Bachelor of Science in Mechanical Engineering',
+        'BSEE'   => 'Bachelor of Science in Electrical Engineering',
+        'BSIE'   => 'Bachelor of Science in Industrial Engineering',
+        'BSN'    => 'Bachelor of Science in Nursing',
+        'BSHM'   => 'Bachelor of Science in Hospitality Management',
+        'BSTM'   => 'Bachelor of Science in Tourism Management',
+        'BEED'   => 'Bachelor of Elementary Education',
+        'BSED'   => 'Bachelor of Secondary Education',
+        'BSAB'   => 'Bachelor of Science in Agribusiness',
+        'BSAF'   => 'Bachelor of Science in Agriculture',
+        'BSFT'   => 'Bachelor of Science in Food Technology',
+        'BSFor'  => 'Bachelor of Science in Forestry',
+        'BSA'    => 'Bachelor of Science in Agriculture',
+        'BSABE'  => 'Bachelor of Science in Agricultural and Biosystems Engineering',
+        'BSAE'   => 'Bachelor of Science in Agricultural Engineering',
+        'BSAET'  => 'Bachelor of Science in Agricultural Engineering Technology',
+        'BSAG'   => 'Bachelor of Science in Agriculture',
+        'BSAN'   => 'Bachelor of Science in Animal Nutrition',
+        'BSAS'   => 'Bachelor of Science in Animal Science',
+        'BSC'    => 'Bachelor of Science in Chemistry',
+        'BSBio'  => 'Bachelor of Science in Biology',
         'BSChem' => 'Bachelor of Science in Chemistry',
         'BSMath' => 'Bachelor of Science in Mathematics',
-        'BSPhysics' => 'Bachelor of Science in Physics',
-        'BSPsych' => 'Bachelor of Science in Psychology',
+        'BSPhysics'=> 'Bachelor of Science in Physics',
+        'BSPsych'=> 'Bachelor of Science in Psychology',
         'BAComm' => 'Bachelor of Arts in Communication',
-        'BAELS' => 'Bachelor of Arts in English Language Studies',
-        'BSEco' => 'Bachelor of Science in Economics',
-        'BSEnt' => 'Bachelor of Science in Entrepreneurship',
-        'BSAcc' => 'Bachelor of Science in Accountancy',
-        'BSBA' => 'Bachelor of Science in Business Administration',
-        'BSOA' => 'Bachelor of Science in Office Administration',
+        'BAELS'  => 'Bachelor of Arts in English Language Studies',
+        'BSEco'  => 'Bachelor of Science in Economics',
+        'BSEnt'  => 'Bachelor of Science in Entrepreneurship',
+        'BSAcc'  => 'Bachelor of Science in Accountancy',
+        'BSBA'   => 'Bachelor of Science in Business Administration',
+        'BSOA'   => 'Bachelor of Science in Office Administration',
         'BSCRIM' => 'Bachelor of Science in Criminology',
-        'BSP' => 'Bachelor of Science in Physics',
+        'BSP'    => 'Bachelor of Science in Physics',
         'BSStat' => 'Bachelor of Science in Statistics',
-        'BSESS' => 'Bachelor of Science in Exercise and Sports Sciences',
-        'BLIS' => 'Bachelor of Library and Information Science',
-        'BPE' => 'Bachelor of Physical Education',
-        'BTLE' => 'Bachelor of Technology and Livelihood Education',
-        'BSPV' => 'Bachelor of Science in Pre-Veterinary Medicine',
-        'DVM' => 'Doctor of Veterinary Medicine',
+        'BSESS'  => 'Bachelor of Science in Exercise and Sports Sciences',
+        'BLIS'   => 'Bachelor of Library and Information Science',
+        'BPE'    => 'Bachelor of Physical Education',
+        'BTLE'   => 'Bachelor of Technology and Livelihood Education',
+        'BSPV'   => 'Bachelor of Science in Pre-Veterinary Medicine',
+        'DVM'    => 'Doctor of Veterinary Medicine',
         'BSAgri' => 'Bachelor of Science in Agriculture',
-        'BSAB' => 'Bachelor of Science in Agribusiness',
-        'BSES' => 'Bachelor of Science in Environmental Science',
-        'BSFT' => 'Bachelor of Science in Food Technology',
-        'BSFor' => 'Bachelor of Science in Forestry',
-        'BSABE' => 'Bachelor of Science in Agricultural and Biosystems Engineering',
-        'BAE' => 'Bachelor of Agricultural Engineering',
-        'BSLDM' => 'Bachelor of Science in Land Use Design and Management',
-        'BSBio' => 'Bachelor of Science in Biology',
-        'BSChem' => 'Bachelor of Science in Chemistry',
-        'BSMath' => 'Bachelor of Science in Mathematics',
-        'BSPhysics' => 'Bachelor of Science in Physics',
-        'BSPsych' => 'Bachelor of Science in Psychology',
-        'BAELS' => 'Bachelor of Arts in English Language Studies',
-        'BAComm' => 'Bachelor of Arts in Communication',
-        'BSStat' => 'Bachelor of Science in Statistics',
-        'DVM' => 'Doctor of Veterinary Medicine',
-        'BSPV' => 'Bachelor of Science in Pre-Veterinary Medicine',
-        'BEEd' => 'Bachelor of Elementary Education',
-        'BSEd' => 'Bachelor of Secondary Education',
-        'BPE' => 'Bachelor of Physical Education',
-        'BTLE' => 'Bachelor of Technology and Livelihood Education',
-        'BSBA' => 'Bachelor of Science in Business Administration',
-        'BSAcc' => 'Bachelor of Science in Accountancy',
-        'BSEco' => 'Bachelor of Science in Economics',
-        'BSEnt' => 'Bachelor of Science in Entrepreneurship',
-        'BSOA' => 'Bachelor of Science in Office Administration',
-        'BSESS' => 'Bachelor of Science in Exercise and Sports Sciences',
-        'BSCRIM' => 'Bachelor of Science in Criminology',
-        'BSN' => 'Bachelor of Science in Nursing',
-        'BSHM' => 'Bachelor of Science in Hospitality Management',
-        'BSTM' => 'Bachelor of Science in Tourism Management',
-        'BLIS' => 'Bachelor of Library and Information Science',
-        'PhD' => 'Doctor of Philosophy',
-        'MS' => 'Master of Science',
-        'MA' => 'Master of Arts',
-        // Add more as needed
+        'BSES'   => 'Bachelor of Science in Environmental Science',
+        'BSLDM'  => 'Bachelor of Science in Land Use Design and Management',
+        'PhD'    => 'Doctor of Philosophy',
+        'MS'     => 'Master of Science',
+        'MA'     => 'Master of Arts',
     ],
-    
+
     // College codes to full names
     'colleges' => [
-        'CEIT' => 'College of Engineering and Information Technology',
-        'CAS' => 'College of Arts and Sciences',
+        'CEIT'   => 'College of Engineering and Information Technology',
+        'CAS'    => 'College of Arts and Sciences',
         'CAFENR' => 'College of Agriculture, Forestry, Environment and Natural Resources',
-        'CVMBS' => 'College of Veterinary Medicine and Biomedical Sciences',
-        'CED' => 'College of Education',
-        'CEMDS' => 'College of Economics, Management and Development Studies',
+        'CVMBS'  => 'College of Veterinary Medicine and Biomedical Sciences',
+        'CED'    => 'College of Education',
+        'CEMDS'  => 'College of Economics, Management and Development Studies',
         'CSPEAR' => 'College of Sports, Physical Education and Recreation',
-        'CCJ' => 'College of Criminal Justice',
-        'CON' => 'College of Nursing',
-        'CTHM' => 'College of Tourism and Hospitality Management',
-        'COM' => 'College of Medicine',
+        'CCJ'    => 'College of Criminal Justice',
+        'CON'    => 'College of Nursing',
+        'CTHM'   => 'College of Tourism and Hospitality Management',
+        'COM'    => 'College of Medicine',
         'GS-OLC' => 'Graduate School - Open Learning College',
-        // Add more as needed
     ],
-    
+
     // Position codes to full names
     'positions' => [
-        'academic' => 'Academic Faculty',
+        'academic'     => 'Academic Faculty',
         'non-academic' => 'Non-Academic Staff',
-        'student' => 'Student',
-        // Add more as needed
-    ]
+        'student'      => 'Student',
+    ],
 ];
 
 // Helper function to get mapped value with fallback
@@ -273,25 +241,25 @@ function getMappedValue(array $mapping, string $key, string $fallback = null) {
 
 // Helper function to reverse map (get code from full name)
 function getMappedCode(array $mapping, string $value, string $fallback = null) {
-    $code = array_search($value, $mapping);
+    $code = array_search($value, $mapping, true);
     return $code !== false ? $code : ($fallback ?? $value);
 }
 
 // --- Auth Check ---
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin','super_admin'])) {
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin','super_admin'], true)) {
     header('Location: login.php');
     exit();
 }
 
- $currentRole    = $_SESSION['role'];
- $assignedScope  = strtoupper(trim($_SESSION['assigned_scope']   ?? ''));
- $scopeCategory  = $_SESSION['scope_category']   ?? '';           // e.g. Academic-Student
- $assignedScope1 = $_SESSION['assigned_scope_1'] ?? '';           // e.g. "Multiple: BSIT, BSCS"
+$currentRole    = $_SESSION['role'];
+$assignedScope  = strtoupper(trim($_SESSION['assigned_scope']   ?? ''));
+$scopeCategory  = $_SESSION['scope_category']   ?? '';   // e.g. Academic-Student
+$assignedScope1 = $_SESSION['assigned_scope_1'] ?? '';   // e.g. "Multiple: BSIT, BSCS"
 
 // NEW: Resolve this admin's scope seat (admin_scopes) if applicable
- $myScopeId       = null;
- $myScopeType     = null;
- $myScopeDetails  = [];
+$myScopeId      = null;
+$myScopeType    = null;
+$myScopeDetails = [];
 
 if ($currentRole === 'admin' && !empty($scopeCategory)) {
     $scopeStmt = $pdo->prepare("
@@ -462,17 +430,17 @@ function parse_normalized_course_scope(?string $scopeString): array {
    BUILD CONDITIONS
    ========================================================== */
 
- $conditions        = ["role = 'voter'"];
- $params            = [];
- $columns           = [];
- $filterOptions     = [];
- $courseScopeCodes  = [];  // used later for Academic-Student scope
+$conditions       = ["role = 'voter'"];
+$params           = [];
+$columns          = [];
+$filterOptions    = [];
+$courseScopeCodes = [];  // used later for Academic-Student scope
 
 // 1) SUPER ADMIN – sees all voters
 if ($currentRole === 'super_admin') {
 
-    $columns = ['Photo', 'Name', 'Position', 'College', 'Department', 'Course', 'Actions'];
-
+    $columns = ['Photo', 'Name', 'Position', 'College', 'Department', 'Course', 'Account Status', 'Actions'];
+  
     $filterOptions['positions'] = $pdo->query("
         SELECT DISTINCT position 
         FROM users 
@@ -526,14 +494,13 @@ if ($currentRole === 'super_admin') {
 }
 
 // 2) NON-ACADEMIC - STUDENT ADMIN (org-based, scope_category = Non-Academic-Student)
-//    Manages student users tied to their scope seat via users.owner_scope_id.
 else if ($scopeCategory === 'Non-Academic-Student' && $myScopeId !== null) {
 
-    $conditions[]             = "position = 'student'";
-    $conditions[]             = "owner_scope_id = :ownerScopeId";
-    $params[':ownerScopeId']  = $myScopeId;
+    $conditions[]            = "position = 'student'";
+    $conditions[]            = "owner_scope_id = :ownerScopeId";
+    $params[':ownerScopeId'] = $myScopeId;
 
-    $columns = ['Photo', 'Name', 'Student Number', 'College', 'Department', 'Course', 'Actions'];
+    $columns = ['Photo', 'Name', 'Student Number', 'College', 'Department', 'Course', 'Account Status', 'Actions'];
 
     // Optional filter options limited to this scope's members
     $stmtCol = $pdo->prepare("
@@ -590,105 +557,84 @@ else if ($scopeCategory === 'Non-Academic-Student' && $myScopeId !== null) {
 }
 
 // 3) OTHERS ADMIN (scope_category = Others)
-//    Manages ONLY its own "Others" members via owner_scope_id + is_other_member.
-//    NOTE: Voters here can be academic, non-academic, or name+email only (no position/department/status).
 else if ($scopeCategory === 'Others' && $myScopeId !== null) {
 
-  // Huwag nang i-restrict sa position; pwedeng may position o wala.
-  $conditions[]            = "owner_scope_id = :ownerScopeId";
-  $conditions[]            = "is_other_member = 1";
-  $params[':ownerScopeId'] = $myScopeId;
+    $conditions[]            = "owner_scope_id = :ownerScopeId";
+    $conditions[]            = "is_other_member = 1";
+    $params[':ownerScopeId'] = $myScopeId;
 
-  // Keep the same table design: Employee Number, Position, Status, College, Department
-  // Kung wala ang data sa row (NULL / empty), magdi-display na lang ng "Not set" / "N/A" sa HTML.
-  $columns = ['Photo', 'Name', 'Employee Number', 'Position', 'Status', 'College', 'Department', 'Actions'];
+    $columns = ['Photo', 'Name', 'Employee Number', 'Position', 'Status', 'College', 'Department', 'Actions'];
 
-  // Colleges filter (academic staff only under this scope).
-  // Kung wala talagang academic rows, magiging empty lang ang dropdown – OK lang.
-  $stmtCollege = $pdo->prepare("
-      SELECT DISTINCT department
-      FROM users
-      WHERE role = 'voter'
-        AND position = 'academic'
-        AND owner_scope_id = :sid
-        AND is_other_member = 1
-        AND department IS NOT NULL
-        AND department != ''
-      ORDER BY department ASC
-  ");
-  $stmtCollege->execute([':sid' => $myScopeId]);
-  $filterOptions['colleges'] = $stmtCollege->fetchAll(PDO::FETCH_COLUMN);
+    $stmtCollege = $pdo->prepare("
+        SELECT DISTINCT department
+        FROM users
+        WHERE role = 'voter'
+          AND position = 'academic'
+          AND owner_scope_id = :sid
+          AND is_other_member = 1
+          AND department IS NOT NULL
+          AND department != ''
+        ORDER BY department ASC
+    ");
+    $stmtCollege->execute([':sid' => $myScopeId]);
+    $filterOptions['colleges'] = $stmtCollege->fetchAll(PDO::FETCH_COLUMN);
   
-  // Keep colleges as codes
-  $filterOptions['colleges'] = array_map(function($college) use ($mappingSystem) {
-      return getMappedCode($mappingSystem['colleges'], $college, $college);
-  }, $filterOptions['colleges']);
+    $filterOptions['colleges'] = array_map(function($college) use ($mappingSystem) {
+        return getMappedCode($mappingSystem['colleges'], $college, $college);
+    }, $filterOptions['colleges']);
 
-  // Filter options limited to this scope's members (kung may status values)
-  $stmtStatus = $pdo->prepare("
-      SELECT DISTINCT status 
-      FROM users 
-      WHERE role = 'voter' 
-        AND owner_scope_id = :sid
-        AND is_other_member = 1
-        AND status IS NOT NULL
-        AND status != ''
-      ORDER BY status ASC
-  ");
-  $stmtStatus->execute([':sid' => $myScopeId]);
-  $filterOptions['statuses'] = $stmtStatus->fetchAll(PDO::FETCH_COLUMN);
+    $stmtStatus = $pdo->prepare("
+        SELECT DISTINCT status 
+        FROM users 
+        WHERE role = 'voter' 
+          AND owner_scope_id = :sid
+          AND is_other_member = 1
+          AND status IS NOT NULL
+          AND status != ''
+        ORDER BY status ASC
+    ");
+    $stmtStatus->execute([':sid' => $myScopeId]);
+    $filterOptions['statuses'] = $stmtStatus->fetchAll(PDO::FETCH_COLUMN);
 
-  // DEPARTMENTS filter:
-  //  - academic staff   → department1 (full department name)
-  //  - non-ac staff     → department (code, e.g. LIBRARY)
-  //  - others with no dept → hindi papasok dito
-  $stmtDept = $pdo->prepare("
-      SELECT DISTINCT 
-          CASE 
-              WHEN position = 'academic'     THEN department1
-              WHEN position = 'non-academic' THEN department
-              ELSE NULL
-          END AS dept
-      FROM users 
-      WHERE role = 'voter' 
-        AND owner_scope_id = :sid
-        AND is_other_member = 1
-        AND (
-             (position = 'academic'     AND department1 IS NOT NULL AND department1 != '')
-          OR (position = 'non-academic' AND department  IS NOT NULL AND department  != '')
-        )
-      ORDER BY dept ASC
-  ");
-  $stmtDept->execute([':sid' => $myScopeId]);
-  $filterOptions['departments'] = $stmtDept->fetchAll(PDO::FETCH_COLUMN);
-  // For Others, we keep raw values (full dept name or code)
+    $stmtDept = $pdo->prepare("
+        SELECT DISTINCT 
+            CASE 
+                WHEN position = 'academic'     THEN department1
+                WHEN position = 'non-academic' THEN department
+                ELSE NULL
+            END AS dept
+        FROM users 
+        WHERE role = 'voter' 
+          AND owner_scope_id = :sid
+          AND is_other_member = 1
+          AND (
+               (position = 'academic'     AND department1 IS NOT NULL AND department1 != '')
+            OR (position = 'non-academic' AND department  IS NOT NULL AND department  != '')
+          )
+        ORDER BY dept ASC
+    ");
+    $stmtDept->execute([':sid' => $myScopeId]);
+    $filterOptions['departments'] = $stmtDept->fetchAll(PDO::FETCH_COLUMN);
 }
 
-// 3b) COLLEGE FACULTY ADMINS (Academic-Faculty) – CEIT, CAS, etc.
-//     NOTE: hide Others-Default members (is_other_member = 1)
+// 3b) COLLEGE FACULTY ADMINS (Academic-Faculty)
 else if ($scopeCategory === 'Academic-Faculty' && in_array($assignedScope, [
     'CAFENR','CEIT','CAS','CVMBS','CED','CEMDS',
     'CSPEAR','CCJ','CON','CTHM','COM','GS-OLC'
 ])) {
 
     $conditions[] = "position = 'academic'";
-    
-    // For college, we use the code directly (as stored in department field)
     $conditions[] = "UPPER(TRIM(department)) = :college";
     $params[':college'] = $assignedScope;
 
-    // If admin has specific department scope (e.g. DCEE), limit further
     if (!empty($assignedScope1) && strcasecmp($assignedScope1, 'All') !== 0) {
-        // Map department code to full name for comparison
         $deptFullName = getMappedValue($mappingSystem['departments'], $assignedScope1);
-        
         $conditions[] = "department1 = :deptScope";
         $params[':deptScope'] = $deptFullName;
     }
 
     $columns = ['Photo', 'Name', 'Employee Number', 'Status', 'College', 'Department', 'Actions'];
 
-    // Filter options (statuses + departments) within this faculty scope
     $stmtStatus = $pdo->prepare("
         SELECT DISTINCT status
         FROM users
@@ -729,8 +675,7 @@ else if ($scopeCategory === 'Academic-Faculty' && in_array($assignedScope, [
     }, $filterOptions['departments']);
 }
 
-// 4) COLLEGE STUDENT ADMINS (Academic-Student) – CEIT, CAS, etc.
-//    Only students from their college + optional course-scope (BSIT, BSCS, ...)
+// 4) COLLEGE STUDENT ADMINS (Academic-Student)
 else if ($scopeCategory === 'Academic-Student' && in_array($assignedScope, [
     'CAFENR','CEIT','CAS','CVMBS','CED','CEMDS',
     'CSPEAR','CCJ','CON','CTHM','COM','GS-OLC'
@@ -738,11 +683,10 @@ else if ($scopeCategory === 'Academic-Student' && in_array($assignedScope, [
 
     $conditions[] = "position = 'student'";
     $conditions[] = "UPPER(TRIM(department)) = :scope";
-    $params[':scope'] = $assignedScope;  // <-- COLLEGE CODE, hindi full name
+    $params[':scope'] = $assignedScope;
 
-    $columns = ['Photo', 'Name', 'Student Number', 'College', 'Department', 'Course', 'Actions'];
+    $columns = ['Photo', 'Name', 'Student Number', 'College', 'Department', 'Course', 'Account Status', 'Actions'];
 
-    // Base filters for students in this college
     $stmtCourses = $pdo->prepare("
         SELECT DISTINCT course 
         FROM users 
@@ -773,11 +717,9 @@ else if ($scopeCategory === 'Academic-Student' && in_array($assignedScope, [
         return getMappedValue($mappingSystem['departments'], $dept, $dept);
     }, $filterOptions['departments']);
 
-    // If this admin is Academic-Student, apply course scope from assigned_scope_1
     if ($scopeCategory === 'Academic-Student') {
-        $courseScopeCodes = parse_normalized_course_scope($assignedScope1); // e.g. ['BSIT','BSCS']
+        $courseScopeCodes = parse_normalized_course_scope($assignedScope1);
         if (!empty($courseScopeCodes)) {
-            // Map course codes to full names for comparison
             $mappedCourseNames = array_map(function($code) use ($mappingSystem) {
                 return getMappedValue($mappingSystem['courses'], $code);
             }, $courseScopeCodes);
@@ -797,7 +739,6 @@ else if ($scopeCategory === 'Academic-Student' && in_array($assignedScope, [
 }
 
 // 5) Faculty Association Admin - academic faculty
-//    NOTE: hide Others-Default members
 else if ($assignedScope === 'FACULTY ASSOCIATION') {
 
     $conditions[] = "position = 'academic'";
@@ -827,38 +768,31 @@ else if ($assignedScope === 'FACULTY ASSOCIATION') {
 }
 
 // 6) Non-Academic Admin / Non-Academic-Employee scope - non-academic staff
-//    NOTE: hide Others-Default members (is_other_member = 1)
 else if ($scopeCategory === 'Non-Academic-Employee' || $assignedScope === 'NON-ACADEMIC') {
 
     $conditions[] = "position = 'non-academic'";
     $columns = ['Photo', 'Name', 'Employee Number', 'Status', 'Department', 'Actions'];
 
-    // --- apply department scope for Non-Academic-Employee using scope_details ---
     $allowedDeptCodes = [];
 
     if ($scopeCategory === 'Non-Academic-Employee') {
-        // First try to get from scope_details
         if (!empty($myScopeDetails) && isset($myScopeDetails['departments']) && is_array($myScopeDetails['departments'])) {
             $allowedDeptCodes = array_filter(array_map('trim', $myScopeDetails['departments']));
-        }
-        // Fallback: if scope_details is empty, use assigned_scope
-        else if (!empty($assignedScope)) {
+        } else if (!empty($assignedScope)) {
             $allowedDeptCodes = [$assignedScope];
         }
     }
 
-    // If may specific department scope, restrict query with IN (...)
     if (!empty($allowedDeptCodes)) {
         $placeholders = [];
         foreach ($allowedDeptCodes as $idx => $code) {
             $ph = ':deptScope' . $idx;
-            $placeholders[]      = $ph;
-            $params[$ph]         = $code;  // users.department stores codes (e.g. 'LIBRARY','ADMIN')
+            $placeholders[] = $ph;
+            $params[$ph]    = $code;
         }
         $conditions[] = "department IN (" . implode(',', $placeholders) . ")";
     }
 
-    // --- Filter options (statuses + departments) ---
     $sqlStatus = "
         SELECT DISTINCT status 
         FROM users 
@@ -874,16 +808,15 @@ else if ($scopeCategory === 'Non-Academic-Employee' || $assignedScope === 'NON-A
           AND department != ''
     ";
 
-    // If may specific departments, limit filterOptions to those department codes
     if (!empty($allowedDeptCodes)) {
         $inPh = [];
         $statusParams = [];
         $deptParams   = [];
         foreach ($allowedDeptCodes as $idx => $code) {
             $ph = ':deptF' . $idx;
-            $inPh[]             = $ph;
-            $statusParams[$ph]  = $code;
-            $deptParams[$ph]    = $code;
+            $inPh[]            = $ph;
+            $statusParams[$ph] = $code;
+            $deptParams[$ph]   = $code;
         }
         $sqlStatus .= " AND department IN (" . implode(',', $inPh) . ")";
         $sqlDept   .= " AND department IN (" . implode(',', $inPh) . ")";
@@ -896,7 +829,6 @@ else if ($scopeCategory === 'Non-Academic-Employee' || $assignedScope === 'NON-A
         $stmtDept->execute($deptParams);
         $filterOptions['departments'] = $stmtDept->fetchAll(PDO::FETCH_COLUMN);
     } else {
-        // Old behaviour: full non-academic pool
         $filterOptions['statuses'] = $pdo->query($sqlStatus . " ORDER BY status ASC")->fetchAll(PDO::FETCH_COLUMN);
         $filterOptions['departments'] = $pdo->query($sqlDept . " ORDER BY department ASC")->fetchAll(PDO::FETCH_COLUMN);
     }
@@ -906,14 +838,12 @@ else if ($scopeCategory === 'Non-Academic-Employee' || $assignedScope === 'NON-A
     }, $filterOptions['departments']);
 }
 
-// 8) CSG Admin - all students (GLOBAL ONLY: exclude org-specific Non-Academic-Student uploads)
+// 8) CSG Admin - all students (GLOBAL ONLY)
 else if ($scopeCategory === 'Special-Scope' || $assignedScope === 'CSG ADMIN') {
 
     $conditions[] = "position = 'student'";
+    $columns = ['Photo', 'Name', 'Student Number', 'College', 'Department', 'Course', 'Account Status', 'Actions'];
 
-    $columns = ['Photo', 'Name', 'Student Number', 'College', 'Department', 'Course', 'Actions'];
-
-    // Colleges filter: only from global students (no owner_scope_id)
     $filterOptions['colleges'] = $pdo->query("
         SELECT DISTINCT department 
         FROM users 
@@ -924,12 +854,10 @@ else if ($scopeCategory === 'Special-Scope' || $assignedScope === 'CSG ADMIN') {
         ORDER BY department ASC
     ")->fetchAll(PDO::FETCH_COLUMN);
     
-    // Keep colleges as codes
     $filterOptions['colleges'] = array_map(function($college) use ($mappingSystem) {
         return getMappedCode($mappingSystem['colleges'], $college, $college);
     }, $filterOptions['colleges']);
 
-    // Departments filter: from global students only
     $filterOptions['departments'] = $pdo->query("
         SELECT DISTINCT department1 
         FROM users 
@@ -944,7 +872,6 @@ else if ($scopeCategory === 'Special-Scope' || $assignedScope === 'CSG ADMIN') {
         return getMappedValue($mappingSystem['departments'], $dept, $dept);
     }, $filterOptions['departments']);
 
-    // Courses filter: from global students only
     $filterOptions['courses'] = $pdo->query("
         SELECT DISTINCT course 
         FROM users 
@@ -960,12 +887,9 @@ else if ($scopeCategory === 'Special-Scope' || $assignedScope === 'CSG ADMIN') {
     }, $filterOptions['courses']);
 }
 
-// 9) SAFETY FALLBACK – if admin role but no specific scope branch matched,
-//    do NOT show any voters (misconfigured admin / missing admin_scopes row).
+// 9) SAFETY FALLBACK – admin with no scope
 else if ($currentRole === 'admin') {
-    // Prevent accidental global access
     $conditions[] = '1 = 0';
-    // Minimal columns; adjust if you like
     $columns = ['Photo', 'Name', 'Actions'];
 }
 
@@ -973,67 +897,51 @@ else if ($currentRole === 'admin') {
    GET FILTERS FROM GET
    ========================================================== */
 
- $filterPosition   = $_GET['position']   ?? '';
- $filterStatus     = $_GET['status']     ?? '';
- $filterCollege    = $_GET['college']    ?? '';
- $filterDepartment = $_GET['department'] ?? '';
- $filterCourse     = $_GET['course']     ?? '';
+$filterPosition   = $_GET['position']   ?? '';
+$filterStatus     = $_GET['status']     ?? '';
+$filterCollege    = $_GET['college']    ?? '';
+$filterDepartment = $_GET['department'] ?? '';
+$filterCourse     = $_GET['course']     ?? '';
 
-// Apply additional filters if set
-if (!empty($filterPosition) && isset($filterOptions['positions']) && in_array($filterPosition, $filterOptions['positions'])) {
-    // Map position full name to code for database query
+if (!empty($filterPosition) && isset($filterOptions['positions']) && in_array($filterPosition, $filterOptions['positions'], true)) {
     $positionCode = getMappedCode($mappingSystem['positions'], $filterPosition, $filterPosition);
     $conditions[] = "position = :position";
     $params[':position'] = $positionCode;
 }
 
-if (!empty($filterStatus) && isset($filterOptions['statuses']) && in_array($filterStatus, $filterOptions['statuses'])) {
+if (!empty($filterStatus) && isset($filterOptions['statuses']) && in_array($filterStatus, $filterOptions['statuses'], true)) {
     $conditions[] = "status = :status";
     $params[':status'] = $filterStatus;
 }
 
-// College filter - keep as code
-if (!empty($filterCollege) && isset($filterOptions['colleges']) && in_array($filterCollege, $filterOptions['colleges'])) {
+if (!empty($filterCollege) && isset($filterOptions['colleges']) && in_array($filterCollege, $filterOptions['colleges'], true)) {
     $conditions[] = "department = :college";
     $params[':college'] = $filterCollege;
 }
 
-// Department filter
 if (
-  !empty($filterDepartment) &&
-  isset($filterOptions['departments']) &&
-  in_array($filterDepartment, $filterOptions['departments'], true)
+    !empty($filterDepartment) &&
+    isset($filterOptions['departments']) &&
+    in_array($filterDepartment, $filterOptions['departments'], true)
 ) {
-
-  // SPECIAL CASE: Others admin
-  // - academic staff   → department1 = full dept name
-  // - non-ac staff     → department  = dept code
-  // Ginagamit natin mismo yung value sa dropdown (walang mapping).
-  if ($scopeCategory === 'Others') {
-      $conditions[] = "(
-          (position = 'academic'     AND department1 = :department)
-       OR (position = 'non-academic' AND department  = :department)
-      )";
-      $params[':department'] = $filterDepartment;
-
-  } else {
-      // Generic behavior for other admin types
-      // Map department full name to code for database query kung kaya,
-      // fallback sa original value kung wala sa mapping.
-      $deptCode = getMappedCode($mappingSystem['departments'], $filterDepartment, $filterDepartment);
-      
-      if ($assignedScope === 'NON-ACADEMIC' || $scopeCategory === 'Non-Academic-Employee') {
-          $conditions[] = "department = :department";
-      } else {
-          $conditions[] = "department1 = :department";
-      }
-      $params[':department'] = $deptCode;
-  }
+    if ($scopeCategory === 'Others') {
+        $conditions[] = "(
+            (position = 'academic'     AND department1 = :department)
+         OR (position = 'non-academic' AND department  = :department)
+        )";
+        $params[':department'] = $filterDepartment;
+    } else {
+        $deptCode = getMappedCode($mappingSystem['departments'], $filterDepartment, $filterDepartment);
+        if ($assignedScope === 'NON-ACADEMIC' || $scopeCategory === 'Non-Academic-Employee') {
+            $conditions[] = "department = :department";
+        } else {
+            $conditions[] = "department1 = :department";
+        }
+        $params[':department'] = $deptCode;
+    }
 }
 
-// Course filter (only within what's allowed)
-if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filterCourse, $filterOptions['courses'])) {
-    // Map course full name to code for database query
+if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filterCourse, $filterOptions['courses'], true)) {
     $courseCode = getMappedCode($mappingSystem['courses'], $filterCourse, $filterCourse);
     $conditions[] = "course = :course";
     $params[':course'] = $courseCode;
@@ -1043,20 +951,19 @@ if (!empty($filterCourse) && isset($filterOptions['courses']) && in_array($filte
    BUILD & EXECUTE QUERY
    ========================================================== */
 
- $sql = "SELECT * FROM users WHERE " . implode(' AND ', $conditions) . " ORDER BY user_id DESC";
- $stmt = $pdo->prepare($sql);
- $stmt->execute($params);
- $users = $stmt->fetchAll();
+$sql = "SELECT * FROM users WHERE " . implode(' AND ', $conditions) . " ORDER BY user_id DESC";
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
+$users = $stmt->fetchAll();
 
 /* ==========================================================
    APPLY COURSE SCOPE ON FETCHED USERS (Academic-Student)
-   So CEIT + BSIT, BSCS admin will only see those courses.
    ========================================================== */
 
 if (
     $currentRole === 'admin' &&
     $scopeCategory === 'Academic-Student' &&
-    in_array($assignedScope, ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC']) &&
+    in_array($assignedScope, ['CAFENR', 'CEIT', 'CAS', 'CVMBS', 'CED', 'CEMDS', 'CSPEAR', 'CCJ', 'CON', 'CTHM', 'COM', 'GS-OLC'], true) &&
     !empty($courseScopeCodes)
 ) {
     $users = array_values(array_filter($users, function($u) use ($courseScopeCodes) {
@@ -1114,6 +1021,7 @@ if (
       font-size:0.75rem;font-weight:600;
     }
     .table-hover tbody tr:hover { background-color:#f3f4f6; }
+
     /* Toast */
     .toast {
       position:fixed;bottom:20px;right:20px;
@@ -1159,15 +1067,21 @@ if (
       .filter-group { min-width:100%; }
       .reset-button-container { width:100%;justify-content:flex-end; }
     }
+
+    /* Deactivation modal */
+    .modal-backdrop {
+      background-color: rgba(0, 0, 0, 0.45);
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
   <div class="fixed inset-0 opacity-5 pointer-events-none">
-    <div class="absolute inset-0" style="background-image: url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><circle cx=\"50\" cy=\"50\" r=\"2\" fill=\"%23154734\"/></svg>'); background-size: 20px 20px;"></div>
+    <div class="absolute inset-0" style="background-image: url('data:image/svg+xml,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 100 100&quot;><circle cx=&quot;50&quot; cy=&quot;50&quot; r=&quot;2&quot; fill=&quot;%23154734&quot;/></svg>'); background-size: 20px 20px;"></div>
   </div>
   
   <div class="flex min-h-screen">
     <?php include 'sidebar.php'; ?>
+    <?php include 'admin_change_password_modal.php'; ?>
     <main class="flex-1 p-8 ml-64">
       <!-- Header -->
       <header class="gradient-bg text-white p-6 flex justify-between items-center shadow-md rounded-md mb-8">
@@ -1188,7 +1102,6 @@ if (
               } else if ($assignedScope === 'FACULTY ASSOCIATION') {
                 echo "Faculty Association members";
               } else if ($scopeCategory === 'Non-Academic-Employee' || $assignedScope === 'NON-ACADEMIC') {
-                // Display department scope if applicable
                 if ($scopeCategory === 'Non-Academic-Employee') {
                     if (!empty($myScopeDetails) && isset($myScopeDetails['departments']) && is_array($myScopeDetails['departments'])) {
                         $deptNames = array_map(function($code) use ($mappingSystem) {
@@ -1210,7 +1123,7 @@ if (
                 if ($scopeCategory === 'Academic-Faculty' && in_array($assignedScope, [
                     'CAFENR','CEIT','CAS','CVMBS','CED','CEMDS',
                     'CSPEAR','CCJ','CON','CTHM','COM','GS-OLC'
-                ])) {
+                ], true)) {
                     $collegeName = getMappedValue($mappingSystem['colleges'], $assignedScope);
                     echo htmlspecialchars($collegeName) . " faculty";
                     
@@ -1221,17 +1134,16 @@ if (
                 } elseif ($scopeCategory === 'Academic-Student' && in_array($assignedScope, [
                     'CAFENR','CEIT','CAS','CVMBS','CED','CEMDS',
                     'CSPEAR','CCJ','CON','CTHM','COM','GS-OLC'
-                ])) {
+                ], true)) {
                     $collegeName = getMappedValue($mappingSystem['colleges'], $assignedScope);
                     echo htmlspecialchars($collegeName) . " students";
                     
                     if (!empty($assignedScope1) && strcasecmp($assignedScope1, 'All') !== 0) {
-                        $courses = parse_normalized_course_scope($assignedScope1);
-                        $courseNames = array_map(function($code) use ($mappingSystem) {
-                            return getMappedValue($mappingSystem['courses'], $code);
-                        }, $courses);
-                        echo " (" . implode(', ', array_map('htmlspecialchars', $courseNames)) . ")";
-                    }
+                        $courseCodes = parse_normalized_course_scope($assignedScope1);
+                        if (!empty($courseCodes)) {
+                            echo " (" . implode(', ', array_map('htmlspecialchars', $courseCodes)) . ")";
+                        }
+                    }              
                 } else {
                     echo "Users";
                 }
@@ -1243,6 +1155,9 @@ if (
         <div class="flex items-center gap-4">
           <a href="admin_add_user.php" class="btn-primary text-white px-4 py-2 rounded font-semibold transition">
             <i class="fas fa-user-plus mr-2"></i>Add User
+          </a>
+          <a href="admin_bulk_voter_status.php" class="btn-info text-white px-4 py-2 rounded font-semibold transition">
+            <i class="fas fa-toggle-on mr-2"></i>Account Status
           </a>
           <a href="admin_restrict_users.php" class="btn-danger text-white px-4 py-2 rounded font-semibold transition">
             <i class="fas fa-user-slash mr-2"></i>Restrict Users
@@ -1369,6 +1284,26 @@ if (
           <tbody id="users-table-body">
             <?php if (count($users) > 0): ?>
               <?php foreach ($users as $user): ?>
+                <?php
+                  $fullName = trim($user['first_name'] . ' ' . ($user['middle_name'] ?? '') . ' ' . $user['last_name']);
+                  $isStudent = ($user['position'] === 'student');
+                  $isActive  = isset($user['is_active']) ? ((int)$user['is_active'] === 1) : true;
+
+                  $expiryRaw = $user['account_expires_at'] ?? null;
+                  $expiryDt  = null;
+                  $isExpired = false;
+
+                  if (!empty($expiryRaw)) {
+                      try {
+                          $expiryDt  = new DateTime($expiryRaw, new DateTimeZone('Asia/Manila'));
+                          $nowManila = new DateTime('now', new DateTimeZone('Asia/Manila'));
+                          $isExpired = ($expiryDt < $nowManila);
+                      } catch (Exception $e) {
+                          $expiryDt  = null;
+                          $isExpired = false;
+                      }
+                  }
+                ?>
                 <tr class="border-b hover:bg-gray-100">
                   <!-- Photo -->
                   <td class="py-3 px-4">
@@ -1376,24 +1311,25 @@ if (
                       <i class="fas fa-user text-gray-400 text-sm"></i>
                     </div>
                   </td>
+
                   <!-- Name -->
                   <td class="py-3 px-4 font-medium text-sm">
-                    <?= htmlspecialchars(trim($user['first_name'] . ' ' . ($user['middle_name'] ?? '') . ' ' . $user['last_name'])) ?>
+                    <?= htmlspecialchars($fullName) ?>
                   </td>
                   
-                  <?php if (in_array('Student Number', $columns)): ?>
+                  <?php if (in_array('Student Number', $columns, true)): ?>
                   <td class="py-3 px-4 text-sm">
                     <?= !empty($user['student_number']) ? htmlspecialchars($user['student_number']) : '<span class="text-gray-400">Not set</span>' ?>
                   </td>
                   <?php endif; ?>
                   
-                  <?php if (in_array('Employee Number', $columns)): ?>
+                  <?php if (in_array('Employee Number', $columns, true)): ?>
                   <td class="py-3 px-4 text-sm">
                     <?= !empty($user['employee_number']) ? htmlspecialchars($user['employee_number']) : '<span class="text-gray-400">Not set</span>' ?>
                   </td>
                   <?php endif; ?>
                   
-                  <?php if (in_array('Status', $columns)): ?>
+                  <?php if (in_array('Status', $columns, true)): ?>
                   <td class="py-3 px-4 text-sm">
                     <?php if (!empty($user['status'])): ?>
                       <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
@@ -1405,7 +1341,7 @@ if (
                   </td>
                   <?php endif; ?>
                   
-                  <?php if (in_array('Position', $columns)): ?>
+                  <?php if (in_array('Position', $columns, true)): ?>
                   <td class="py-3 px-4 text-sm">
                     <?php if (!empty($user['position'])): ?>
                       <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">
@@ -1417,17 +1353,14 @@ if (
                   </td>
                   <?php endif; ?>
                   
-                  <?php if (in_array('College', $columns)): ?>
+                  <?php if (in_array('College', $columns, true)): ?>
                   <td class="py-3 px-4 text-sm">
                     <?php 
                     if ($user['position'] === 'student' && !empty($user['department'])) {
-                        // Keep colleges as codes
                         echo htmlspecialchars($user['department']);
                     } else if ($user['position'] === 'academic' && !empty($user['department'])) {
-                        // Keep colleges as codes
                         echo htmlspecialchars($user['department']);
                     } else if ($user['is_coop_member'] == 1 && $user['position'] === 'academic' && !empty($user['department'])) {
-                        // Keep colleges as codes
                         echo htmlspecialchars($user['department']);
                     } else if ($user['position'] === 'non-academic') {
                         echo '<span class="text-gray-400">N/A</span>';
@@ -1438,11 +1371,10 @@ if (
                   </td>
                   <?php endif; ?>
                   
-                  <?php if (in_array('Department', $columns)): ?>
+                  <?php if (in_array('Department', $columns, true)): ?>
                   <td class="py-3 px-4 text-sm">
                     <?php 
                     if ($user['position'] === 'student' && !empty($user['department1'])) {
-                        // department1 might already be full name; if it's a code, map it
                         $deptFull = getMappedValue($mappingSystem['departments'], $user['department1'], $user['department1']);
                         echo htmlspecialchars($deptFull);
                     } else if ($user['position'] === 'academic' && !empty($user['department1'])) {
@@ -1452,7 +1384,6 @@ if (
                         $deptFull = getMappedValue($mappingSystem['departments'], $user['department1'], $user['department1']);
                         echo htmlspecialchars($deptFull);
                     } else if ($user['is_coop_member'] == 1 && $user['position'] === 'non-academic' && !empty($user['department'])) {
-                        // non-academic: department column usually stores codes like LIBRARY, ADMIN, NAEA
                         $deptFull = getMappedValue($mappingSystem['departments'], $user['department'], $user['department']);
                         echo htmlspecialchars($deptFull);
                     } else if ($user['position'] === 'non-academic' && !empty($user['department'])) {
@@ -1465,7 +1396,7 @@ if (
                   </td>
                   <?php endif; ?>
                   
-                  <?php if (in_array('Course', $columns)): ?>
+                  <?php if (in_array('Course', $columns, true)): ?>
                   <td class="py-3 px-4 text-sm">
                     <?php 
                     if (!empty($user['course'])) {
@@ -1477,8 +1408,36 @@ if (
                     ?>
                   </td>
                   <?php endif; ?>
+
+                  <?php if (in_array('Account Status', $columns, true)): ?>
+                  <td class="py-3 px-4 text-sm">
+                    <?php if (!$isActive): ?>
+                      <span class="status-badge bg-red-100 text-red-700 mb-1">
+                        <i class="fas fa-ban mr-1"></i>Deactivated
+                      </span>
+                    <?php elseif ($isStudent && $isExpired): ?>
+                      <span class="status-badge bg-yellow-100 text-yellow-800 mb-1">
+                        <i class="fas fa-clock mr-1"></i>Expired
+                      </span>
+                    <?php else: ?>
+                      <span class="status-badge bg-green-100 text-green-800 mb-1">
+                        <i class="fas fa-check-circle mr-1"></i>Active
+                      </span>
+                    <?php endif; ?>
+
+                    <?php if ($isStudent): ?>
+                      <div class="text-[11px] text-gray-500 mt-1">
+                        <?php if ($expiryDt): ?>
+                          Expires: <?= htmlspecialchars($expiryDt->format('Y-m-d')) ?>
+                        <?php else: ?>
+                          No expiry set
+                        <?php endif; ?>
+                      </div>
+                    <?php endif; ?>
+                  </td>
+                  <?php endif; ?>
                   
-                  <?php if (in_array('MIGS Status', $columns)): ?>
+                  <?php if (in_array('MIGS Status', $columns, true)): ?>
                   <td class="py-3 px-4 text-sm">
                     <?php if ($user['migs_status'] == 1): ?>
                       <span class="status-badge bg-green-100 text-green-800">
@@ -1497,14 +1456,15 @@ if (
                     <div class="flex flex-col space-y-2">
                       <?php if (!($scopeCategory === 'Others-COOP' || $assignedScope === 'COOP')): ?>
                         <button 
-                          onclick='triggerEditUser(<?= $user["user_id"] ?>)'
+                          type="button"
+                          onclick='triggerEditUser(<?= (int)$user["user_id"] ?>)'
                           class="btn-edit text-white px-3 py-1 rounded text-sm font-medium inline-flex items-center justify-center w-full"
                           aria-label="Edit user">
                           <i class="fas fa-edit mr-1"></i>Edit
                         </button>
                       <?php endif; ?>
                       
-                      <a href="admin_delete_users.php?user_id=<?= $user['user_id'] ?>" 
+                      <a href="admin_delete_users.php?user_id=<?= (int)$user['user_id'] ?>" 
                          class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-medium inline-flex items-center justify-center w-full"
                          onclick="return confirm('Are you sure you want to delete this user?');"
                          aria-label="Delete user">
@@ -1533,23 +1493,35 @@ if (
     </main>
   </div>
   
+  <!-- Toast container -->
   <div id="toast-container"></div>
-  
 <script>
-let selectedUser = null;
-
+/* ============================================================
+   Toast Notification
+============================================================ */
 function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
-    toast.innerHTML = `<i class="fas ${icon}"></i> ${message}`;
-    document.getElementById('toast-container').appendChild(toast);
-    setTimeout(() => { toast.classList.add('show'); }, 10);
+    const iconClass = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+
+    toast.innerHTML = `<i class="fas ${iconClass}"></i> ${message}`;
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => toast.classList.add('show'));
+
     setTimeout(() => {
         toast.classList.remove('show');
-        setTimeout(() => { toast.remove(); }, 300);
+        setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
+
+/* ============================================================
+   EDIT USER MODAL
+============================================================ */
+let selectedUser = null;
 
 function triggerEditUser(userId) {
   fetch('get_user.php?user_id=' + userId)
@@ -1561,103 +1533,119 @@ function triggerEditUser(userId) {
         showToast("User not found.", "error");
       }
     })
-    .catch(() => showToast("Fetch failed", "error"));
+    .catch(() => showToast("Failed to fetch user.", "error"));
 }
 
 function openUpdateModal(user) {
   selectedUser = user;
-  document.getElementById('update_user_id').value      = user.user_id;
-  document.getElementById('update_first_name').value   = user.first_name;
-  document.getElementById('update_last_name').value    = user.last_name;
-  document.getElementById('update_email').value        = user.email;
-  document.getElementById('update_department').value   = user.department ?? '';
-  document.getElementById('update_course').value       = user.course ?? '';
-  document.getElementById('update_position').value     = user.position ?? '';
-  document.getElementById('updateModal').classList.remove('hidden');
-  setTimeout(() => document.getElementById('update_first_name').focus(), 100);
+
+  const idEl        = document.getElementById('update_user_id');
+  const fnEl        = document.getElementById('update_first_name');
+  const lnEl        = document.getElementById('update_last_name');
+  const emailEl     = document.getElementById('update_email');
+  const deptEl      = document.getElementById('update_department');
+  const courseEl    = document.getElementById('update_course');
+  const positionEl  = document.getElementById('update_position');
+  const modal       = document.getElementById('updateModal');
+
+  if (!modal || !idEl) return;
+
+  idEl.value    = user.user_id;
+  fnEl.value    = user.first_name;
+  lnEl.value    = user.last_name;
+  emailEl.value = user.email;
+
+  if (deptEl)     deptEl.value    = user.department ?? '';
+  if (courseEl)   courseEl.value  = user.course ?? '';
+  if (positionEl) positionEl.value= user.position ?? '';
+
+  modal.classList.remove('hidden');
+  setTimeout(() => fnEl.focus(), 100);
 }
 
+/* ============================================================
+   FILTERING
+============================================================ */
 function filter() {
-  const position   = document.getElementById('position')   ? document.getElementById('position').value   : '';
-  const status     = document.getElementById('status')     ? document.getElementById('status').value     : '';
-  const college    = document.getElementById('college')    ? document.getElementById('college').value    : '';
-  const department = document.getElementById('department') ? document.getElementById('department').value : '';
-  const course     = document.getElementById('course')     ? document.getElementById('course').value     : '';
-  
+  const position   = document.getElementById('position')?.value || '';
+  const status     = document.getElementById('status')?.value || '';
+  const college    = document.getElementById('college')?.value || '';
+  const department = document.getElementById('department')?.value || '';
+  const course     = document.getElementById('course')?.value || '';
+
   const url = new URL(window.location.href);
-  
-  if (position)   url.searchParams.set('position', position);   else url.searchParams.delete('position');
-  if (status)     url.searchParams.set('status', status);       else url.searchParams.delete('status');
-  if (college)    url.searchParams.set('college', college);     else url.searchParams.delete('college');
-  if (department) url.searchParams.set('department', department); else url.searchParams.delete('department');
-  if (course)     url.searchParams.set('course', course);       else url.searchParams.delete('course');
-  
+
+  position   ? url.searchParams.set('position', position)     : url.searchParams.delete('position');
+  status     ? url.searchParams.set('status', status)         : url.searchParams.delete('status');
+  college    ? url.searchParams.set('college', college)       : url.searchParams.delete('college');
+  department ? url.searchParams.set('department', department) : url.searchParams.delete('department');
+  course     ? url.searchParams.set('course', course)         : url.searchParams.delete('course');
+
   window.location.href = url.toString();
 }
 
-// Pagination
-document.addEventListener('DOMContentLoaded', function() {
-    <?php if (isset($_SESSION['message'])): ?>
-        showToast("<?= htmlspecialchars($_SESSION['message']) ?>", "<?= $_SESSION['message_type'] ?? 'success' ?>");
-    <?php endif; ?>
-    updatePagination();
-});
-
+/* ============================================================
+   PAGINATION
+============================================================ */
 function updatePagination() {
     const rowsPerPage = 20;
-    const tableBody   = document.getElementById('users-table-body');
-    const rows        = tableBody.querySelectorAll('tr');
-    const totalRows   = rows.length;
-    const totalPages  = Math.ceil(totalRows / rowsPerPage) || 1;
-    
+    const tableBody = document.getElementById('users-table-body');
+    if (!tableBody) return;
+
+    const rows = tableBody.querySelectorAll('tr');
+    const totalRows = rows.length;
+    const totalPages = Math.ceil(totalRows / rowsPerPage) || 1;
+
     document.getElementById('total-records').textContent = totalRows;
-    
-    rows.forEach(row => { row.style.display = 'none'; });
-    
-    const storedPage  = parseInt(localStorage.getItem('currentPage') || '1');
-    const currentPage = Math.min(Math.max(storedPage, 1), totalPages);
-    
+
+    rows.forEach(row => row.style.display = 'none');
+
+    const currentPage = Math.min(
+        Math.max(parseInt(localStorage.getItem('currentPage') || '1', 10), 1),
+        totalPages
+    );
+
     const start = (currentPage - 1) * rowsPerPage;
-    const end   = Math.min(start + rowsPerPage, totalRows);
-    
-    for (let i = start; i < end; i++) {
-        if (rows[i]) rows[i].style.display = '';
-    }
-    
-    document.getElementById('showing-start').textContent = totalRows === 0 ? 0 : start + 1;
-    document.getElementById('showing-end').textContent   = end;
-    
+    const end = Math.min(start + rowsPerPage, totalRows);
+
+    for (let i = start; i < end; i++) rows[i].style.display = '';
+
+    document.getElementById('showing-start').textContent = totalRows ? start + 1 : 0;
+    document.getElementById('showing-end').textContent = end;
+
     const pageNumbers = document.getElementById('page-numbers');
     pageNumbers.innerHTML = '';
-    
+
     const maxVisiblePages = 5;
     let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-    let endPage   = Math.min(totalPages, startPage + maxVisiblePages - 1);
-    if (endPage - startPage + 1 < maxVisiblePages) {
-        startPage = Math.max(1, endPage - maxVisiblePages + 1);
-    }
-    
-    const prevButton = document.getElementById('prev-page');
-    prevButton.disabled = currentPage === 1;
-    prevButton.onclick  = () => goToPage(currentPage - 1);
-    
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
     for (let i = startPage; i <= endPage; i++) {
-        const pageButton = document.createElement('button');
-        pageButton.className = `px-3 py-1 border rounded ${i === currentPage ? 'bg-[var(--cvsu-green)] text-white' : 'text-gray-600 hover:bg-gray-100'}`;
-        pageButton.textContent = i;
-        pageButton.onclick     = () => goToPage(i);
-        pageNumbers.appendChild(pageButton);
+        const btn = document.createElement('button');
+        btn.className =
+            `px-3 py-1 border rounded ${i === currentPage ? 'bg-[var(--cvsu-green)] text-white' : 'text-gray-600 hover:bg-gray-100'}`;
+        btn.textContent = i;
+        btn.onclick = () => goToPage(i);
+        pageNumbers.appendChild(btn);
     }
-    
-    const nextButton = document.getElementById('next-page');
-    nextButton.disabled = currentPage === totalPages;
-    nextButton.onclick  = () => goToPage(currentPage + 1);
+
+    document.getElementById('prev-page').onclick = () => goToPage(currentPage - 1);
+    document.getElementById('next-page').onclick = () => goToPage(currentPage + 1);
+    document.getElementById('prev-page').disabled = currentPage === 1;
+    document.getElementById('next-page').disabled = currentPage === totalPages;
 }
 
 function goToPage(page) {
     localStorage.setItem('currentPage', page);
     updatePagination();
 }
+
+/* ============================================================
+   INIT
+============================================================ */
+document.addEventListener('DOMContentLoaded', function() {
+    updatePagination();
+});
 </script>
 </body>
 </html>

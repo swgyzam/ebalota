@@ -43,7 +43,6 @@ $target_position     = 'All';
 $target_department   = 'All';
 $assigned_admin_id   = !empty($_POST['assigned_admin_id']) ? (int)$_POST['assigned_admin_id'] : null;
 
-// NEW: election_scope_type + owner_scope_id
 $election_scope_type = null;
 $owner_scope_id      = null;
 
@@ -53,24 +52,48 @@ try {
         $adminStmt->execute([':uid' => $assigned_admin_id]);
         $adminRow = $adminStmt->fetch();
 
-        if ($adminRow) {
-            $election_scope_type = $adminRow['scope_category'];
+        if (!$adminRow) {
+            $_SESSION['error'] = 'Selected admin not found.';
+            header('Location: manage_elections.php');
+            exit();
+        }
 
-            $scopeStmt = $pdo->prepare("
-                SELECT scope_id, scope_type, scope_details
-                FROM admin_scopes
-                WHERE user_id = :uid
-                  AND scope_type = :stype
-                LIMIT 1
-            ");
-            $scopeStmt->execute([
-                ':uid'   => $assigned_admin_id,
-                ':stype' => $election_scope_type
-            ]);
-            $scopeRow = $scopeStmt->fetch();
-            if ($scopeRow) {
-                $owner_scope_id = (int)$scopeRow['scope_id'];
-            }
+        $adminScope = $adminRow['scope_category'] ?? '';
+
+        // Allowed scopes per target voter (note: here target_voter uses 'faculty')
+        $allowedScopesByTarget = [
+            'student'      => ['Academic-Student', 'Special-Scope'],
+            'faculty'      => ['Academic-Faculty'],
+            'non_academic' => ['Non-Academic-Employee'],
+            'others'       => ['Others'],
+        ];
+
+        if (isset($allowedScopesByTarget[$target_voter]) &&
+            !in_array($adminScope, $allowedScopesByTarget[$target_voter], true)) {
+
+            $_SESSION['error'] =
+                "Selected admin has scope '{$adminScope}', which does not match this election target. ".
+                "Please choose an admin with the correct scope.";
+            header('Location: manage_elections.php');
+            exit();
+        }
+
+        $election_scope_type = $adminScope;
+
+        $scopeStmt = $pdo->prepare("
+            SELECT scope_id, scope_type, scope_details
+            FROM admin_scopes
+            WHERE user_id = :uid
+              AND scope_type = :stype
+            LIMIT 1
+        ");
+        $scopeStmt->execute([
+            ':uid'   => $assigned_admin_id,
+            ':stype' => $election_scope_type
+        ]);
+        $scopeRow = $scopeStmt->fetch();
+        if ($scopeRow) {
+            $owner_scope_id = (int)$scopeRow['scope_id'];
         }
     }
 } catch (PDOException $e) {

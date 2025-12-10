@@ -134,81 +134,41 @@ $totalOthers = count($othersGlobal);
 // ------------------------------------------------------
 
 // Category breakdown (base totals)
+
+$stmt = $pdo->query("
+    SELECT COUNT(*) AS total_students
+    FROM users
+    WHERE role = 'voter'
+      AND position = 'student'
+");
+$totalStudents = (int)($stmt->fetch()['total_students'] ?? 0);
+
 $categoryLabels = [
-    'Academic Students',
-    'Non-Academic Students',
+    'Students',
     'Academic Faculty',
     'Non-Academic Employees',
     'Others',
 ];
 
 $categoryCountsBase = [
-    $totalAcadStudents,
-    $totalNonAcadStudents,
+    $totalStudents,
     $totalAcadFaculty,
     $totalNonAcadEmployee,
     $totalOthers,
 ];
 
-// Segment filter: all / students / faculty / employees
-$allowedSegments = ['all', 'students', 'faculty', 'employees'];
-$segment = $_GET['segment'] ?? 'all';
-if (!in_array($segment, $allowedSegments, true)) {
-    $segment = 'all';
-}
-
-// Apply segment to category counts (we keep labels fixed, just zero-out others)
+// Segment removed – always show all voters
+$segment = 'all';
 $categoryCountsSegmented = $categoryCountsBase;
 
-switch ($segment) {
-    case 'students':
-        // Keep student-related categories, zero-out faculty & employees
-        // Index: 0=AcadStud,1=NonAcadStud,2=Faculty,3=Employees,4=Others
-        $categoryCountsSegmented[2] = 0; // Academic Faculty
-        $categoryCountsSegmented[3] = 0; // Non-Academic Employees
-        break;
-
-    case 'faculty':
-        foreach ($categoryCountsSegmented as $i => $v) {
-            $categoryCountsSegmented[$i] = ($i === 2) ? $v : 0;
-        }
-        break;
-
-    case 'employees':
-        foreach ($categoryCountsSegmented as $i => $v) {
-            $categoryCountsSegmented[$i] = ($i === 3) ? $v : 0;
-        }
-        break;
-
-    case 'all':
-    default:
-        // no change
-        break;
-}
-
-// Global voters by position (student / academic / non-academic / etc.)
+// No segment filter – always all voters
 $whereSegment = "role = 'voter'";
-switch ($segment) {
-    case 'students':
-        $whereSegment .= " AND position = 'student'";
-        break;
-    case 'faculty':
-        $whereSegment .= " AND position = 'academic'";
-        break;
-    case 'employees':
-        $whereSegment .= " AND position = 'non-academic'";
-        break;
-    case 'all':
-    default:
-        // no extra condition
-        break;
-}
 
 $sqlPositions = "
-    SELECT COALESCE(NULLIF(position,''),'Unspecified') AS position, COUNT(*) AS count
+    SELECT COALESCE(NULLIF(position,''),'No Position (Email-only)') AS position, COUNT(*) AS count
     FROM users
     WHERE $whereSegment
-    GROUP BY COALESCE(NULLIF(position,''),'Unspecified')
+    GROUP BY COALESCE(NULLIF(position,''),'No Position (Email-only)')
     ORDER BY count DESC
 ";
 $stmt = $pdo->query($sqlPositions);
@@ -291,6 +251,24 @@ $turnoutYears = array_keys($filteredTurnoutByYear);
 $turnoutRates = array_column($filteredTurnoutByYear, 'turnout_rate');
 
 $currentYearTurnout = $globalTurnoutByYear[$currentYear]['turnout_rate'] ?? 0.0;
+
+// ==== APPLY YEAR RANGE TO GLOBAL ELECTIONS PER YEAR CHART ====
+
+// Gawing map: year => count
+$electionsPerYearMap = [];
+foreach ($electionsPerYear as $row) {
+    $y = (int)$row['year'];
+    $electionsPerYearMap[$y] = (int)$row['count'];
+}
+
+// Build arrays for ALL years in [fromYear..toYear], even if 0 elections
+$yearsForChart  = [];
+$countsForChart = [];
+
+for ($y = $fromYear; $y <= $toYear; $y++) {
+    $yearsForChart[]  = $y;
+    $countsForChart[] = $electionsPerYearMap[$y] ?? 0;
+}
 
 // ------------------------------------------------------
 // 3. Scope seat summaries (for "Scopes & Admin Overview")
@@ -460,7 +438,7 @@ if ($selectedSeat !== null) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -574,17 +552,20 @@ if ($selectedSeat !== null) {
 <div class="flex min-h-screen">
 
 <?php include 'super_admin_sidebar.php'; ?>
+<?php
+$role = $_SESSION['role'] ?? '';
+if ($role === 'super_admin') {
+    include 'super_admin_change_password_modal.php';
+} else {
+    include 'admin_change_password_modal.php';
+}
+?>
+
 
 <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:var(--cvsu-green-dark);">
   <h1 class="text-2xl font-bold text-white">
     SUPER ADMIN DASHBOARD
   </h1>
-  <div class="text-white text-sm">
-    Logged in as:
-    <span class="font-semibold">
-      <?= htmlspecialchars($_SESSION['email'] ?? ($_SESSION['username'] ?? '')) ?>
-    </span>
-  </div>
 </header>
 
 <main class="flex-1 pt-20 px-8 ml-64">
@@ -665,50 +646,15 @@ if ($selectedSeat !== null) {
           </p>
         </div>
 
-        <!-- Segment filter -->
-        <form method="get" class="flex items-center gap-2 text-xs md:text-sm">
-          <label for="segmentFilter" class="text-white/80 font-medium">
-            Segment:
-          </label>
-          <select
-            id="segmentFilter"
-            name="segment"
-            class="px-3 py-1.5 border border-white/40 rounded-lg bg-white/10 text-white text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-white"
-            onchange="this.form.submit()"
-          >
-            <option value="all"      <?= $segment === 'all'      ? 'selected' : '' ?>>All voters</option>
-            <option value="students" <?= $segment === 'students' ? 'selected' : '' ?>>Students only</option>
-            <option value="faculty"  <?= $segment === 'faculty'  ? 'selected' : '' ?>>Faculty only</option>
-            <option value="employees"<?= $segment === 'employees'? 'selected' : '' ?>>Employees only</option>
-          </select>
-
-          <!-- Preserve scope type filter so overview table state remains -->
-          <input type="hidden" name="scope_type" value="<?= htmlspecialchars($scopeTypeFilter) ?>">
-          <?php if ($selectedScopeId && $selectedScopeType): ?>
-            <input type="hidden" name="scope_id" value="<?= (int)$selectedScopeId ?>">
-            <input type="hidden" name="scope_type_detail" value="<?= htmlspecialchars($selectedScopeType) ?>">
-          <?php endif; ?>
-          
-          <!-- Preserve year range filters -->
-          <input type="hidden" name="from_year" value="<?= htmlspecialchars($fromYear) ?>">
-          <input type="hidden" name="to_year" value="<?= htmlspecialchars($toYear) ?>">
-        </form>
-      </div>
-    </div>
+        <div class="text-xs md:text-sm text-white/80">
+          Showing: <span class="font-semibold">All voters</span>
+        </div>
+      </div> 
+    </div> 
 
     <div class="p-6">
       <p class="text-[11px] text-gray-500 mb-2">
-        Current segment:
-        <span class="font-semibold">
-          <?php
-            switch ($segment) {
-              case 'students':  echo 'Students only'; break;
-              case 'faculty':   echo 'Faculty only';  break;
-              case 'employees': echo 'Employees only'; break;
-              default:          echo 'All voters';
-            }
-          ?>
-        </span>
+        Segment: <span class="font-semibold">All voters</span>
       </p>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
@@ -807,39 +753,26 @@ if ($selectedSeat !== null) {
     </div>
   </div>
 
-  <!-- Global Turnout Rate by Year -->
+  <!-- Total Turnout Rate by Year -->
   <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-    <h2 class="text-xl font-bold text-gray-800 mb-4">Total Turnout Rate by Year</h2>
-    
-    <!-- Year Range Selector -->
-    <div class="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-      <h3 class="font-medium text-blue-800 mb-2">Turnout Analysis – Year Range</h3>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label for="fromYear" class="block text-sm font-medium text-blue-800">From year</label>
-          <select id="fromYear" name="from_year" class="mt-1 p-2 border rounded w-full" onchange="submitYearRange()">
-            <?php foreach ($allTurnoutYears as $y): ?>
-              <option value="<?= $y ?>" <?= ($y == $fromYear) ? 'selected' : '' ?>><?= $y ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div>
-          <label for="toYear" class="block text-sm font-medium text-blue-800">To year</label>
-          <select id="toYear" name="to_year" class="mt-1 p-2 border rounded w-full" onchange="submitYearRange()">
-            <?php foreach ($allTurnoutYears as $y): ?>
-              <option value="<?= $y ?>" <?= ($y == $toYear) ? 'selected' : '' ?>><?= $y ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-      </div>
-      <p class="text-xs text-blue-700 mt-2">
-        Select a start and end year to compare turnout. Years with no elections in this range will appear with zero values.
-      </p>
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-3">
+      <h2 class="text-xl font-bold text-gray-800">
+        Total Turnout Rate by Year
+      </h2>
+
+      <!-- Download Total Report Button -->
+      <a href="download_total_report.php?from_year=<?= htmlspecialchars($fromYear) ?>&to_year=<?= htmlspecialchars($toYear) ?>"
+         class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-[var(--cvsu-green)] text-[var(--cvsu-green)] hover:bg-[var(--cvsu-green)] hover:text-white transition-colors">
+        <i class="fas fa-file-pdf mr-2"></i>
+        <span>Download Total Report (PDF)</span>
+      </a>
     </div>
-    
+
+    <!-- Chart FIRST -->
     <div class="chart-container">
       <canvas id="globalTurnoutChart"></canvas>
     </div>
+
     <p class="mt-3 text-xs text-gray-500">
       Turnout = distinct voters who participated in any election in that year ÷ all voters existing by December 31 of that year.
     </p>
@@ -886,17 +819,48 @@ if ($selectedSeat !== null) {
         </table>
       </div>
     </div>
+
+    <!-- Year Range Selector UNDER the table -->
+    <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <h3 class="font-medium text-blue-800 mb-2">Turnout Analysis – Year Range</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label for="fromYear" class="block text-sm font-medium text-blue-800">From year</label>
+          <select id="fromYear" name="from_year" class="mt-1 p-2 border rounded w-full" onchange="submitYearRange()">
+            <?php foreach ($allTurnoutYears as $y): ?>
+              <option value="<?= $y ?>" <?= ($y == $fromYear) ? 'selected' : '' ?>><?= $y ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div>
+          <label for="toYear" class="block text-sm font-medium text-blue-800">To year</label>
+          <select id="toYear" name="to_year" class="mt-1 p-2 border rounded w-full" onchange="submitYearRange()">
+            <?php foreach ($allTurnoutYears as $y): ?>
+              <option value="<?= $y ?>" <?= ($y == $toYear) ? 'selected' : '' ?>><?= $y ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+      </div>
+      <p class="text-xs text-blue-700 mt-2">
+        Select a start and end year to compare turnout. Years with no elections in this range will appear with zero values.
+      </p>
+    </div>
   </div>
 
+
   <!-- Scopes & Admin Overview -->
-  <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+  <div id="scopes-section" class="bg-white rounded-xl shadow-lg p-6 mb-8">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-3">
       <h2 class="text-2xl font-bold text-gray-800">Scopes &amp; Admin Overview</h2>
       <div class="flex items-center gap-2 text-sm">
         <span class="text-xs text-gray-500">
           Filter by scope type:
         </span>
-        <form method="get" class="flex items-center gap-2 text-sm">
+        <form
+          method="get"
+          action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>#scopes-section"
+          class="flex items-center gap-2 text-sm"
+        >
           <select
             id="scopeTypeFilterChart"
             name="scope_type"
@@ -910,9 +874,6 @@ if ($selectedSeat !== null) {
               </option>
             <?php endforeach; ?>
           </select>
-          
-          <!-- Preserve segment filter -->
-          <input type="hidden" name="segment" value="<?= htmlspecialchars($segment) ?>">
           
           <!-- Preserve year range filters -->
           <input type="hidden" name="from_year" value="<?= htmlspecialchars($fromYear) ?>">
@@ -1017,12 +978,21 @@ if ($selectedSeat !== null) {
                 ?>
                 <td class="px-4 py-2 whitespace-nowrap text-xs">
                   <div class="flex flex-col gap-1">
+
+                    <!-- VIEW ANALYTICS / REPORTS (impersonation to admin_analytics.php) -->
+                    <a href="admin_analytics.php?scope_type=<?= urlencode($s['scope_type']) ?>&scope_id=<?= (int)$s['scope_id'] ?>"
+                      class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-full border border-blue-500 text-blue-600 hover:bg-blue-500 hover:text-white">
+                      View analytics / reports
+                    </a>
+
                     <?php if ($viewAsUrl): ?>
+                      <!-- EXISTING: VIEW AS SEAT ADMIN DASHBOARD -->
                       <a href="<?= htmlspecialchars($viewAsUrl) ?>"
-                         class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-full border border-gray-400 text-gray-700 hover:bg-gray-100">
+                        class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-full border border-gray-400 text-gray-700 hover:bg-gray-100">
                         View as seat admin
                       </a>
                     <?php endif; ?>
+
                   </div>
                 </td>
               </tr>
@@ -1048,7 +1018,17 @@ if ($selectedSeat !== null) {
           </p>
         </div>
         <div class="flex items-center gap-3">
-          <a href="super_admin_dashboard.php?segment=<?= htmlspecialchars($segment) ?>&scope_type=<?= htmlspecialchars($scopeTypeFilter) ?>&from_year=<?= htmlspecialchars($fromYear) ?>&to_year=<?= htmlspecialchars($toYear) ?>" class="text-xs px-3 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-100">
+
+          <!-- DOWNLOAD SCOPE REPORT BUTTON -->
+          <a href="download_scope_detail_report.php?scope_type=<?= urlencode($selectedSeat['scope_type']) ?>&scope_id=<?= (int)$selectedSeat['scope_id'] ?>&from_year=<?= $fromYear ?>&to_year=<?= $toYear ?>"
+            class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-[var(--cvsu-green)] text-[var(--cvsu-green)] hover:bg-[var(--cvsu-green)] hover:text-white transition-colors">
+            <i class="fas fa-file-pdf mr-1.5"></i>
+            Download Scope Report (PDF)
+          </a>
+
+          <!-- CLEAR SELECTION -->
+          <a href="super_admin_dashboard.php?scope_type=<?= htmlspecialchars($scopeTypeFilter) ?>&from_year=<?= htmlspecialchars($fromYear) ?>&to_year=<?= htmlspecialchars($toYear) ?>"
+            class="text-xs px-3 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-100">
             Clear selection
           </a>
         </div>
@@ -1151,6 +1131,7 @@ if ($selectedSeat !== null) {
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+  
   // Global elections per year
   const electionsCtx = document.getElementById('globalElectionsChart');
   if (electionsCtx) {
@@ -1270,8 +1251,7 @@ document.addEventListener('DOMContentLoaded', function () {
         datasets: [{
           data: catCounts,
           backgroundColor: [
-            '#1E6F46', // Academic Students
-            '#37A66B', // Non-Academic Students
+            '#1E6F46', // Students
             '#FFD166', // Academic Faculty
             '#154734', // Non-Academic Employees
             '#2D5F3F'  // Others
@@ -1381,6 +1361,5 @@ document.addEventListener('DOMContentLoaded', function () {
   };
 });
 </script>
-
 </body>
 </html>

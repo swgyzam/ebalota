@@ -79,41 +79,6 @@ function toggleAllCheckboxes(name) {
   checkboxes.forEach(cb => cb.checked = !allChecked);
 }
 
-function loadUpdateCourses(type, allowedCourses = '') {
-  const collegeSelect = document.getElementById(
-    type === 'faculty' ? 'update_allowed_colleges_faculty' : 'update_allowed_colleges'
-  );
-  const container = document.getElementById(
-    type === 'faculty' ? 'update_studentCoursesContainer' : 'update_studentCoursesContainer' // we only use student courses here
-  );
-  const list = document.getElementById(
-    type === 'faculty' ? 'update_studentCoursesList' : 'update_studentCoursesList'
-  );
-
-  if (!collegeSelect || !container || !list) return;
-
-  if (collegeSelect.value === 'all') {
-    container.classList.add('hidden');
-    list.innerHTML = '';
-    return;
-  }
-
-  list.innerHTML = '';
-  const courses = collegeCoursesUpdate[collegeSelect.value] || [];
-
-  courses.forEach(course => {
-    const isChecked = allowedCourses && allowedCourses.includes(course) ? 'checked' : '';
-    list.innerHTML += `
-      <label class="flex items-center">
-        <input type="checkbox" name="allowed_courses_student[]" value="${course}" class="mr-1" ${isChecked}>
-        ${course}
-      </label>
-    `;
-  });
-
-  container.classList.remove('hidden');
-}
-
 function buildDeptCheckboxesUpdate(college, listEl, fieldName) {
   if (!listEl) return;
   const depts = collegeDepartmentsUpdate[college] || {};
@@ -157,13 +122,66 @@ document.addEventListener('DOMContentLoaded', function() {
   const updateFacultyDepartmentsContainer = document.getElementById('update_facultyDepartmentsContainer');
   const updateFacultyDepartmentsList      = document.getElementById('update_facultyDepartmentsList');
 
-  const updateSelectAllStudentCourses = document.getElementById('update_selectAllStudentCourses');
-  const updateSelectAllFacultyStatus  = document.getElementById('update_selectAllFacultyStatus');
-  const updateSelectAllNonAcadStatus  = document.getElementById('update_selectAllNonAcadStatus');
+  const updateSelectAllStudentCourses     = document.getElementById('update_selectAllStudentCourses');
+  const updateSelectAllFacultyStatus      = document.getElementById('update_selectAllFacultyStatus');
+  const updateSelectAllNonAcadStatus      = document.getElementById('update_selectAllNonAcadStatus');
   const updateSelectAllFacultyDepartments = document.getElementById('update_selectAllFacultyDepartments');
+
+  const updateAdminSelect = document.getElementById('update_assigned_admin_id');
+
+  // Logo preview elements
+  const updateLogoInput       = document.getElementById('update_logo');
+  const updateLogoPreview     = document.getElementById('update_logo_preview');
+  const updateLogoPlaceholder = document.getElementById('update_logo_placeholder');
+
+  function resetUpdateLogoPreview() {
+    if (updateLogoPreview) {
+      updateLogoPreview.src = '';
+      updateLogoPreview.classList.add('hidden');
+    }
+    if (updateLogoPlaceholder) {
+      updateLogoPlaceholder.classList.remove('hidden');
+    }
+  }
 
   function hideOthersNoteUpdate() {
     if (updateOthersNote) updateOthersNote.classList.add('hidden');
+  }
+
+  // === Filter admins in update modal based on target ===
+  function filterUpdateAdminsByTarget(target) {
+    if (!updateAdminSelect) return;
+
+    const map = {
+      student:      ['Academic-Student', 'Special-Scope'],
+      faculty:      ['Academic-Faculty'],
+      non_academic:['Non-Academic-Employee'],
+      others:       ['Others']
+    };
+
+    const allowedScopes = map[target] || null;
+
+    Array.from(updateAdminSelect.options).forEach((opt, idx) => {
+      if (idx === 0) {
+        opt.disabled = false;
+        opt.hidden   = false;
+        return;
+      }
+      const scope = opt.dataset.scope || '';
+      if (!allowedScopes) {
+        opt.disabled = false;
+        opt.hidden   = false;
+      } else {
+        const ok = allowedScopes.includes(scope);
+        opt.disabled = !ok;
+        opt.hidden   = !ok;
+      }
+    });
+
+    if (updateAdminSelect.selectedOptions.length &&
+        updateAdminSelect.selectedOptions[0].hidden) {
+      updateAdminSelect.value = '';
+    }
   }
 
   // Close update modal
@@ -180,6 +198,7 @@ document.addEventListener('DOMContentLoaded', function() {
       hideAllUpdateFields();
       hideOthersNoteUpdate();
       const v = e.target.value;
+
       if (v === 'student') {
         updateStudentFields && updateStudentFields.classList.remove('hidden');
       } else if (v === 'faculty') {
@@ -187,13 +206,29 @@ document.addEventListener('DOMContentLoaded', function() {
       } else if (v === 'non_academic') {
         updateNonAcademicFields && updateNonAcademicFields.classList.remove('hidden');
       } else if (v === 'others') {
-        // Just show the Others note if you want
-        if (updateOthersNote) updateOthersNote.classList.remove('hidden');
+        updateOthersNote && updateOthersNote.classList.remove('hidden');
       }
+
+      filterUpdateAdminsByTarget(v);
     });
   });
 
-  // Load courses for UPDATE student (3-column layout)
+  // Logo preview change
+  if (updateLogoInput && updateLogoPreview) {
+    updateLogoInput.addEventListener('change', () => {
+      const file = updateLogoInput.files && updateLogoInput.files[0];
+      if (!file) {
+        resetUpdateLogoPreview();
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      updateLogoPreview.src = url;
+      updateLogoPreview.classList.remove('hidden');
+      if (updateLogoPlaceholder) updateLogoPlaceholder.classList.add('hidden');
+    });
+  }
+
+  // Load courses for UPDATE student
   if (updateStudentCollegeSelect && updateStudentCoursesContainer && updateStudentCoursesList) {
     updateStudentCollegeSelect.addEventListener('change', () => {
       const college = updateStudentCollegeSelect.value;
@@ -202,7 +237,17 @@ document.addEventListener('DOMContentLoaded', function() {
         updateStudentCoursesList.innerHTML = '';
         return;
       }
-      loadUpdateCourses('student');
+      const courses = collegeCoursesUpdate[college] || [];
+      updateStudentCoursesList.innerHTML = '';
+      courses.forEach(course => {
+        updateStudentCoursesList.innerHTML += `
+          <label class="flex items-center">
+            <input type="checkbox" name="allowed_courses_student[]" value="${course}" class="mr-1">
+            ${course}
+          </label>
+        `;
+      });
+      updateStudentCoursesContainer.classList.remove('hidden');
     });
   }
 
@@ -220,17 +265,26 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // Select all helpers
   if (updateSelectAllStudentCourses) {
-    updateSelectAllStudentCourses.addEventListener('click', () => toggleAllCheckboxes('allowed_courses_student[]'));
+    updateSelectAllStudentCourses.addEventListener('click', () =>
+      toggleAllCheckboxes('allowed_courses_student[]')
+    );
   }
   if (updateSelectAllFacultyStatus) {
-    updateSelectAllFacultyStatus.addEventListener('click', () => toggleAllCheckboxes('allowed_status_faculty[]'));
+    updateSelectAllFacultyStatus.addEventListener('click', () =>
+      toggleAllCheckboxes('allowed_status_faculty[]')
+    );
   }
   if (updateSelectAllNonAcadStatus) {
-    updateSelectAllNonAcadStatus.addEventListener('click', () => toggleAllCheckboxes('allowed_status_nonacad[]'));
+    updateSelectAllNonAcadStatus.addEventListener('click', () =>
+      toggleAllCheckboxes('allowed_status_nonacad[]')
+    );
   }
   if (updateSelectAllFacultyDepartments) {
-    updateSelectAllFacultyDepartments.addEventListener('click', () => toggleAllCheckboxes('allowed_departments_faculty[]'));
+    updateSelectAllFacultyDepartments.addEventListener('click', () =>
+      toggleAllCheckboxes('allowed_departments_faculty[]')
+    );
   }
 
   // Clear button (UPDATE)
@@ -248,6 +302,8 @@ document.addEventListener('DOMContentLoaded', function() {
         updateError.textContent = '';
       }
       document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
+      resetUpdateLogoPreview();
+      filterUpdateAdminsByTarget(null);
     });
   }
 
@@ -303,14 +359,15 @@ document.addEventListener('DOMContentLoaded', function() {
       updateError.textContent = '';
     }
     document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
+    resetUpdateLogoPreview();
 
     // Populate base fields
     document.getElementById('update_election_id').value   = election.election_id;
     document.getElementById('update_election_name').value = election.title || '';
     document.getElementById('update_description').value   = election.description || '';
 
-    const startDate = new Date(election.start_datetime);
-    const endDate   = new Date(election.end_datetime);
+    const startDateObj = new Date(election.start_datetime);
+    const endDateObj   = new Date(election.end_datetime);
     const fmt = d => {
       const yyyy = d.getFullYear();
       const mm   = String(d.getMonth() + 1).padStart(2,'0');
@@ -319,43 +376,63 @@ document.addEventListener('DOMContentLoaded', function() {
       const mi   = String(d.getMinutes()).padStart(2,'0');
       return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
     };
-    document.getElementById('update_start_datetime').value = fmt(startDate);
-    document.getElementById('update_end_datetime').value   = fmt(endDate);
+    document.getElementById('update_start_datetime').value = fmt(startDateObj);
+    document.getElementById('update_end_datetime').value   = fmt(endDateObj);
 
-    // Assign Admin
-    const adminSelect = document.getElementById('update_assigned_admin_id');
-    if (adminSelect) {
-      if (election.assigned_admin_id) {
-        const exists = Array.from(adminSelect.options).some(o => o.value == election.assigned_admin_id);
-        if (exists) {
-          adminSelect.value = election.assigned_admin_id;
-        } else {
-          const opt = document.createElement('option');
-          opt.value = election.assigned_admin_id;
-          opt.text  = 'Unknown Admin (ID: '+ election.assigned_admin_id +')';
-          opt.selected = true;
-          adminSelect.appendChild(opt);
-        }
-      } else {
-        adminSelect.value = '';
-      }
+    // Logo preview from existing logo_path
+    if (election.logo_path && updateLogoPreview) {
+      updateLogoPreview.src = election.logo_path;
+      updateLogoPreview.classList.remove('hidden');
+      if (updateLogoPlaceholder) updateLogoPlaceholder.classList.add('hidden');
+    } else {
+      resetUpdateLogoPreview();
     }
 
+    // Determine target position
     const pos = (election.target_position || '').toLowerCase();
+    let targetForFilter = null;
 
     hideAllUpdateFields();
     hideOthersNoteUpdate();
 
-    // Student
     if (pos.includes('student')) {
+      targetForFilter = 'student';
       const r = document.getElementById('update_target_student');
       if (r) r.checked = true;
-      if (updateStudentFields) updateStudentFields.classList.remove('hidden');
-      if (updateStudentCollegeSelect && election.allowed_colleges) {
-        updateStudentCollegeSelect.value = election.allowed_colleges;
-        if (election.allowed_colleges.toLowerCase() !== 'all') {
-          const courses = (election.allowed_courses || '').split(',').map(c=>c.trim()).filter(Boolean);
-          const cc = collegeCoursesUpdate[election.allowed_colleges] || [];
+      updateStudentFields && updateStudentFields.classList.remove('hidden');
+
+      if (updateStudentCollegeSelect) {
+        // 1. Normalise DB value → select value
+        let col = (election.allowed_colleges || '').trim();
+        if (!col || col.toLowerCase() === 'all') {
+          col = 'all'; // dapat tumama sa <option value="all">
+        }
+      
+        updateStudentCollegeSelect.value = col;
+      
+        // 2. Safety net: kung wala pa ring selected (blank pa rin sa UI),
+        //    gumawa tayo ng option para sa value na 'col'
+        if (!updateStudentCollegeSelect.value) {
+          const opt = document.createElement('option');
+          opt.value = col;
+          opt.textContent = (col === 'all') ? 'All Colleges' : col;
+          // ilagay sa unahan para consistent
+          updateStudentCollegeSelect.insertBefore(opt, updateStudentCollegeSelect.firstChild);
+          updateStudentCollegeSelect.value = col;
+        }
+      
+        // 3. Courses handling
+        if (col === 'all') {
+          // All Colleges → walang specific course filter
+          if (updateStudentCoursesContainer) updateStudentCoursesContainer.classList.add('hidden');
+          if (updateStudentCoursesList) updateStudentCoursesList.innerHTML = '';
+        } else {
+          const courses = (election.allowed_courses || '')
+            .split(',')
+            .map(c => c.trim())
+            .filter(Boolean);
+      
+          const cc = collegeCoursesUpdate[col] || [];
           if (cc.length && updateStudentCoursesContainer && updateStudentCoursesList) {
             updateStudentCoursesList.innerHTML = '';
             cc.forEach(course => {
@@ -368,17 +445,23 @@ document.addEventListener('DOMContentLoaded', function() {
               `;
             });
             updateStudentCoursesContainer.classList.remove('hidden');
+          } else {
+            // safety kung walang map
+            updateStudentCoursesContainer.classList.add('hidden');
+            updateStudentCoursesList.innerHTML = '';
           }
         }
       }
-    }
-    // Faculty
-    else if (pos.includes('faculty')) {
+    } else if (pos.includes('faculty')) {
+      targetForFilter = 'faculty';
       const r = document.getElementById('update_target_faculty');
       if (r) r.checked = true;
-      if (updateFacultyFields) updateFacultyFields.classList.remove('hidden');
+      updateFacultyFields && updateFacultyFields.classList.remove('hidden');
 
-      const college = election.allowed_colleges || 'all';
+      let college = (election.allowed_colleges || '').trim();
+      if (!college || college.toLowerCase() === 'all') {
+        college = 'all';
+      }
       if (updateFacultyCollegeSelect) {
         updateFacultyCollegeSelect.value = college;
       }
@@ -388,28 +471,31 @@ document.addEventListener('DOMContentLoaded', function() {
         buildDeptCheckboxesUpdate(college, updateFacultyDepartmentsList, 'allowed_departments_faculty[]');
         if (deptStr && deptStr.toLowerCase() !== 'all') {
           const selected = deptStr.split(',').map(d=>d.trim());
-          updateFacultyDepartmentsList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-            if (selected.includes(cb.value)) cb.checked = true;
-          });
+          updateFacultyDepartmentsList
+            .querySelectorAll('input[type="checkbox"]')
+            .forEach(cb => {
+              if (selected.includes(cb.value)) cb.checked = true;
+            });
         }
-        if (updateFacultyDepartmentsContainer) updateFacultyDepartmentsContainer.classList.remove('hidden');
+        updateFacultyDepartmentsContainer && updateFacultyDepartmentsContainer.classList.remove('hidden');
       } else {
-        if (updateFacultyDepartmentsContainer) updateFacultyDepartmentsContainer.classList.add('hidden');
+        updateFacultyDepartmentsContainer && updateFacultyDepartmentsContainer.classList.add('hidden');
         if (updateFacultyDepartmentsList) updateFacultyDepartmentsList.innerHTML = '';
       }
 
       if (election.allowed_status && election.allowed_status.toLowerCase() !== 'all') {
         const statuses = election.allowed_status.split(',').map(s=>s.trim());
-        document.querySelectorAll('#update_facultyFields input[name="allowed_status_faculty[]"]').forEach(cb=>{
-          cb.checked = statuses.includes(cb.value);
-        });
+        document
+          .querySelectorAll('#update_facultyFields input[name="allowed_status_faculty[]"]')
+          .forEach(cb => cb.checked = statuses.includes(cb.value));
       }
-    }
-    // Non-Academic
-    else if (pos.includes('non-academic')) {
+
+    } else if (pos.includes('non-academic')) {
+      targetForFilter = 'non_academic';
       const r = document.getElementById('update_target_non_academic');
       if (r) r.checked = true;
-      if (updateNonAcademicFields) updateNonAcademicFields.classList.remove('hidden');
+      updateNonAcademicFields && updateNonAcademicFields.classList.remove('hidden');
+
       if (election.allowed_departments && election.allowed_departments !== 'All') {
         const depts = election.allowed_departments.split(',').map(d=>d.trim());
         const sel   = document.getElementById('update_allowed_departments_nonacad');
@@ -417,19 +503,47 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       if (election.allowed_status && election.allowed_status.toLowerCase() !== 'all') {
         const statuses = election.allowed_status.split(',').map(s=>s.trim());
-        document.querySelectorAll('#update_nonAcademicFields input[name="allowed_status_nonacad[]"]').forEach(cb=>{
-          cb.checked = statuses.includes(cb.value);
-        });
+        document
+          .querySelectorAll('#update_nonAcademicFields input[name="allowed_status_nonacad[]"]')
+          .forEach(cb => cb.checked = statuses.includes(cb.value));
       }
-    }
-    // Others (including legacy 'coop')
-    else if (pos.includes('others') || pos.includes('coop')) {
+
+    } else if (pos.includes('others') || pos.includes('coop')) {
+      targetForFilter = 'others';
       const r = document.getElementById('update_target_others');
       if (r) r.checked = true;
-      if (updateOthersNote) updateOthersNote.classList.remove('hidden');
-      // No extra field restrictions – voters are handled by uploaded lists.
+      updateOthersNote && updateOthersNote.classList.remove('hidden');
     }
 
-    if (updateModal) updateModal.classList.remove('hidden');
+    // Filter admins for this target, then set assigned admin
+    filterUpdateAdminsByTarget(targetForFilter);
+
+    if (updateAdminSelect) {
+      if (election.assigned_admin_id) {
+        const exists = Array.from(updateAdminSelect.options)
+          .some(o => o.value == election.assigned_admin_id && !o.hidden);
+
+        if (exists) {
+          updateAdminSelect.value = election.assigned_admin_id;
+        } else {
+          // fallback: show as unknown if it doesn't match scope mapping
+          let opt = Array.from(updateAdminSelect.options)
+            .find(o => o.value == election.assigned_admin_id);
+          if (!opt) {
+            opt = document.createElement('option');
+            opt.value = election.assigned_admin_id;
+            opt.text  = 'Unknown Admin (ID: ' + election.assigned_admin_id + ')';
+            updateAdminSelect.appendChild(opt);
+          }
+          opt.hidden   = false;
+          opt.disabled = false;
+          updateAdminSelect.value = election.assigned_admin_id;
+        }
+      } else {
+        updateAdminSelect.value = '';
+      }
+    }
+
+    updateModal && updateModal.classList.remove('hidden');
   };
 });

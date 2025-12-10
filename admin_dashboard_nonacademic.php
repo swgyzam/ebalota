@@ -164,19 +164,13 @@ $selectedYear      = isset($_GET['year']) && ctype_digit($_GET['year'])
 
 $currentMonthStart = date('Y-m-01');
 $currentMonthEnd   = date('Y-m-t');
-$lastMonthStart    = date('Y-m-01', strtotime('-1 month'));
-$lastMonthEnd      = date('Y-m-t', strtotime('-1 month'));
 
-// New / last month voters
-$newVoters       = 0;
-$lastMonthVoters = 0;
+// New voters this month
+$newVoters = 0;
 foreach ($scopedNonAcad as $u) {
     $created = substr($u['created_at'] ?? '', 0, 10);
     if ($created >= $currentMonthStart && $created <= $currentMonthEnd) {
         $newVoters++;
-    }
-    if ($created >= $lastMonthStart && $created <= $lastMonthEnd) {
-        $lastMonthVoters++;
     }
 }
 
@@ -662,6 +656,8 @@ function getFullDepartmentName(string $abbr): string {
       include 'sidebar.php';
   }
 ?>
+<?php include 'admin_change_password_modal.php'; ?>
+
 <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:var(--cvsu-green-dark);">
   <div class="flex flex-col">
     <h1 class="text-2xl font-bold text-white">NON-ACADEMIC ADMIN DASHBOARD</h1>
@@ -732,7 +728,7 @@ function getFullDepartmentName(string $abbr): string {
     </div>
 
     <!-- Small summary cards -->
-    <div class="p-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="p-4 rounded-lg border" style="background-color:rgba(30,111,70,0.05);border-color:var(--cvsu-green-light);">
         <div class="flex items-center">
           <div class="p-3 rounded-lg mr-4" style="background-color:var(--cvsu-green-light);">

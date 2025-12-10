@@ -98,6 +98,38 @@ if (!in_array($electionId, $allowedElectionIds, true)) {
 }
 
 /* ==========================================================
+   ACTIVITY LOG — FACULTY REPORT GENERATION
+   ========================================================== */
+try {
+
+    // Find election title for descriptive logging
+    $electionTitle = '';
+    foreach ($scopedElections as $el) {
+        if ((int)$el['election_id'] === $electionId) {
+            $electionTitle = $el['title'] ?? '';
+            break;
+        }
+    }
+
+    $actionText = 'Generated Faculty election report for election: ' .
+                  ($electionTitle ?: 'Unknown Title') .
+                  ' (ID: ' . $electionId . '), scope_id: ' . $scopeId;
+
+    $logStmt = $pdo->prepare("
+        INSERT INTO activity_logs (user_id, action, timestamp)
+        VALUES (:uid, :action, NOW())
+    ");
+    $logStmt->execute([
+        ':uid'    => $userId,
+        ':action' => $actionText
+    ]);
+
+} catch (Exception $e) {
+    // Silent failure – PDF must still generate even if logging fails
+    error_log('[LOG ERROR] Faculty Report Generation: ' . $e->getMessage());
+}
+
+/* ==========================================================
    GENERATE PDF
    ========================================================== */
 require_once __DIR__ . '/includes/pdf/faculty_election_report_pdf.php';

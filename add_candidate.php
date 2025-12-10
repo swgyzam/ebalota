@@ -237,7 +237,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Commit transaction
             $pdo->commit();
-            
+
+            // --- Activity Log: Candidate created ---
+            try {
+                $adminId    = (int)$userId;
+                $fullName   = trim($first_name . ' ' . ($middle_name ?: '') . ' ' . $last_name);
+                $fullName   = $fullName !== '' ? $fullName : 'Unnamed Candidate';
+
+                // Get election title for nicer log message
+                $electionTitle = '';
+                $titleStmt = $pdo->prepare("SELECT title FROM elections WHERE election_id = ?");
+                $titleStmt->execute([$election_id]);
+                $titleRow = $titleStmt->fetch();
+                if ($titleRow && !empty($titleRow['title'])) {
+                    $electionTitle = $titleRow['title'];
+                }
+
+                // Build action text
+                $actionText = 'Created candidate: ' . $fullName .
+                              ' (ID: ' . $candidate_id . ')';
+
+                if ($electionTitle !== '') {
+                    $actionText .= ' for election: ' . $electionTitle .
+                                  ' (Election ID: ' . $election_id . ')';
+                } else {
+                    $actionText .= ' for election ID: ' . $election_id;
+                }
+
+                if ($positionName !== '') {
+                    $actionText .= ' as position: ' . $positionName;
+                }
+
+                if ($adminId > 0) {
+                    $logStmt = $pdo->prepare("
+                        INSERT INTO activity_logs (user_id, action, timestamp)
+                        VALUES (:uid, :action, NOW())
+                    ");
+                    $logStmt->execute([
+                        ':uid'    => $adminId,
+                        ':action' => $actionText,
+                    ]);
+                }
+            } catch (PDOException $logEx) {
+                // Huwag ihagis sa user, log lang silently
+                error_log('Activity log error (add_candidate.php): ' . $logEx->getMessage());
+            }
+
             $success = "Candidate added successfully.";
             
             // Clear form values
@@ -246,6 +291,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $position_id = '';
             $user_id = '';
             $identifier = '';
+
             
         } catch (PDOException $e) {
             $pdo->rollBack();
@@ -429,6 +475,13 @@ if (empty($elections)) {
       font-size: 0.875rem;
       margin-top: 0.25rem;
     }
+    .btn-yellow {
+      background-color: var(--cvsu-yellow);
+      color: #154734; /* dark green text para readable */
+    }
+    .btn-yellow:hover {
+      background-color: #e6c652; /* slightly darker yellow on hover */
+    }
   </style>
 </head>
 <body class="bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
@@ -442,6 +495,7 @@ if (empty($elections)) {
     <header class="gradient-bg text-white shadow-2xl">
       <div class="max-w-7xl mx-auto px-6 py-8">
         <div class="flex items-center justify-between">
+          <!-- LEFT: title -->
           <div class="flex items-center space-x-4">
             <div class="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
               <i class="fas fa-user-plus text-xl"></i>
@@ -451,10 +505,23 @@ if (empty($elections)) {
               <p class="text-green-100 mt-1">Complete the form to register a new candidate</p>
             </div>
           </div>
-          <a href="admin_manage_candidates.php" class="flex items-center space-x-2 px-6 py-3 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg transition-all duration-200 backdrop-blur-sm">
-            <i class="fas fa-arrow-left"></i>
-            <span>Back to Candidates</span>
-          </a>
+
+          <!-- RIGHT: buttons side-by-side -->
+          <div class="flex items-center space-x-3">
+            <!-- Bulk Upload = yellow -->
+            <a href="bulk_add_candidates.php"
+              class="flex items-center space-x-2 px-6 py-3 rounded-lg transition-all duration-200 backdrop-blur-sm btn-yellow">
+              <i class="fas fa-users"></i>
+              <span>Bulk Upload</span>
+            </a>
+
+            <!-- Back button (same as before) -->
+            <a href="admin_manage_candidates.php"
+              class="flex items-center space-x-2 px-6 py-3 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg transition-all duration-200 backdrop-blur-sm">
+              <i class="fas fa-arrow-left"></i>
+              <span>Back to Candidates</span>
+            </a>
+          </div>
         </div>
       </div>
     </header>
@@ -1139,10 +1206,11 @@ if (empty($elections)) {
 
     
     function deletePosition() {
+      // Walang dapat i-delete kung wala tayong naka-set na ID / name
       if (!positionIdToDelete && !positionNameToDelete) return;
       
+      // DEFAULT POSITION (President, VP, etc.) → dinidisable lang via disabled_default_positions
       if (isDefaultPosition) {
-        // For default positions, we'll add them to disabled_default_positions table
         fetch('disable_default_position.php', {
           method: 'POST',
           headers: {
@@ -1153,81 +1221,61 @@ if (empty($elections)) {
         .then(response => response.json())
         .then(data => {
           if (data.success) {
-            // Remove the position from the dropdown
-            const optionToRemove = Array.from(document.querySelectorAll('#positionOptions .px-4')).find(
-              el => el.querySelector('span').textContent === positionNameToDelete
-            );
+            // Remove sa dropdown (UI only)
+            const optionToRemove = Array.from(
+              document.querySelectorAll('#positionOptions .px-4')
+            ).find(el => el.querySelector('span')?.textContent === positionNameToDelete);
+
             if (optionToRemove) {
               optionToRemove.remove();
             }
-            
-            // If the deleted position was selected, reset the dropdown
+
+            // Kung selected yung dinelete, i-reset yung dropdown
             const selectedText = document.getElementById('selectedPositionText').textContent;
             if (selectedText === positionNameToDelete) {
               document.getElementById('position_id').value = '';
               document.getElementById('selectedPositionText').textContent = 'Select Position';
               document.getElementById('selectedPositionText').classList.add('text-gray-500');
             }
-            
+
             hideDeletePositionModal();
             showAlert('Position disabled successfully!', 'success');
-            
-            // Refresh the page
+
+            // Para sure na malinis ang state, reload light
             setTimeout(() => {
               location.reload();
-            }, 1000);
+            }, 800);
           } else {
-            showAlert('Error: ' + data.message, 'error');
+            showAlert('Error: ' + (data.message || 'Failed to disable position.'), 'error');
           }
         })
         .catch(error => {
           console.error('Error:', error);
           showAlert('An error occurred while disabling the position', 'error');
         });
+
+      // CUSTOM POSITION (galing "Add New") → totoong delete sa positions table
       } else {
-        // Original code for custom positions
         fetch('delete_position.php', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
           },
-          body: 'position_id=' + positionIdToDelete
+          body: 'position_id=' + encodeURIComponent(positionIdToDelete)
         })
         .then(response => response.json())
         .then(data => {
           if (data.success) {
-            // Remove the position from the dropdown
-            const optionToRemove = document.querySelector(`[onclick*="selectPosition('${positionIdToDelete}'")`).closest('.px-4');
-            if (optionToRemove) {
-              optionToRemove.remove();
-            }
-            
-            // If the deleted position was selected, reset the dropdown
-            const selectedValue = document.getElementById('position_id').value;
-            if (selectedValue == positionIdToDelete) {
-              document.getElementById('position_id').value = '';
-              document.getElementById('selectedPositionText').textContent = 'Select Position';
-              document.getElementById('selectedPositionText').classList.add('text-gray-500');
-            }
-            
-            // Check if there are any custom positions left
-            const customPositions = document.querySelectorAll('#positionOptions .group');
-            if (customPositions.length === 0) {
-              const divider = document.querySelector('#positionOptions .border-t');
-              if (divider) {
-                divider.remove();
-              }
-            }
-            
             hideDeletePositionModal();
             showAlert('Position deleted successfully!', 'success');
-            
-            // Refresh the page
+
+            // Hindi na tayo mag-try mag-manipulate ng DOM dito
+            // (minsan doon nagkaka-error), reload na lang
             setTimeout(() => {
               location.reload();
-            }, 1000);
+            }, 800);
           } else {
-            showAlert(data.message, 'error');
+            showAlert(data.message || 'Failed to delete the position.', 'error');
           }
         })
         .catch(error => {

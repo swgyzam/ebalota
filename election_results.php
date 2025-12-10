@@ -510,6 +510,10 @@ include 'voters_sidebar.php';
 
               $totalVotesForPosition = array_sum(array_column($candidates, 'vote_count'));
 
+              // Count how many candidates share the same vote_count (for tie detection)
+              $voteCounts          = array_map('intval', array_column($candidates, 'vote_count'));
+              $voteCountFrequency  = array_count_values($voteCounts);
+
               $firstCandidate = $candidates[0] ?? null;
               $positionKey    = $firstCandidate['position_key'] ?? $positionName;
               $typeInfo       = $positionTypes[$positionKey] ?? ['allow_multiple' => false, 'max_votes' => 1];
@@ -556,6 +560,12 @@ include 'voters_sidebar.php';
 
               <!-- Candidate List -->
               <div class="space-y-3">
+              <?php
+                // BEFORE the foreach loop, add:
+                $prevVoteCount = null;
+                $prevRank      = null;
+              ?>
+
               <?php foreach ($candidates as $index => $data): ?>
                 <?php
                   $candidateName  = $data['candidate_name'];
@@ -566,8 +576,18 @@ include 'voters_sidebar.php';
                       ? round(($votes / $totalVotesForPosition) * 100, 1)
                       : 0;
 
+                  // Tie-aware ranking: same votes = same rank
+                  if ($votes > 0 && $prevVoteCount === $votes) {
+                      $rank = $prevRank;          // same rank as previous
+                  } else {
+                      $rank     = $index + 1;     // new rank
+                      $prevRank = $rank;
+                  }
+                  $prevVoteCount = $votes;
+
+                  $isTie = ($votes > 0 && ($voteCountFrequency[$votes] ?? 0) > 1);
+
                   $isWinner = ($winnerVoteThreshold !== null && $votes >= $winnerVoteThreshold && $votes > 0);
-                  $rank     = $index + 1;
                 ?>
 
                 <article class="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 rounded-lg border transition-all
@@ -615,7 +635,7 @@ include 'voters_sidebar.php';
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                                     d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            Winner
+                            <?= $isTie ? 'Tie' : 'Winner' ?>
                           </span>
                         <?php endif; ?>
                       </div>
@@ -640,7 +660,6 @@ include 'voters_sidebar.php';
                           style="width: <?= $percentage ?>%"></div>
                     </div>
                   </div>
-
                 </article>
               <?php endforeach; ?>
               </div>

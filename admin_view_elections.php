@@ -95,6 +95,7 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
 <div class="flex min-h-screen">
 
 <?php include 'sidebar.php'; ?>
+<?php include 'admin_change_password_modal.php'; ?>
 
 <!-- Top Bar -->
 <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center px-6" style="background-color:rgb(25, 72, 49);"> 
@@ -201,10 +202,6 @@ unset($_SESSION['toast_message'], $_SESSION['toast_type']);
                 <h2 class="election-title text-lg font-bold text-[var(--cvsu-green-dark)] mb-2 line-clamp-2 break-words">
                   <?= htmlspecialchars($election['title']) ?>
                 </h2>
-                
-                <p class="election-description text-gray-700 text-sm mb-4 line-clamp-2">
-                  <?= nl2br(htmlspecialchars($election['description'] ?? '')) ?>
-                </p>
                 
                 <div class="space-y-2 text-sm">
                   <!-- Start -->

@@ -241,6 +241,7 @@ include 'voters_sidebar.php';
       flex-direction: column;
       border: 2px solid transparent;
       cursor: pointer;
+      position: relative;
     }
     
     .candidate-card:hover {
@@ -268,13 +269,6 @@ include 'voters_sidebar.php';
     .candidate-card.selected .radio-container {
       background-color: rgba(30, 111, 70, 0.1);
       border-top-color: var(--cvsu-green);
-    }
-    
-    .candidate-card input[type="radio"], 
-    .candidate-card input[type="checkbox"] {
-      margin: 0 auto;
-      display: block;
-      transform: scale(1.5);
     }
     
     .logo-container {
@@ -408,39 +402,11 @@ include 'voters_sidebar.php';
 
     /* Hide real radios — we will style fake indicators */
     .candidate-card input[type="radio"] {
-        display: none;
-    }
-
-    .fake-radio {
-        width: 24px;
-        height: 24px;
-        border: 3px solid #1E6F46;
-        border-radius: 50%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-
-    .fake-radio-inner {
-        width: 12px;
-        height: 12px;
-        background-color: #1E6F46;
-        border-radius: 50%;
-        display: none;
-    }
-
-    .candidate-card.selected .fake-radio-inner {
-        display: block;
-    }
-
-    /* Hide real radios, we'll draw our own */
-    .candidate-card input[type="radio"] {
       position: absolute;
       opacity: 0;
       pointer-events: none;
     }
 
-    /* Fake radio circle */
     .fake-radio {
       width: 24px;
       height: 24px;
@@ -451,7 +417,6 @@ include 'voters_sidebar.php';
       justify-content: center;
     }
 
-    /* Inner filled dot, shown only when selected */
     .fake-radio::after {
       content: "";
       width: 14px;
@@ -462,7 +427,6 @@ include 'voters_sidebar.php';
       transition: transform 0.15s ease-out;
     }
 
-    /* When card is selected, show the inner dot */
     .candidate-card.selected .fake-radio::after {
       transform: scale(1);
     }
@@ -665,7 +629,6 @@ include 'voters_sidebar.php';
                           
                           <div class="radio-container">
                             <?php if ($position['allow_multiple']): ?>
-                              <!-- Checkboxes unchanged -->
                               <input type="checkbox" 
                                     name="candidates[<?= htmlspecialchars($position['position_id']) ?>][]" 
                                     value="<?= htmlspecialchars($candidate['candidate_id']) ?>" 
@@ -674,15 +637,13 @@ include 'voters_sidebar.php';
                                     data-max-votes="<?= $position['max_votes'] ?>"
                                     aria-label="Vote for <?= htmlspecialchars($candidate['candidate_name']) ?>">
                             <?php else: ?>
-                              <!-- Hidden real radio -->
                               <input type="radio" 
                                     name="candidates[<?= htmlspecialchars($position['position_id']) ?>]" 
                                     value="<?= htmlspecialchars($candidate['candidate_id']) ?>" 
                                     id="candidate_<?= htmlspecialchars($candidate['candidate_id']) ?>"
                                     class="candidate-radio"
+                                    data-position="<?= htmlspecialchars($position['position_id']) ?>"
                                     aria-label="Vote for <?= htmlspecialchars($candidate['candidate_name']) ?>">
-
-                              <!-- Visible fake circle -->
                               <span class="fake-radio"></span>
                             <?php endif; ?>
                           </div>
@@ -710,7 +671,7 @@ include 'voters_sidebar.php';
       </form>
       
       <!-- Skipped / Abstain Positions Modal -->
-      <div id="skippedPositionsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal">
+      <div id="skippedPositionsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal modal-backdrop">
         <div class="bg-white rounded-2xl p-8 max-w-lg w-full mx-4 shadow-2xl modal-content">
           <div class="text-center">
             <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -739,7 +700,7 @@ include 'voters_sidebar.php';
       </div>
       
       <!-- Confirmation Modal -->
-      <div id="confirmationModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal">
+      <div id="confirmationModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal modal-backdrop">
         <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 shadow-2xl modal-content max-h-[80vh] overflow-y-auto">
           <div class="text-center">
             <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -772,51 +733,164 @@ include 'voters_sidebar.php';
   </div>
   
   <script>
+    // ===================== SIDEBAR TOGGLE =====================
     function toggleSidebar() {
       const sidebar = document.getElementById('votersSidebar');
+      if (!sidebar) return;
       sidebar.classList.toggle('open');
     }
-    
-    // Toggleable radios via card click (abstain supported)
+
+    // ===================== AUTOSAVE CONFIG =====================
+    const ELECTION_ID = <?= (int)$election_id ?>;
+    const DRAFT_KEY   = 'vote_draft_election_' + ELECTION_ID;
+    let voteDraft     = loadDraft();
+
+    function loadDraft() {
+      try {
+        const raw = localStorage.getItem(DRAFT_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        const normalized = {};
+        Object.keys(parsed).forEach(posId => {
+          const val = parsed[posId];
+          if (Array.isArray(val)) {
+            normalized[posId] = val.map(String);
+          } else if (val !== null && val !== undefined) {
+            normalized[posId] = [String(val)];
+          }
+        });
+        return normalized;
+      } catch (e) {
+        console.error('Failed to load draft', e);
+        return {};
+      }
+    }
+
+    function saveDraft() {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(voteDraft));
+      } catch (e) {
+        console.error('Failed to save draft', e);
+      }
+    }
+
+    function setRadioDraft(positionId, candidateIdOrNull) {
+      if (!candidateIdOrNull) {
+        delete voteDraft[positionId];
+      } else {
+        voteDraft[positionId] = [String(candidateIdOrNull)];
+      }
+      saveDraft();
+    }
+
+    function setCheckboxDraft(positionId, candidateId, checked) {
+      const pid = String(positionId);
+      const cid = String(candidateId);
+      let arr = voteDraft[pid] ? voteDraft[pid].slice() : [];
+
+      if (checked) {
+        if (!arr.includes(cid)) arr.push(cid);
+      } else {
+        arr = arr.filter(id => id !== cid);
+      }
+
+      if (arr.length === 0) {
+        delete voteDraft[pid];
+      } else {
+        voteDraft[pid] = arr;
+      }
+      saveDraft();
+    }
+
+    function applyDraftToUI() {
+      // Clear all selected classes
+      document.querySelectorAll('.candidate-card').forEach(card => {
+        card.classList.remove('selected');
+      });
+
+      // Radios
+      document.querySelectorAll('.candidate-card input[type="radio"]').forEach(radio => {
+        const positionId = radio.dataset.position || (radio.name.match(/\[(.*?)\]/) || [null, ''])[1];
+        const candidateId = radio.value;
+        const selected = voteDraft[positionId] && voteDraft[positionId].includes(String(candidateId));
+        radio.checked = !!selected;
+        if (selected) {
+          const card = radio.closest('.candidate-card');
+          if (card) card.classList.add('selected');
+        }
+      });
+
+      // Checkboxes + counters
+      const countersVisited = {};
+      document.querySelectorAll('.candidate-card input[type="checkbox"]').forEach(checkbox => {
+        const positionId = checkbox.dataset.position;
+        const candidateId = checkbox.value;
+        const selected = voteDraft[positionId] && voteDraft[positionId].includes(String(candidateId));
+        checkbox.checked = !!selected;
+
+        const card = checkbox.closest('.candidate-card');
+        if (card) {
+          if (selected) card.classList.add('selected');
+          else card.classList.remove('selected');
+        }
+
+        // Update counter for this position once
+        if (!countersVisited[positionId]) {
+          countersVisited[positionId] = true;
+          const counter = document.getElementById('counter-' + positionId);
+          if (counter) {
+            const maxVotes = parseInt(checkbox.dataset.maxVotes || '1', 10);
+            const selectedCount = (voteDraft[positionId] || []).length;
+            counter.textContent = selectedCount + ' / ' + maxVotes + ' selected';
+          }
+        }
+      });
+    }
+
+    // ===================== RADIO CARD CLICK HANDLER =====================
     document.querySelectorAll('.candidate-card').forEach(card => {
       const radio = card.querySelector('input[type="radio"]');
-      if (!radio) return; // skip checkbox-only cards
+      if (!radio) return; // skip if this is a checkbox card
 
       card.addEventListener('click', function (e) {
         // ignore clicks on credential links so they still open PDF
         if (e.target.closest('a')) return;
 
-        const positionId = radio.name.match(/\[(.*?)\]/)[1];
+        const positionIdMatch = radio.name.match(/\[(.*?)\]/);
+        const positionId = radio.dataset.position || (positionIdMatch ? positionIdMatch[1] : null);
         const alreadyChecked = radio.checked;
 
         if (alreadyChecked) {
-          // UNSELECT (abstain for this position)
+          // UNSELECT (abstain)
           radio.checked = false;
           card.classList.remove('selected');
+          setRadioDraft(positionId, null);
         } else {
-          // Clear other radios in same position
+          // Clear others in same position
           document.querySelectorAll(`input[name="candidates[${positionId}]"]`).forEach(r => {
             r.checked = false;
-            r.closest('.candidate-card').classList.remove('selected');
+            const rCard = r.closest('.candidate-card');
+            if (rCard) rCard.classList.remove('selected');
           });
 
           // Select this one
           radio.checked = true;
           card.classList.add('selected');
+          setRadioDraft(positionId, radio.value);
         }
 
-        // Prevent any native radio weirdness
         e.preventDefault();
         e.stopPropagation();
       });
     });
-        
-    // Checkbox selection styles + limits
+
+    // ===================== CHECKBOX HANDLER (MULTI-VOTE) =====================
     document.querySelectorAll('.candidate-card input[type="checkbox"]').forEach(checkbox => {
       checkbox.addEventListener('change', function() {
         const positionId   = this.dataset.position;
-        const maxVotes     = parseInt(this.dataset.maxVotes);
-        const checkedCount = document.querySelectorAll(`input[type="checkbox"][data-position="${positionId}"]:checked`).length;
+        const maxVotes     = parseInt(this.dataset.maxVotes || '1', 10);
+        const checkedBoxes = document.querySelectorAll(`input[type="checkbox"][data-position="${positionId}"]:checked`);
+        const checkedCount = checkedBoxes.length;
         
         const counter = document.getElementById(`counter-${positionId}`);
         if (counter) {
@@ -828,17 +902,28 @@ include 'voters_sidebar.php';
           alert(`You can only select up to ${maxVotes} candidates for this position`);
           const newCount = document.querySelectorAll(`input[type="checkbox"][data-position="${positionId}"]:checked`).length;
           if (counter) counter.textContent = `${newCount} / ${maxVotes} selected`;
+          setCheckboxDraft(positionId, this.value, false);
+          const card = this.closest('.candidate-card');
+          if (card) card.classList.remove('selected');
+          return;
         }
         
         if (this.checked) {
-          this.closest('.candidate-card').classList.add('selected');
+          const card = this.closest('.candidate-card');
+          if (card) card.classList.add('selected');
+          setCheckboxDraft(positionId, this.value, true);
         } else {
-          this.closest('.candidate-card').classList.remove('selected');
+          const card = this.closest('.candidate-card');
+          if (card) card.classList.remove('selected');
+          setCheckboxDraft(positionId, this.value, false);
         }
       });
     });
-    
-    // Gather which positions are voted / abstained
+
+    // Apply draft immediately on load
+    applyDraftToUI();
+
+    // ===================== ABSTAIN / CONFIRM HELPERS =====================
     function checkSkippedPositions() {
       const allPositions    = [];
       const votedPositions  = [];
@@ -846,7 +931,7 @@ include 'voters_sidebar.php';
       
       document.querySelectorAll('.position-section').forEach(section => {
         const positionHeader = section.querySelector('.position-header h3');
-        const positionName   = positionHeader.textContent.trim();
+        const positionName   = positionHeader ? positionHeader.textContent.trim() : '';
         const positionId     = section.dataset.positionId;
         
         allPositions.push({ id: positionId, name: positionName });
@@ -862,7 +947,6 @@ include 'voters_sidebar.php';
       return { all: allPositions, voted: votedPositions, skipped: skippedPositions };
     }
     
-    // Show abstain positions modal
     function showSkippedPositionsModal(skippedPositions) {
       const modal      = document.getElementById('skippedPositionsModal');
       const skippedList= document.getElementById('skippedPositionsList');
@@ -889,7 +973,6 @@ include 'voters_sidebar.php';
       modal.classList.remove('hidden');
     }
     
-    // Confirmation modal
     function showConfirmationModal(allPositions, votedPositions) {
       const modal            = document.getElementById('confirmationModal');
       const confirmationList = document.getElementById('confirmationList');
@@ -951,7 +1034,7 @@ include 'voters_sidebar.php';
       modal.classList.remove('hidden');
     }
     
-    // Submit handler
+    // ===================== FORM SUBMISSION FLOW =====================
     document.getElementById('votingForm').addEventListener('submit', function(e) {
       e.preventDefault();
       const positions = checkSkippedPositions();
@@ -977,7 +1060,8 @@ include 'voters_sidebar.php';
     });
     
     document.getElementById('confirmFromConfirmation').addEventListener('click', function() {
-      const formData = new FormData(document.getElementById('votingForm'));
+      const form = document.getElementById('votingForm');
+      const formData = new FormData(form);
       const votes = {};
       
       for (let [key, value] of formData.entries()) {
@@ -1006,14 +1090,20 @@ include 'voters_sidebar.php';
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          election_id: <?= $election_id ?>,
+          election_id: ELECTION_ID,
           votes: votes
         })
       })
       .then(response => response.json())
       .then(data => {
         if (data.status === 'success') {
-          window.location.href = 'vote_success.php?election_id=<?= $election_id ?>';
+          // Clear local draft AFTER successful server save
+          try {
+            localStorage.removeItem(DRAFT_KEY);
+          } catch (e) {
+            console.error('Failed to clear draft', e);
+          }
+          window.location.href = 'vote_success.php?election_id=' + ELECTION_ID;
         } else {
           alert(data.message || 'Error submitting your vote');
           submitBtn.disabled = false;

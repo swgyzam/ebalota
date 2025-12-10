@@ -218,26 +218,54 @@ function updateScopeFields() {
 }
 
 // Academic-Student Fields
-function getAcademicStudentFields() {
+// Academic-Faculty Fields
+function getAcademicFacultyFields() {
     return `
         <div>
-            <label class="block font-semibold">College Scope <span class="text-red-600">*</span></label>
-            <select name="college" id="collegeSelectModal" class="w-full p-2 border rounded" onchange="updateCourseOptions()">
+            <label class="block font-semibold">
+                College Scope <span class="text-red-600">*</span>
+            </label>
+            <select
+                name="faculty_college"
+                id="facultyCollegeSelectModal"
+                class="w-full p-2 border rounded"
+                onchange="updateFacultyDepartmentOptions()"
+            >
                 <option value="">Select College</option>
-    ` + Object.entries(colleges).map(([code, name]) =>
-        `<option value="${code}">${code} - ${name}</option>`
-    ).join('') + `
+                ${
+                    Object.entries(colleges).map(([code, name]) =>
+                        `<option value="${code}">${code} - ${name}</option>`
+                    ).join('')
+                }
             </select>
-            <p class="text-xs text-gray-500 mt-1">Required: choose a college.</p>
+            <p class="text-xs text-gray-500 mt-1">
+                Required: choose a college.
+            </p>
         </div>
-        <div id="coursesContainerModal" class="hidden mt-3">
-            <label class="block font-semibold">Course Scope <span class="text-red-600">*</span></label>
-            <div id="coursesListModal" class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border p-2 rounded text-sm">
-                <!-- Courses will be populated here -->
+
+        <div id="departmentsContainerModal" class="hidden mt-3">
+            <label class="block font-semibold">
+                Department Scope <span class="text-red-600">*</span>
+            </label>
+
+            <div
+                id="departmentsListModal"
+                class="max-h-40 overflow-y-auto border p-2 rounded text-sm space-y-1 text-left"
+            >
+            <!-- Departments will be populated here -->
             </div>
+
             <div class="mt-1 flex flex-col gap-1">
-                <button type="button" onclick="toggleAllCourses()" class="text-xs text-blue-600 hover:text-blue-800 text-left">Select All</button>
-                <p class="text-xs text-gray-500">Required: select at least one course or use Select All.</p>
+                <button
+                    type="button"
+                    onclick="toggleAllDepartments()"
+                    class="text-xs text-blue-600 hover:text-blue-800 text-left"
+                >
+                    Select All
+                </button>
+                <p class="text-xs text-gray-500">
+                    Required: select at least one department or use Select All.
+                </p>
             </div>
         </div>
     `;
@@ -476,9 +504,9 @@ function updateFacultyDepartmentOptions() {
 
     Object.entries(departments).forEach(([code, name]) => {
         departmentsList.innerHTML += `
-            <label class="flex items-center">
+            <label class="flex items-center justify-start space-x-2">
                 <input type="checkbox" name="departments[]" value="${code}" class="mr-1">
-                ${code} - ${name}
+                <span>${code} - ${name}</span>
             </label>
         `;
     });

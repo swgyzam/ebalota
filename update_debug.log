@@ -7086,3 +7086,487 @@ Array
 )
 
 Update successful for election 239
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-03 09:47:00
+    [:end_datetime] => 2025-12-03 09:48:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-03 09:49:00
+    [:end_datetime] => 2025-12-03 09:50:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-03 09:50:00
+    [:end_datetime] => 2025-12-03 09:51:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-03 09:51:00
+    [:end_datetime] => 2025-12-03 09:52:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-03 09:52:00
+    [:end_datetime] => 2025-12-03 09:53:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-03 09:54:00
+    [:end_datetime] => 2025-12-03 09:55:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => ELITS 2025
+    [:description] => ASAS
+    [:start_datetime] => 2025-12-03 20:30:00
+    [:end_datetime] => 2025-12-04 00:40:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Academic-Student
+    [:owner_scope_id] => 160
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSIT
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764338657_black_g.jpeg
+    [:assigned_admin_id] => 526
+    [:election_id] => 237
+)
+
+Update successful for election 237
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-03 22:24:00
+    [:end_datetime] => 2025-12-04 09:55:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => ELITS 2025
+    [:description] => ASAS
+    [:start_datetime] => 2025-12-03 22:55:00
+    [:end_datetime] => 2025-12-04 10:40:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Academic-Student
+    [:owner_scope_id] => 160
+    [:allowed_colleges] => CEIT
+    [:allowed_courses] => BSIT
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764773727_elits.jpg
+    [:assigned_admin_id] => 526
+    [:election_id] => 237
+)
+
+Update successful for election 237
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-03 23:41:00
+    [:end_datetime] => 2025-12-03 23:42:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-03 23:50:00
+    [:end_datetime] => 2025-12-03 23:52:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-04 02:06:00
+    [:end_datetime] => 2025-12-05 02:06:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-04 00:33:00
+    [:end_datetime] => 2025-12-05 02:06:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-04 07:58:00
+    [:end_datetime] => 2025-12-04 07:59:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => COOP ELEC
+    [:description] => re
+    [:start_datetime] => 2025-12-04 22:25:00
+    [:end_datetime] => 2025-12-06 11:11:00
+    [:target_position] => others
+    [:target_department] => Others
+    [:election_scope_type] => Others
+    [:owner_scope_id] => 159
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => All
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764858303_horford.jpeg
+    [:assigned_admin_id] => 521
+    [:election_id] => 241
+)
+
+Update successful for election 241
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-04 22:40:00
+    [:end_datetime] => 2025-12-05 07:59:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Academic-Student
+    [:owner_scope_id] => 160
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 526
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-04 22:40:00
+    [:end_datetime] => 2025-12-05 07:59:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-05 00:58:00
+    [:end_datetime] => 2025-12-05 00:59:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => CSG Election v2
+    [:description] => CSG Election v2 for A.Y. 2025 - 2026
+    [:start_datetime] => 2025-12-05 00:57:00
+    [:end_datetime] => 2025-12-05 00:58:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 149
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764695610_CSG.jpg
+    [:assigned_admin_id] => 495
+    [:election_id] => 242
+)
+
+Update successful for election 242
+Executing with params:
+Array
+(
+    [:title] => CSG Election 2025
+    [:description] => CSG ELECTION 2025
+    [:start_datetime] => 2025-12-05 02:40:00
+    [:end_datetime] => 2025-12-05 03:05:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 163
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764873365_CSG.jpg
+    [:assigned_admin_id] => 542
+    [:election_id] => 247
+)
+
+Update successful for election 247
+Executing with params:
+Array
+(
+    [:title] => CSG Election 2025
+    [:description] => CSG ELECTION 2025
+    [:start_datetime] => 2025-12-09 01:27:00
+    [:end_datetime] => 2025-12-09 11:00:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 163
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764873365_CSG.jpg
+    [:assigned_admin_id] => 544
+    [:election_id] => 247
+)
+
+Update successful for election 247
+Executing with params:
+Array
+(
+    [:title] => CSG Election 2025
+    [:description] => CSG ELECTION 2025
+    [:start_datetime] => 2025-12-09 16:20:00
+    [:end_datetime] => 2025-12-10 11:00:00
+    [:target_position] => student
+    [:target_department] => Students
+    [:election_scope_type] => Special-Scope
+    [:owner_scope_id] => 163
+    [:allowed_colleges] => All
+    [:allowed_courses] => 
+    [:allowed_status] => 
+    [:allowed_departments] => 
+    [:realtime_results] => 0
+    [:logo_path] => uploads/logos/1764873365_CSG.jpg
+    [:assigned_admin_id] => 544
+    [:election_id] => 247
+)
+
+Update successful for election 247

@@ -334,9 +334,9 @@ include 'sidebar.php';
       transform: translateY(-2px);
     }
     .candidate-card-highlight {
-      border: 2px solid #FFD700;
-      box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4);
-      background-color: #FFFBEB;
+      border: 2px solid var(--cvsu-green-light) !important;
+      box-shadow: 0 4px 15px rgba(30, 111, 70, 0.35) !important;
+      background-color: #ECFDF5 !important;
     }
     .live-indicator {
       animation: pulse 2s infinite;

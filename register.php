@@ -77,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $student_number  = '';
     $employee_number = '';
+    $year_level      = 0; // default, para hindi undefined sa non-student
 
     $department   = '';
     $department1  = null;
@@ -86,11 +87,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $final_position = '';
 
     if ($position === 'student') {
-        $department   = $_POST['studentDepartment'] ?? '';
-        $department1  = $_POST['studentDepartment1'] ?? '';
-        $course       = $_POST['studentCourse'] ?? '';
-        $student_number = trim($_POST['student_number'] ?? '');
-        $final_position = 'student';
+        // Basahin lahat ng student-specific fields
+        $year_level      = (int)($_POST['year_level'] ?? 0);
+        $department      = $_POST['studentDepartment']  ?? '';
+        $department1     = $_POST['studentDepartment1'] ?? '';
+        $course          = $_POST['studentCourse']      ?? '';
+        $student_number  = trim($_POST['student_number'] ?? '');
+        $final_position  = 'student';
 
     } elseif ($position === 'academic') {
         $department   = $_POST['academicCollege'] ?? '';
@@ -136,7 +139,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = "Employee number is required for academic and non-academic staff.";
     }
 
+    // Position-specific validation
     if ($position === 'student') {
+        if ($year_level < 1 || $year_level > 5) {
+            $errors[] = "Year level is required.";
+        }
         if ($department === '')  $errors[] = "College is required for students.";
         if ($department1 === '') $errors[] = "Department is required for students.";
         if ($course === '')      $errors[] = "Course is required for students.";
@@ -216,6 +223,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // --- STUDENT EXPIRY CALCULATION ---
+    $accountExpiresAt = null;
+
+    if ($position === 'student') {
+        $remainingYears = null;
+
+        if ($year_level >= 1 && $year_level <= 4) {
+            $remainingYears = 5 - $year_level; // 1→4, 2→3, 3→2, 4→1
+        } elseif ($year_level === 5) {
+            $remainingYears = 1; // 5th year = 1 year palugit
+        }
+
+        if ($remainingYears !== null) {
+            $accountExpiresAt = date('Y-m-d H:i:s', strtotime("+{$remainingYears} years"));
+        }
+    }
+
     // ---------- If no errors, insert + send email ----------
     if (empty($errors)) {
         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
@@ -225,9 +249,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $stmt = $pdo->prepare("
                 INSERT INTO pending_users 
-                    (first_name, last_name, email, position, department, department1, course, status, password, token, expires_at, is_coop_member, student_number, employee_number, source, is_restricted) 
+                    (
+                        first_name, 
+                        last_name, 
+                        email, 
+                        position, 
+                        department, 
+                        department1, 
+                        course, 
+                        status, 
+                        password, 
+                        token, 
+                        expires_at,
+                        account_expires_at,
+                        year_level_at_registration,
+                        is_coop_member, 
+                        student_number, 
+                        employee_number, 
+                        source, 
+                        is_restricted
+                    ) 
                 VALUES 
-                    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'normal', 0)
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'normal', 0)
             ");
 
             $stmt->execute([
@@ -241,11 +284,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $status,
                 $hashed_password,
                 $token,
-                $expiresAt,
+                $expiresAt,            // verification expiry (1 day)
+                $accountExpiresAt,     // our computed student expiry (4/3/2/1/1)
+                $year_level,           // save year level
                 $is_coop_member,
                 $student_number,
                 $employee_number
-            ]);
+            ]);            
 
             $verificationUrl = "http://localhost/ebalota/verify_email.php?token=$token";
 

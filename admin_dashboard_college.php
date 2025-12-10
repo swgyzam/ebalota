@@ -37,6 +37,9 @@ $assigned_scope   = $_SESSION['assigned_scope']   ?? ''; // college code (e.g., 
 $assigned_scope_1 = $_SESSION['assigned_scope_1'] ?? ''; // e.g., "Multiple: BSIT, BSCS"
 $scope_details    = $_SESSION['scope_details']    ?? [];
 $admin_status     = $_SESSION['admin_status']     ?? 'inactive';
+// --- Admin title (for header display) ---
+$admin_title = $_SESSION['admin_title'] ?? '';
+
 
 // --- Super admin impersonation via ?scope_id= ---
 $seat = null;
@@ -201,8 +204,13 @@ function normalize_course_code(string $raw): string {
     return $noSpace ?: 'UNSPECIFIED';
 }
 function getCanonicalCourseDisplay(string $raw, array $courseMap): string {
-    $code = normalize_course_code($raw);
-    return $courseMap[$code] ?? $code;
+  $code = normalize_course_code($raw);
+
+  if (isset($courseMap[$code])) {
+      return $courseMap[$code];      // kung may nakamap, gamitin nice name (e.g. "Bachelor of Science in ...")
+  }
+
+  return $raw !== '' ? $raw : $code; // fallback: raw text muna, last resort yung code
 }
 
 // ------------------------------------------------------------------
@@ -245,22 +253,16 @@ $currentYear       = (int) date('Y');
 $selectedYear      = isset($_GET['year']) && ctype_digit($_GET['year']) ? (int) $_GET['year'] : $currentYear;
 $currentMonthStart = date('Y-m-01');
 $currentMonthEnd   = date('Y-m-t');
-$lastMonthStart    = date('Y-m-01', strtotime('-1 month'));
-$lastMonthEnd      = date('Y-m-t', strtotime('-1 month'));
 
 // ------------------------------------------------------------------
-// 7. New / last month voters (scopedStudents)
+// 7. New voters this month (scopedStudents)
 // ------------------------------------------------------------------
 
-$newVoters       = 0;
-$lastMonthVoters = 0;
+$newVoters = 0;
 foreach ($scopedStudents as $s) {
     $createdDate = substr($s['created_at'] ?? '', 0, 10);
     if ($createdDate >= $currentMonthStart && $createdDate <= $currentMonthEnd) {
         $newVoters++;
-    }
-    if ($createdDate >= $lastMonthStart && $createdDate <= $lastMonthEnd) {
-        $lastMonthVoters++;
     }
 }
 
@@ -283,18 +285,28 @@ $votersByDepartment = array_map(
 );
 usort($votersByDepartment, fn($a, $b) => $b['count'] <=> $a['count']);
 
-$tempCourseCounts = [];
+$courseCounts = [];
 foreach ($scopedStudents as $s) {
-    $code = normalize_course_code($s['course'] ?? '');
-    if (!isset($tempCourseCounts[$code])) {
-        $tempCourseCounts[$code] = 0;
+    // Gamitin yung raw na course name para human-readable (e.g. "BS Information Technology")
+    $label = trim($s['course'] ?? '');
+    if ($label === '') {
+        $label = 'Unspecified';
     }
-    $tempCourseCounts[$code]++;
+
+    if (!isset($courseCounts[$label])) {
+        $courseCounts[$label] = 0;
+    }
+    $courseCounts[$label]++;
 }
+
 $votersByCourse = [];
-foreach ($tempCourseCounts as $code => $count) {
-    $votersByCourse[] = ['course' => $code, 'count' => $count];
+foreach ($courseCounts as $label => $count) {
+    $votersByCourse[] = [
+        'course' => $label,   // ito na ang gagamitin sa chart labels
+        'count'  => $count,
+    ];
 }
+
 usort($votersByCourse, fn($a, $b) => $b['count'] <=> $a['count']);
 
 // ------------------------------------------------------------------
@@ -312,10 +324,6 @@ $byStatus = [];
 foreach ($statusCounts as $status => $count) {
     $byStatus[] = ['status' => $status, 'count' => $count];
 }
-
-$growthRate = ($lastMonthVoters > 0)
-    ? round((($newVoters - $lastMonthVoters) / $lastMonthVoters) * 100, 1)
-    : 0.0;
 
 // ------------------------------------------------------------------
 // 10. Turnout by year via analytics_scopes
@@ -785,6 +793,7 @@ A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
       include 'sidebar.php';
   }
   ?>
+  <?php include 'admin_change_password_modal.php'; ?>
 
   <header class="w-full fixed top-0 left-64 h-16 shadow z-10 flex items-center justify-between px-6" style="background-color:var(--cvsu-green-dark);">
     <!-- Left side: title + scope line (+ optional View As) -->
@@ -874,7 +883,7 @@ A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
       </div>
 
       <!-- Small summary cards -->
-      <div class="p-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <!-- New this month -->
         <div class="p-4 rounded-lg border" style="background-color: rgba(30,111,70,0.05); border-color: var(--cvsu-green-light);">
           <div class="flex items-center">
@@ -912,27 +921,6 @@ A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             <div>
               <p class="text-sm text-purple-600">Courses</p>
               <p class="text-2xl font-bold text-purple-800"><?= count($votersByCourse) ?></p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Growth Rate -->
-        <div class="p-4 rounded-lg border" style="background-color: rgba(245,158,11,0.05); border-color: var(--cvsu-yellow);">
-          <div class="flex items-center">
-            <div class="p-3 rounded-lg mr-4" style="background-color: var(--cvsu-yellow);">
-              <i class="fas fa-chart-line text-white text-xl"></i>
-            </div>
-            <div>
-              <p class="text-sm" style="color: var(--cvsu-yellow);">Growth Rate</p>
-              <p class="text-2xl font-bold" style="color: #D97706;">
-                <?php
-                  if ($lastMonthVoters > 0) {
-                      echo ($growthRate > 0 ? '+' : '') . $growthRate . '%';
-                  } else {
-                      echo '0%';
-                  }
-                ?>
-              </p>
             </div>
           </div>
         </div>

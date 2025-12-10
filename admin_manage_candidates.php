@@ -170,6 +170,10 @@ if (!empty($filterPosition) && in_array($filterPosition, $positions)) {
  $countStmt->execute($countParams);
  $totalCandidates = $countStmt->fetch()['total'];
  $totalPages = ceil($totalCandidates / $limit);
+
+ $successMsg = $_GET['success'] ?? null;
+ $errorMsg   = $_GET['error']   ?? null;
+
 ?>
 
 <!DOCTYPE html>
@@ -212,6 +216,8 @@ if (!empty($filterPosition) && in_array($filterPosition, $positions)) {
 <div class="flex min-h-screen">
   <!-- Sidebar -->
   <?php include 'sidebar.php'; ?>
+  <?php include 'admin_change_password_modal.php'; ?>
+
 
   <main class="flex-1 p-8 ml-64">
     <header class="bg-[var(--cvsu-green-dark)] text-white p-6 flex justify-between items-center shadow-md rounded-md mb-8">
@@ -220,6 +226,19 @@ if (!empty($filterPosition) && in_array($filterPosition, $positions)) {
         <a href="add_candidate.php" class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded font-semibold transition">Add Candidate</a>
       </div>
     </header>
+    <?php if ($successMsg): ?>
+      <div class="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded flex items-center gap-2">
+        <i class="fas fa-check-circle"></i>
+        <span><?= htmlspecialchars($successMsg) ?></span>
+      </div>
+    <?php endif; ?>
+
+    <?php if ($errorMsg): ?>
+      <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded flex items-center gap-2">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span><?= htmlspecialchars($errorMsg) ?></span>
+      </div>
+    <?php endif; ?>
 
     <!-- Filters -->
     <div class="mb-4 flex flex-wrap gap-4 items-center bg-white p-4 rounded shadow">

@@ -39,10 +39,12 @@ $stmt = $pdo->prepare("
         u.email,
         u.role,
         u.is_verified,
+        u.admin_title,
         u.assigned_scope,
         u.scope_category,
         u.assigned_scope_1,
         u.admin_status,
+        u.profile_picture,
         ascope.scope_details,
         ascope.scope_id AS owner_scope_id
     FROM admin_login_tokens alt
@@ -80,6 +82,10 @@ $_SESSION['role']         = 'admin';
 $_SESSION['is_verified']  = (bool)$user['is_verified']; // Ensure boolean value
 $_SESSION['CREATED']      = time();
 $_SESSION['LAST_ACTIVITY']= time();
+$_SESSION['profile_picture'] = $user['profile_picture'] ?? null;
+$_SESSION['admin_title'] = $user['admin_title'] 
+    ?? ($_SESSION['pending_admin_title'] ?? null);
+
 
 // Scope-related session variables
 $_SESSION['scope_category']   = $user['scope_category']   ?? '';
@@ -93,12 +99,39 @@ $_SESSION['admin_status']     = $user['admin_status']     ?? 'inactive';
 // ✅ New: store owner_scope_id for this admin (important for Others + scoping)
 $_SESSION['owner_scope_id'] = $user['owner_scope_id'] ?? null;
 
+// --- Activity Log: Admin login via email verification ---
+try {
+  $logStmt = $pdo->prepare("
+      INSERT INTO activity_logs (user_id, action, timestamp)
+      VALUES (:uid, :action, NOW())
+  ");
+  $logStmt->execute([
+      ':uid'    => $user['user_id'],
+      ':action' => 'Admin logged in',
+  ]);
+} catch (PDOException $e) {
+  // Huwag i-echo sa user; log lang sa error log
+  error_log('Activity log error (admin_verify_token.php): ' . $e->getMessage());
+}
+
+
 // If user isn't verified in DB, update them
 if (!$user['is_verified']) {
     $pdo->prepare("UPDATE users SET is_verified = 1 WHERE user_id = ?")
         ->execute([$user['user_id']]);
     $_SESSION['is_verified'] = true;
 }
+
+unset(
+  $_SESSION['pending_admin_auth'],
+  $_SESSION['pending_auth_role'],
+  $_SESSION['pending_admin_title'],
+  $_SESSION['pending_scope_category'],
+  $_SESSION['pending_assigned_scope'],
+  $_SESSION['pending_assigned_scope_1'],
+  $_SESSION['pending_scope_details'],
+  $_SESSION['pending_admin_status']
+);
 
 // Helper function to format scope details for debugging
 function formatScopeDetailsForDebug($scope_type, $scope_details) {

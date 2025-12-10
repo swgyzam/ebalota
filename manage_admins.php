@@ -606,6 +606,15 @@ function summarizeAssignedScopeShort(array $admin): string {
 <body class="bg-white font-sans text-gray-900">
   <div class="flex min-h-screen">
     <?php include 'super_admin_sidebar.php'; ?>
+    <?php
+    $role = $_SESSION['role'] ?? '';
+    if ($role === 'super_admin') {
+        include 'super_admin_change_password_modal.php';
+    } else {
+        include 'admin_change_password_modal.php';
+    }
+    ?>
+
     <main class="flex-1 p-4 md:p-6 lg:p-8 ml-64 admin-container">
       <!-- Header -->
       <header class="gradient-bg text-white p-4 md:p-6 flex flex-col md:flex-row justify-between items-center shadow-xl rounded-xl mb-6 md:mb-8">
@@ -846,104 +855,131 @@ function summarizeAssignedScopeShort(array $admin): string {
             <?php else: ?>
               <?php foreach ($admins as $admin): ?>
                 <?php
-                  $firstName   = htmlspecialchars($admin['first_name'] ?? '');
-                  $lastName    = htmlspecialchars($admin['last_name']  ?? '');
-                  $email       = htmlspecialchars($admin['email']      ?? '');
-                  $adminTitle  = htmlspecialchars($admin['admin_title'] ?? 'Administrator');
-                  $status      = htmlspecialchars($admin['admin_status'] ?? 'inactive');
-                  $statusClass = 'status-inactive';
-                  if ($status === 'active')        $statusClass = 'status-active';
-                  elseif ($status === 'suspended') $statusClass = 'status-suspended';
+                    $firstName   = htmlspecialchars($admin['first_name'] ?? '');
+                    $lastName    = htmlspecialchars($admin['last_name']  ?? '');
+                    $email       = htmlspecialchars($admin['email']      ?? '');
+                    $adminTitle  = htmlspecialchars($admin['admin_title'] ?? 'Administrator');
+                    $status      = htmlspecialchars($admin['admin_status'] ?? 'inactive');
+                    $statusClass = 'status-inactive';
+                    if ($status === 'active')        $statusClass = 'status-active';
+                    elseif ($status === 'suspended') $statusClass = 'status-suspended';
 
-                  $scopeLabel   = 'No Scope';
-                  $scopeSummary = 'No specific scope assigned';
-                  if (!empty($admin['scope_category'])) {
-                      $scopeLabel   = htmlspecialchars(getScopeCategoryLabel($admin['scope_category']));
-                      $scopeSummary = htmlspecialchars(summarizeAssignedScopeShort($admin));
-                  } elseif (!empty($admin['assigned_scope'])) {
-                      $scopeLabel = htmlspecialchars($admin['assigned_scope']);
-                  }
+                    $scopeLabel   = 'No Scope';
+                    $scopeSummary = 'No specific scope assigned';
+                    if (!empty($admin['scope_category'])) {
+                        $scopeLabel   = htmlspecialchars(getScopeCategoryLabel($admin['scope_category']));
+                        $scopeSummary = htmlspecialchars(summarizeAssignedScopeShort($admin));
+                    } elseif (!empty($admin['assigned_scope'])) {
+                        $scopeLabel = htmlspecialchars($admin['assigned_scope']);
+                    }
 
-                  // Determine if this row should show "Inherit Scope" instead of "Activate"
-                                    // Determine if this row should show "Inherit Scope" instead of "Activate"
-                  $showInherit = false;
+                    // Determine if this row should show "Inherit Scope" instead of "Activate"
+                    $showInherit = false;
 
-                  if (!empty($filterScope) && $status === 'inactive' && !empty($admin['scope_category'])) {
+                    if (!empty($filterScope) && $status === 'inactive' && !empty($admin['scope_category'])) {
 
-                      // Special seat-based logic for Non-Academic-Student & Others
-                      if (in_array($admin['scope_category'], ['Non-Academic-Student','Others'], true)) {
+                        // Special seat-based logic for Non-Academic-Student & Others
+                        if (in_array($admin['scope_category'], ['Non-Academic-Student','Others'], true)) {
 
-                          $seatCategory = $admin['scope_category']   ?? '';
-                          $seatScope    = $admin['assigned_scope']   ?? '';
-                          $seatScope1   = $admin['assigned_scope_1'] ?? '';
-                          $seatTitle    = trim($admin['admin_title'] ?? '');
+                            $seatCategory = $admin['scope_category']   ?? '';
+                            $seatScope    = $admin['assigned_scope']   ?? '';
+                            $seatScope1   = $admin['assigned_scope_1'] ?? '';
+                            $seatTitle    = trim($admin['admin_title'] ?? '');
 
-                          // Collect all admins that belong to the same seat
-                          $seatAdmins = array_filter($admins, function ($other) use ($admin, $seatCategory, $seatScope, $seatScope1, $seatTitle) {
-                              if (($other['scope_category']   ?? '') !== $seatCategory) return false;
-                              if (($other['assigned_scope']    ?? '') !== $seatScope)   return false;
-                              if (($other['assigned_scope_1']  ?? '') !== $seatScope1)  return false;
-                              if (trim($other['admin_title']   ?? '') !== $seatTitle)   return false;
-                              return true;
-                          });
+                            // Collect all admins that belong to the same seat
+                            $seatAdmins = array_filter($admins, function ($other) use ($admin, $seatCategory, $seatScope, $seatScope1, $seatTitle) {
+                                if (($other['scope_category']   ?? '') !== $seatCategory) return false;
+                                if (($other['assigned_scope']    ?? '') !== $seatScope)   return false;
+                                if (($other['assigned_scope_1']  ?? '') !== $seatScope1)  return false;
+                                if (trim($other['admin_title']   ?? '') !== $seatTitle)   return false;
+                                return true;
+                            });
 
-                          $hasActive        = false;
-                          $hasOlderInactive = false;
-                          $maxId            = 0;
-                          $currentId        = (int)$admin['user_id'];
+                            $hasActive        = false;
+                            $hasOlderInactive = false;
+                            $maxId            = 0;
+                            $currentId        = (int)$admin['user_id'];
 
-                          foreach ($seatAdmins as $sa) {
-                              $uid    = (int)$sa['user_id'];
-                              $status = $sa['admin_status'] ?? '';
+                            foreach ($seatAdmins as $sa) {
+                                $uid    = (int)$sa['user_id'];
+                                $st     = $sa['admin_status'] ?? '';
 
-                              if ($uid > $maxId) {
-                                  $maxId = $uid; // track newest admin in this seat
-                              }
-                              if ($uid !== $currentId && $status === 'active') {
-                                  $hasActive = true;
-                              }
-                              if ($uid < $currentId && $status === 'inactive') {
-                                  $hasOlderInactive = true; // may isang mas luma na inactive sa seat
-                              }
-                          }
+                                if ($uid > $maxId) {
+                                    $maxId = $uid; // track newest admin in this seat
+                                }
+                                if ($uid !== $currentId && $st === 'active') {
+                                    $hasActive = true;
+                                }
+                                if ($uid < $currentId && $st === 'inactive') {
+                                    $hasOlderInactive = true; // may isang mas luma na inactive sa seat
+                                }
+                            }
 
-                          // Show Inherit only if:
-                          //  - Walang active admin sa seat (vacant na yung upuan)
-                          //  - Itong admin ang pinakabagong admin sa seat (max user_id)
-                          //  - May at least isang mas luma na inactive admin sa seat (source to inherit from)
-                          if (!$hasActive && $currentId === $maxId && $hasOlderInactive) {
-                              $showInherit = true;
-                          }
+                            // Show Inherit only if:
+                            //  - Walang active admin sa seat (vacant na yung upuan)
+                            //  - Itong admin ang pinakabagong admin sa seat (max user_id)
+                            //  - May at least isang mas luma na inactive admin sa seat (source to inherit from)
+                            if (!$hasActive && $currentId === $maxId && $hasOlderInactive) {
+                                $showInherit = true;
+                            }
 
-                      } else {
-                          // Existing generic behavior for other scope categories
-                          foreach ($admins as $other) {
-                              if ($other['user_id'] == $admin['user_id']) continue;
-                              if (
-                                  ($other['scope_category']   ?? '') === ($admin['scope_category']   ?? '') &&
-                                  ($other['assigned_scope']    ?? '') === ($admin['assigned_scope']    ?? '') &&
-                                  ($other['assigned_scope_1']  ?? '') === ($admin['assigned_scope_1']  ?? '') &&
-                                  ($other['admin_status']      ?? '') === 'inactive' &&
-                                  (int)$other['user_id']       < (int)$admin['user_id']
-                              ) {
-                                  $showInherit = true;
-                                  break;
-                              }
-                          }
-                      }
-                  }
+                        } else {
+                            // Existing generic behavior for other scope categories
+                            foreach ($admins as $other) {
+                                if ($other['user_id'] == $admin['user_id']) continue;
+                                if (
+                                    ($other['scope_category']   ?? '') === ($admin['scope_category']   ?? '') &&
+                                    ($other['assigned_scope']    ?? '') === ($admin['assigned_scope']    ?? '') &&
+                                    ($other['assigned_scope_1']  ?? '') === ($admin['assigned_scope_1']  ?? '') &&
+                                    ($other['admin_status']      ?? '') === 'inactive' &&
+                                    (int)$other['user_id']       < (int)$admin['user_id']
+                                ) {
+                                    $showInherit = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
 
-                  $isAllCategories = empty($filterScope);
+                    $isAllCategories = empty($filterScope);
+
+                    // ✅ NEW: Build profile picture path with cache-busting
+                    if (!empty($admin['profile_picture'])) {
+                        $fileName = $admin['profile_picture'];
+                        $absPath  = __DIR__ . '/uploads/profile_pictures/' . $fileName;
+                        $version  = is_file($absPath) ? filemtime($absPath) : time();
+
+                        // ?v=timestamp para laging fresh kahit same filename
+                        $pic = 'uploads/profile_pictures/' . $fileName . '?v=' . $version;
+                    } else {
+                        $pic = null;
+                    }
+
+                    // Initials fallback
+                    $initials = strtoupper(
+                        ($admin['first_name'][0] ?? 'A') .
+                        ($admin['last_name'][0]  ?? '')
+                    );
                 ?>
                 <tr>
                   <td class="px-4 md:px-6 py-4 whitespace-nowrap">
                     <div class="admin-info">
                       <div class="admin-avatar">
-                        <div class="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
-                          <span class="text-green-800 font-semibold">
-                            <?= strtoupper(htmlspecialchars(substr($admin['first_name'],0,1) . substr($admin['last_name'],0,1))) ?>
-                          </span>
-                        </div>
+                          <?php if ($pic): ?>
+                              <!-- If admin has profile picture -->
+                              <img
+                                  src="<?= htmlspecialchars($pic) ?>"
+                                  alt="Avatar"
+                                  class="h-10 w-10 rounded-full object-cover border border-gray-300 shadow-sm"
+                              >
+                          <?php else: ?>
+                              <!-- Fallback initials -->
+                              <div class="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                                  <span class="text-green-800 font-semibold">
+                                      <?= htmlspecialchars($initials) ?>
+                                  </span>
+                              </div>
+                          <?php endif; ?>
                       </div>
                       <div class="admin-details">
                         <div class="text-sm font-medium text-gray-900"><?= $firstName . ' ' . $lastName ?></div>

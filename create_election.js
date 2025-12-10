@@ -129,6 +129,23 @@ document.addEventListener('DOMContentLoaded', function() {
   const academicDepartmentsContainer   = document.getElementById('academicDepartmentsContainer');
   const academicDepartmentsList        = document.getElementById('academicDepartmentsList');
 
+  const adminSelect = document.getElementById('create_assigned_admin_id');
+
+  // Logo preview elements
+  const logoInput       = document.getElementById('create_election_logo');
+  const logoPreview     = document.getElementById('create_logo_preview');
+  const logoPlaceholder = document.getElementById('create_logo_placeholder');
+
+  function resetLogoPreview() {
+    if (logoPreview) {
+      logoPreview.src = '';
+      logoPreview.classList.add('hidden');
+    }
+    if (logoPlaceholder) {
+      logoPlaceholder.classList.remove('hidden');
+    }
+  }
+
   function hideAllFields() {
     if (studentFields)     studentFields.classList.add('hidden');
     if (academicFields)    academicFields.classList.add('hidden');
@@ -139,7 +156,44 @@ document.addEventListener('DOMContentLoaded', function() {
     if (othersNote) othersNote.classList.add('hidden');
   }
 
-  // Target voter change → show relevant fields + Others note
+  // === Filter admins shown in Assign Admin based on target voter ===
+  function filterAdminsByTarget(target) {
+    if (!adminSelect) return;
+
+    const map = {
+      student:      ['Academic-Student', 'Special-Scope'],
+      academic:     ['Academic-Faculty'],
+      non_academic:['Non-Academic-Employee'],
+      others:       ['Others']
+    };
+
+    const allowedScopes = map[target] || null;
+
+    Array.from(adminSelect.options).forEach((opt, idx) => {
+      if (idx === 0) {
+        opt.disabled = false;
+        opt.hidden   = false;
+        return;
+      }
+      const scope = opt.dataset.scope || '';
+      if (!allowedScopes) {
+        opt.disabled = false;
+        opt.hidden   = false;
+      } else {
+        const ok = allowedScopes.includes(scope);
+        opt.disabled = !ok;
+        opt.hidden   = !ok;
+      }
+    });
+
+    // clear invalid selection
+    if (adminSelect.selectedOptions.length &&
+        adminSelect.selectedOptions[0].hidden) {
+      adminSelect.value = '';
+    }
+  }
+
+  // Target voter change → show relevant fields + Others note + filter admins
   targetRadios.forEach(radio => {
     radio.addEventListener('change', e => {
       hideAllFields();
@@ -153,9 +207,10 @@ document.addEventListener('DOMContentLoaded', function() {
       } else if (val === 'non_academic') {
         if (nonAcademicFields) nonAcademicFields.classList.remove('hidden');
       } else if (val === 'others') {
-        // Others: no extra fields, just the note
         if (othersNote) othersNote.classList.remove('hidden');
       }
+
+      filterAdminsByTarget(val);
     });
   });
 
@@ -173,6 +228,10 @@ document.addEventListener('DOMContentLoaded', function() {
       if (studentCoursesList) studentCoursesList.innerHTML = '';
       if (academicDepartmentsContainer) academicDepartmentsContainer.classList.add('hidden');
       if (academicDepartmentsList) academicDepartmentsList.innerHTML = '';
+
+      resetLogoPreview();
+      filterAdminsByTarget(null);
+
       modal.classList.remove('hidden');
     });
   }
@@ -180,6 +239,21 @@ document.addEventListener('DOMContentLoaded', function() {
     closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
     window.addEventListener('click', e => {
       if (e.target === modal) modal.classList.add('hidden');
+    });
+  }
+
+  // Logo preview change
+  if (logoInput && logoPreview) {
+    logoInput.addEventListener('change', () => {
+      const file = logoInput.files && logoInput.files[0];
+      if (!file) {
+        resetLogoPreview();
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      logoPreview.src = url;
+      logoPreview.classList.remove('hidden');
+      if (logoPlaceholder) logoPlaceholder.classList.add('hidden');
     });
   }
 
@@ -198,6 +272,8 @@ document.addEventListener('DOMContentLoaded', function() {
         createError.textContent = '';
       }
       document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
+      resetLogoPreview();
+      filterAdminsByTarget(null);
     });
   }
 
@@ -286,4 +362,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   }
+
+  // initial admin filter (no target chosen yet)
+  filterAdminsByTarget(null);
 });
